@@ -6,6 +6,14 @@ HeliX wraps inference calls with a tamper-evident MerkleDAG, active external mem
 
 ---
 
+## How it works
+
+→ **[The API Polygraph: How HeliX catches cloud providers lying with immutable math](docs/provider-polygraph.md)**
+
+Deep dive: MerkleDAG cryptographic structure, SHA-256 digest chains, DAG branching, forgery detection, and the real substitution incident that exposed it all.
+
+---
+
 ## Three hard claims
 
 All claims are backed by preregistered tests and artifacts in `evidence/`. Run the corresponding test to reproduce.

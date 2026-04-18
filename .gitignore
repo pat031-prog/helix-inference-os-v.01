@@ -100,8 +100,13 @@ tools/__pycache__/
 
 # ─── Archivos sueltos que no pertenecen al repo público ──────────────────────
 docs/mail-to*.md
+docs/launch-post.md
 tools/demo-doc-dirty.txt
 tools/demo_cognitive_gc.py
+tools/_test_hmem_exclusion.py
+tools/run_world_shaker_evidence_secure.ps1
+tests/test_emergent_behavior_postmortem.py
+tests/test_world_shaker.py
 
 # ─── Demos con framing de consciencia/metáfora (carril 031Δ) ─────────────────
 tools/*ouroboros*

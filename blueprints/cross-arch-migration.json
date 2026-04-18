@@ -1,0 +1,107 @@
+{
+  "schema_version": 1,
+  "id": "cross-arch-migration",
+  "title": "HeliX Cross-Architecture Semantic Migration",
+  "description": "Live migration proof: a Transformer (Qwen-1.5B) hits context pressure, HeliX serializes its semantic state to hmem, and a Mamba-hybrid (Zamba2-1.2B) picks up the baton. A final Qwen restore verifies continuity.",
+  "models": {
+    "transformer-model": {
+      "model_id": "qwen-1.5b",
+      "alias": "qwen-1.5b",
+      "ref": "Qwen/Qwen2.5-1.5B-Instruct",
+      "arch": "transformer",
+      "arch_family": "decoder-only-transformer",
+      "kv_layers": 28,
+      "ssm_layers": 0,
+      "total_layers": 28,
+      "arch_pressure_threshold_tokens": 400,
+      "capabilities": ["reasoning", "analysis", "verification"],
+      "fallback": "gpt2-fast",
+      "load_time_estimate_ms": 6000
+    },
+    "mamba-model": {
+      "model_id": "zamba2-1.2b",
+      "alias": "zamba2-1.2b",
+      "ref": "Zyphra/Zamba2-1.2B-Instruct-v2",
+      "arch": "mamba-hybrid",
+      "arch_family": "hybrid-ssm-attention",
+      "kv_layers": 16,
+      "ssm_layers": 38,
+      "total_layers": 54,
+      "arch_pressure_threshold_tokens": null,
+      "capabilities": ["long-context", "continuation", "synthesis"],
+      "fallback": "gpt2-fast",
+      "load_time_estimate_ms": 5000,
+      "trust_remote_code": true
+    }
+  },
+  "agents": {
+    "transformer-analyst": {
+      "model": "transformer-model",
+      "role": "Transformer architecture analyst — builds initial context until memory pressure triggers migration",
+      "memory_mode": "search"
+    },
+    "mamba-continuist": {
+      "model": "mamba-model",
+      "role": "Mamba-hybrid continuist — receives semantic bridge from hmem and continues where Transformer left off",
+      "memory_mode": "search"
+    }
+  },
+  "tasks": [
+    {
+      "task_id": "context-build",
+      "agent": "transformer-analyst",
+      "slot": "transformer_output",
+      "capability": "analysis",
+      "prompt": "Provide a deep technical analysis of the HeliX Inference OS architecture. Cover: (1) the four-layer stack and why each layer is architecturally necessary, (2) why KV-cache is architecture-specific and cannot be shared across model families, (3) how hmem bridges the semantic gap between model instances, (4) the scheduler's role in lifecycle management. Be precise and exhaustive. Do not truncate.",
+      "expects_restore": false,
+      "migration_check": true
+    },
+    {
+      "task_id": "semantic-bridge",
+      "agent": "transformer-analyst",
+      "slot": "semantic_bridge",
+      "capability": "analysis",
+      "type": "scheduler-bridge",
+      "prompt": "Scheduler extracts key technical concepts from the Transformer output and writes a structured migration packet to hmem. No model generation — this is a deterministic OS operation.",
+      "expects_restore": false
+    },
+    {
+      "task_id": "mamba-continuation",
+      "agent": "mamba-continuist",
+      "slot": "mamba_output",
+      "capability": "long-context",
+      "prompt": "You are a Mamba-hybrid model taking over from a Transformer that hit its context limit. The Transformer session's semantic state has been migrated to your context via the HeliX hmem bridge. Continue the technical analysis where it left off. Focus on what a Mamba architecture uniquely enables: longer effective context, zero KV budget on SSM layers, and recurrent state efficiency. Demonstrate architectural continuity.",
+      "expects_restore": false,
+      "receives_migration_bridge": true
+    },
+    {
+      "task_id": "migration-proof",
+      "agent": "transformer-analyst",
+      "slot": "continuity_certificate",
+      "capability": "verification",
+      "prompt": "Restore your session state. Read the Mamba continuation from memory. Verify that the key technical concepts you established in your initial analysis survived the cross-architecture migration. Issue a continuity certificate: list which concepts were preserved, which were absent, and confirm whether the migration maintained semantic fidelity.",
+      "expects_restore": true,
+      "is_migration_verifier": true
+    }
+  ],
+  "memory_policy": {
+    "project": "helix-cross-arch-migration",
+    "budget_tokens": 1200,
+    "mode": "search"
+  },
+  "session_policy": {
+    "codec": "rust-hlx-buffered-flat",
+    "audit_policy": "deferred",
+    "verify_policy": "receipt-only"
+  },
+  "migration_policy": {
+    "pressure_trigger": "token_budget",
+    "bridge_tags": ["migration-bridge", "semantic-packet", "cross-arch"],
+    "bridge_importance": 10,
+    "min_concepts_for_valid_migration": 3
+  },
+  "outputs": {
+    "artifact": "local-blueprint-cross-arch-migration-demo.json",
+    "site": "cross-arch-migration-demo.html"
+  }
+}

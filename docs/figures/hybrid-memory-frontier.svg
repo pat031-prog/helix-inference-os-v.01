@@ -1,0 +1,46 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1120" height="620" viewBox="0 0 1120 620" role="img" aria-labelledby="title desc">
+<title id="title">Helix unified hybrid-memory frontier summary</title>
+<desc id="desc">Transformer GPU KV ratios and hybrid Zamba2 local runtime-cache ratios extracted from verification JSON artifacts.</desc>
+<rect width="1120" height="620" fill="#f7f5ef" />
+<rect x="28" y="24" width="1064" height="572" rx="28" fill="#fffdf8" stroke="#d7d0bf" stroke-width="2" />
+<text x="56" y="72" font-size="28" font-weight="700" fill="#152238">Helix Memory Frontier Snapshot</text>
+<text x="56" y="100" font-size="15" fill="#50627a">Pure Transformers are still KV-bound; hybrid Zamba2 shifts the bottleneck to recurrent state.</text>
+<text x="70" y="138" font-size="18" font-weight="700" fill="#1d3552">Transformer GPU: verified KV ratios</text>
+<text x="610" y="138" font-size="18" font-weight="700" fill="#1d3552">Hybrid Zamba2 local: total runtime-cache ratios</text>
+<line x1="50.0" y1="380.0" x2="540" y2="380.0" stroke="#d7d0bf" stroke-width="2" />
+<line x1="590.0" y1="380.0" x2="1044" y2="380.0" stroke="#d7d0bf" stroke-width="2" />
+<rect x="70.0" y="214.6" width="42.0" height="165.4" rx="10" fill="#2f6fed" />
+<text x="91.0" y="206.6" text-anchor="middle" font-size="13" fill="#132238">1.96x</text>
+<text x="91.0" y="400.0" text-anchor="middle" font-size="12" fill="#29405c">int8</text>
+<rect x="130.0" y="160.0" width="42.0" height="220.0" rx="10" fill="#e7903c" />
+<text x="151.0" y="152.0" text-anchor="middle" font-size="13" fill="#132238">2.60x</text>
+<text x="151.0" y="400.0" text-anchor="middle" font-size="12" fill="#29405c">int8/4b</text>
+<text x="121.0" y="428" text-anchor="middle" font-size="12" fill="#31465d">Qwen Qwen2.5-1.5B-Instruct</text>
+<rect x="232.0" y="217.1" width="42.0" height="162.9" rx="10" fill="#2f6fed" />
+<text x="253.0" y="209.1" text-anchor="middle" font-size="13" fill="#132238">1.93x</text>
+<text x="253.0" y="400.0" text-anchor="middle" font-size="12" fill="#29405c">int8</text>
+<rect x="292.0" y="162.1" width="42.0" height="217.9" rx="10" fill="#e7903c" />
+<text x="313.0" y="154.1" text-anchor="middle" font-size="13" fill="#132238">2.58x</text>
+<text x="313.0" y="400.0" text-anchor="middle" font-size="12" fill="#29405c">int8/4b</text>
+<text x="283.0" y="428" text-anchor="middle" font-size="12" fill="#31465d">SmolLM2-1.7B-Instruct</text>
+<rect x="394.0" y="214.6" width="42.0" height="165.4" rx="10" fill="#2f6fed" />
+<text x="415.0" y="206.6" text-anchor="middle" font-size="13" fill="#132238">1.96x</text>
+<text x="415.0" y="400.0" text-anchor="middle" font-size="12" fill="#29405c">int8</text>
+<rect x="454.0" y="160.0" width="42.0" height="220.0" rx="10" fill="#e7903c" />
+<text x="475.0" y="152.0" text-anchor="middle" font-size="13" fill="#132238">2.60x</text>
+<text x="475.0" y="400.0" text-anchor="middle" font-size="12" fill="#29405c">int8/4b</text>
+<text x="445.0" y="428" text-anchor="middle" font-size="12" fill="#31465d">Qwen Qwen2.5-3B-Instruct</text>
+<rect x="610.0" y="317.5" width="66.0" height="62.5" rx="10" fill="#6e8fdb" />
+<text x="643.0" y="309.5" text-anchor="middle" font-size="13" fill="#132238">1.01x</text>
+<text x="643.0" y="400.0" text-anchor="middle" font-size="12" fill="#29405c">KV-only</text>
+<rect x="732.0" y="171.0" width="66.0" height="209.0" rx="10" fill="#3aa388" />
+<text x="765.0" y="163.0" text-anchor="middle" font-size="13" fill="#132238">3.40x</text>
+<text x="765.0" y="400.0" text-anchor="middle" font-size="12" fill="#29405c">State-only</text>
+<rect x="854.0" y="160.0" width="66.0" height="220.0" rx="10" fill="#d85d4d" />
+<text x="887.0" y="152.0" text-anchor="middle" font-size="13" fill="#132238">3.57x</text>
+<text x="887.0" y="400.0" text-anchor="middle" font-size="12" fill="#29405c">Combined</text>
+<rect x="70" y="468" width="974" height="94" rx="18" fill="#f2efe5" stroke="#d7d0bf" stroke-width="1.5" />
+<text x="92" y="500" font-size="16" font-weight="700" fill="#20354f">Readout</text>
+<text x="92" y="528" font-size="14" fill="#31465d">Combined hybrid mode reached 3.57x total runtime-cache reduction and 1.50x local speedup on Zamba2-1.2B.</text>
+<text x="92" y="550" font-size="14" fill="#31465d">Prompt-suite averages: code 1.04x speedup, daily 0.90x speedup, both at the same 3.57x memory ratio.</text>
+</svg>

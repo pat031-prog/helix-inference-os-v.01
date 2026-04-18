@@ -1,0 +1,97 @@
+{
+  "schema_version": 1,
+  "id": "meta-microsite-real-cached",
+  "title": "HeliX Meta Microsite Real Cached",
+  "description": "A local-only real cached model variant of the Meta Microsite demo, using cached Qwen2.5-1.5B and GPT-2.",
+  "models": {
+    "architect-model": {
+      "model_id": "qwen-1.5b",
+      "alias": "Qwen/Qwen2.5-1.5B-Instruct",
+      "ref": "Qwen/Qwen2.5-1.5B-Instruct",
+      "arch": "transformer",
+      "capabilities": ["architecture", "reasoning", "editing"],
+      "load_time_estimate_ms": 6000
+    },
+    "copywriter-model": {
+      "model_id": "gpt2-fast",
+      "alias": "gpt2",
+      "ref": "gpt2",
+      "arch": "transformer",
+      "capabilities": ["copy", "drafting"],
+      "load_time_estimate_ms": 1200
+    },
+    "developer-model": {
+      "model_id": "qwen-1.5b-developer",
+      "alias": "Qwen/Qwen2.5-1.5B-Instruct",
+      "ref": "Qwen/Qwen2.5-1.5B-Instruct",
+      "arch": "transformer",
+      "capabilities": ["layout", "technical-writing"],
+      "load_time_estimate_ms": 6000
+    }
+  },
+  "agents": {
+    "architect": {
+      "model": "architect-model",
+      "role": "Inference OS architect",
+      "memory_mode": "search"
+    },
+    "copywriter": {
+      "model": "copywriter-model",
+      "role": "Editorial copywriter",
+      "memory_mode": "search"
+    },
+    "developer": {
+      "model": "developer-model",
+      "role": "Frontend systems designer",
+      "memory_mode": "search"
+    }
+  },
+  "tasks": [
+    {
+      "task_id": "architecture-plan",
+      "agent": "architect",
+      "slot": "architecture_plan",
+      "capability": "architecture",
+      "prompt": "In one tight paragraph, define HeliX as an Inference OS with four layers: active model, private .hlx state, shared hmem, and scheduler. Avoid hype.",
+      "expects_restore": false
+    },
+    {
+      "task_id": "editorial-copy",
+      "agent": "copywriter",
+      "slot": "editorial_copy",
+      "capability": "copy",
+      "prompt": "Write one concise landing-page paragraph about HeliX governing model continuity. Use the hmem context. No markdown.",
+      "expects_restore": false
+    },
+    {
+      "task_id": "layout-slots",
+      "agent": "developer",
+      "slot": "layout_notes",
+      "capability": "frontend",
+      "prompt": "Write one compact paragraph describing the visual layout modules for a polished static microsite: hero, layer diagram, timeline, memory graph, claims and footer log. No HTML.",
+      "expects_restore": false
+    },
+    {
+      "task_id": "editorial-review",
+      "agent": "architect",
+      "slot": "editorial_review",
+      "capability": "editing",
+      "prompt": "Restore the architect context and write one concise caveated approval. Mention that models do not share KV cache; coordination happens through hmem and model-specific .hlx state.",
+      "expects_restore": true
+    }
+  ],
+  "memory_policy": {
+    "project": "helix-blueprint-real-cached",
+    "budget_tokens": 700,
+    "mode": "search"
+  },
+  "session_policy": {
+    "codec": "rust-hlx-buffered-flat",
+    "audit_policy": "deferred",
+    "verify_policy": "receipt-only"
+  },
+  "outputs": {
+    "artifact": "local-blueprint-meta-microsite-real-cached.json",
+    "site": "meta-demo-real-cached.html"
+  }
+}

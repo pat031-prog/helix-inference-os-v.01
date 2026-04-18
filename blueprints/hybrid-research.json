@@ -1,0 +1,102 @@
+{
+  "schema_version": 1,
+  "id": "hybrid-research",
+  "title": "HeliX Hybrid Research Sieve",
+  "description": "Privacy-Safe Research Sieve: local anonymization, cloud heavy-reasoning via DeepInfra, local re-injection with .hlx restore.",
+  "models": {
+    "local-anon-model": {
+      "model_id": "qwen-1.5b",
+      "alias": "qwen-1.5b",
+      "ref": "Qwen/Qwen2.5-1.5B-Instruct",
+      "arch": "transformer",
+      "endpoint": "local",
+      "capabilities": ["anonymization", "pii-filter", "mapping"],
+      "fallback": "gpt2-fast",
+      "load_time_estimate_ms": 6000
+    },
+    "cloud-model": {
+      "model_id": "llama-3-70b",
+      "alias": "llama-3-70b",
+      "ref": "meta-llama/Meta-Llama-3-70B-Instruct",
+      "arch": "transformer",
+      "endpoint": "deepinfra",
+      "capabilities": ["reasoning", "synthesis", "architecture-analysis"],
+      "fallback": null,
+      "load_time_estimate_ms": 0
+    },
+    "local-review-model": {
+      "model_id": "qwen-1.5b-reviewer",
+      "alias": "qwen-1.5b",
+      "ref": "Qwen/Qwen2.5-1.5B-Instruct",
+      "arch": "transformer",
+      "endpoint": "local",
+      "capabilities": ["re-injection", "report-generation", "verification"],
+      "fallback": "gpt2-fast",
+      "load_time_estimate_ms": 6000
+    }
+  },
+  "agents": {
+    "anonymizer": {
+      "model": "local-anon-model",
+      "role": "Privacy filter and PII anonymization mapper",
+      "memory_mode": "search"
+    },
+    "cloud-analyst": {
+      "model": "cloud-model",
+      "role": "Stateless cloud reasoning node — receives only sanitized text",
+      "memory_mode": "search"
+    },
+    "reviewer": {
+      "model": "local-review-model",
+      "role": "Local re-injection agent and final verified report generator",
+      "memory_mode": "search"
+    }
+  },
+  "tasks": [
+    {
+      "task_id": "anonymize-doc",
+      "agent": "anonymizer",
+      "slot": "anon_map",
+      "capability": "anonymization",
+      "prompt": "You are a privacy filter. Scan the research document below. Identify all PII entities (person names, organizations, locations). Replace each with a placeholder token ([PERSON_1], [ORG_1], etc.). Output the anonymized text followed by the mapping table. Be precise and complete.",
+      "expects_restore": false
+    },
+    {
+      "task_id": "cloud-analysis",
+      "agent": "cloud-analyst",
+      "slot": "cloud_synthesis",
+      "capability": "architecture-analysis",
+      "prompt": "You are an architecture analyst reviewing a technical research document. Analyze the following anonymized text and provide: (1) a summary of the key technical claims, (2) an assessment of the architecture's novelty, (3) open questions for further research. Focus on technical depth and precision.",
+      "expects_restore": false
+    },
+    {
+      "task_id": "final-report",
+      "agent": "reviewer",
+      "slot": "final_report",
+      "capability": "report-generation",
+      "prompt": "Restore your previous session state. Consult the anonymization map in hmem and the cloud analysis. Re-inject the real entity names into the cloud synthesis. Generate the final verified research report with proper attribution.",
+      "expects_restore": true
+    }
+  ],
+  "memory_policy": {
+    "project": "helix-hybrid-research",
+    "budget_tokens": 900,
+    "mode": "search"
+  },
+  "session_policy": {
+    "codec": "rust-hlx-buffered-flat",
+    "audit_policy": "deferred",
+    "verify_policy": "receipt-only"
+  },
+  "privacy_policy": {
+    "cloud_receives_slot": "anon_map",
+    "local_re_injects_from": "anon_map",
+    "pii_entity_prefix": "PERSON",
+    "org_entity_prefix": "ORG",
+    "loc_entity_prefix": "LOC"
+  },
+  "outputs": {
+    "artifact": "local-blueprint-hybrid-research-demo.json",
+    "site": "hybrid-research-demo.html"
+  }
+}

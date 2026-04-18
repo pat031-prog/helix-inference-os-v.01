@@ -1,0 +1,356 @@
+{
+  "artifact": "local-wand-million-benchmark",
+  "benchmark_kind": "rust-indexed-merkle-dag-wand-million-v1",
+  "status": "completed",
+  "target_nodes": 1000000,
+  "inserted_nodes": 1000000,
+  "chunk_size": 25000,
+  "query_count_per_set": 10,
+  "limit": 5,
+  "total_wall_ms": 201950.52990000113,
+  "overall_insert_ops_per_sec": 4951.707730082041,
+  "insert_chunks_sample": [
+    {
+      "inserted_total": 10000,
+      "chunk_count": 10000,
+      "chunk_ms": 739.9861000012606,
+      "chunk_ops_per_sec": 13513.767353174559
+    },
+    {
+      "inserted_total": 35000,
+      "chunk_count": 25000,
+      "chunk_ms": 1947.6101000036579,
+      "chunk_ops_per_sec": 12836.244790450124
+    },
+    {
+      "inserted_total": 60000,
+      "chunk_count": 25000,
+      "chunk_ms": 2296.683900000062,
+      "chunk_ops_per_sec": 10885.259395077976
+    },
+    {
+      "inserted_total": 950000,
+      "chunk_count": 25000,
+      "chunk_ms": 2429.321900010109,
+      "chunk_ops_per_sec": 10290.937565703405
+    },
+    {
+      "inserted_total": 975000,
+      "chunk_count": 25000,
+      "chunk_ms": 2186.572700011311,
+      "chunk_ops_per_sec": 11433.418152467866
+    },
+    {
+      "inserted_total": 1000000,
+      "chunk_count": 25000,
+      "chunk_ms": 2143.8591000041924,
+      "chunk_ops_per_sec": 11661.214116147423
+    }
+  ],
+  "checkpoint_rows": [
+    {
+      "node_count": 10000,
+      "actual_inserted": 10000,
+      "search": [
+        {
+          "query_set": "selective",
+          "query_count": 10,
+          "example_queries": [
+            "rare_00042 postgres",
+            "rare_00137 merkle",
+            "rare_00256 prefix",
+            "rare_00777 zamba"
+          ],
+          "latency": {
+            "p50_ms": 2.864850001060404,
+            "p95_ms": 4.655099997762591,
+            "max_ms": 4.655099997762591
+          },
+          "hit_count_min": 5,
+          "hit_count_max": 5,
+          "top_hit_sample": [
+            "wand-mem-9042",
+            "wand-mem-9137",
+            "wand-mem-7256",
+            "wand-mem-9777",
+            "wand-mem-9042",
+            "wand-mem-9137",
+            "wand-mem-7256",
+            "wand-mem-9777"
+          ]
+        },
+        {
+          "query_set": "mixed",
+          "query_count": 10,
+          "example_queries": [
+            "postgres migration",
+            "merkle audit",
+            "prefix restore",
+            "scheduler qwen",
+            "zamba tombstone"
+          ],
+          "latency": {
+            "p50_ms": 15.412400003697257,
+            "p95_ms": 17.184399999678135,
+            "max_ms": 17.184399999678135
+          },
+          "hit_count_min": 5,
+          "hit_count_max": 5,
+          "top_hit_sample": [
+            "wand-mem-9949",
+            "wand-mem-9989",
+            "wand-mem-9",
+            "wand-mem-9949",
+            "wand-mem-8",
+            "wand-mem-9949",
+            "wand-mem-9989",
+            "wand-mem-9"
+          ]
+        },
+        {
+          "query_set": "generic",
+          "query_count": 10,
+          "example_queries": [
+            "agent memory",
+            "helix retrieval",
+            "indexed dag",
+            "synthetic memory"
+          ],
+          "latency": {
+            "p50_ms": 34.90365000470774,
+            "p95_ms": 48.719800004619174,
+            "max_ms": 48.719800004619174
+          },
+          "hit_count_min": 5,
+          "hit_count_max": 5,
+          "top_hit_sample": [
+            "wand-mem-9",
+            "wand-mem-9",
+            "wand-mem-9",
+            "wand-mem-9",
+            "wand-mem-9",
+            "wand-mem-9",
+            "wand-mem-9",
+            "wand-mem-9"
+          ]
+        }
+      ],
+      "rust_index_stats": {
+        "backend": "rust_bm25",
+        "search_algorithm": "wand_dynamic_bm25",
+        "node_count": 10000,
+        "term_count": 11020,
+        "doc_freq_term_count": 11020,
+        "term_bound_count": 11020,
+        "posting_count": 244989,
+        "total_doc_len": 299980,
+        "tombstoned_count": 0
+      },
+      "projection": false
+    },
+    {
+      "node_count": 100000,
+      "actual_inserted": 100000,
+      "search": [
+        {
+          "query_set": "selective",
+          "query_count": 10,
+          "example_queries": [
+            "rare_00042 postgres",
+            "rare_00137 merkle",
+            "rare_00256 prefix",
+            "rare_00777 zamba"
+          ],
+          "latency": {
+            "p50_ms": 3.736100006790366,
+            "p95_ms": 4.959699988830835,
+            "max_ms": 4.959699988830835
+          },
+          "hit_count_min": 5,
+          "hit_count_max": 5,
+          "top_hit_sample": [
+            "wand-mem-99042",
+            "wand-mem-99137",
+            "wand-mem-97256",
+            "wand-mem-99777",
+            "wand-mem-99042",
+            "wand-mem-99137",
+            "wand-mem-97256",
+            "wand-mem-99777"
+          ]
+        },
+        {
+          "query_set": "mixed",
+          "query_count": 10,
+          "example_queries": [
+            "postgres migration",
+            "merkle audit",
+            "prefix restore",
+            "scheduler qwen",
+            "zamba tombstone"
+          ],
+          "latency": {
+            "p50_ms": 216.48564999486553,
+            "p95_ms": 233.9743000047747,
+            "max_ms": 233.9743000047747
+          },
+          "hit_count_min": 5,
+          "hit_count_max": 5,
+          "top_hit_sample": [
+            "wand-mem-99949",
+            "wand-mem-99989",
+            "wand-mem-9",
+            "wand-mem-99949",
+            "wand-mem-8",
+            "wand-mem-99949",
+            "wand-mem-99989",
+            "wand-mem-9"
+          ]
+        },
+        {
+          "query_set": "generic",
+          "query_count": 10,
+          "example_queries": [
+            "agent memory",
+            "helix retrieval",
+            "indexed dag",
+            "synthetic memory"
+          ],
+          "latency": {
+            "p50_ms": 453.0067000014242,
+            "p95_ms": 486.04940000222996,
+            "max_ms": 486.04940000222996
+          },
+          "hit_count_min": 5,
+          "hit_count_max": 5,
+          "top_hit_sample": [
+            "wand-mem-9",
+            "wand-mem-9",
+            "wand-mem-9",
+            "wand-mem-9",
+            "wand-mem-9",
+            "wand-mem-9",
+            "wand-mem-9",
+            "wand-mem-9"
+          ]
+        }
+      ],
+      "rust_index_stats": {
+        "backend": "rust_bm25",
+        "search_algorithm": "wand_dynamic_bm25",
+        "node_count": 100000,
+        "term_count": 101020,
+        "doc_freq_term_count": 101020,
+        "term_bound_count": 101020,
+        "posting_count": 2449989,
+        "total_doc_len": 2999980,
+        "tombstoned_count": 0
+      },
+      "projection": false
+    },
+    {
+      "node_count": 1000000,
+      "actual_inserted": 1000000,
+      "search": [
+        {
+          "query_set": "selective",
+          "query_count": 10,
+          "example_queries": [
+            "rare_00042 postgres",
+            "rare_00137 merkle",
+            "rare_00256 prefix",
+            "rare_00777 zamba"
+          ],
+          "latency": {
+            "p50_ms": 11.014450006769039,
+            "p95_ms": 113.96160000003874,
+            "max_ms": 113.96160000003874
+          },
+          "hit_count_min": 5,
+          "hit_count_max": 5,
+          "top_hit_sample": [
+            "wand-mem-999042",
+            "wand-mem-999137",
+            "wand-mem-997256",
+            "wand-mem-999777",
+            "wand-mem-999042",
+            "wand-mem-999137",
+            "wand-mem-997256",
+            "wand-mem-999777"
+          ]
+        },
+        {
+          "query_set": "mixed",
+          "query_count": 10,
+          "example_queries": [
+            "postgres migration",
+            "merkle audit",
+            "prefix restore",
+            "scheduler qwen",
+            "zamba tombstone"
+          ],
+          "latency": {
+            "p50_ms": 3558.105500000238,
+            "p95_ms": 10529.08939999179,
+            "max_ms": 10529.08939999179
+          },
+          "hit_count_min": 5,
+          "hit_count_max": 5,
+          "top_hit_sample": [
+            "wand-mem-999949",
+            "wand-mem-999989",
+            "wand-mem-9",
+            "wand-mem-999949",
+            "wand-mem-8",
+            "wand-mem-999949",
+            "wand-mem-999989",
+            "wand-mem-9"
+          ]
+        },
+        {
+          "query_set": "generic",
+          "query_count": 10,
+          "example_queries": [
+            "agent memory",
+            "helix retrieval",
+            "indexed dag",
+            "synthetic memory"
+          ],
+          "latency": {
+            "p50_ms": 7127.32939999114,
+            "p95_ms": 8648.352899996098,
+            "max_ms": 8648.352899996098
+          },
+          "hit_count_min": 5,
+          "hit_count_max": 5,
+          "top_hit_sample": [
+            "wand-mem-9",
+            "wand-mem-9",
+            "wand-mem-9",
+            "wand-mem-9",
+            "wand-mem-9",
+            "wand-mem-9",
+            "wand-mem-9",
+            "wand-mem-9"
+          ]
+        }
+      ],
+      "rust_index_stats": {
+        "backend": "rust_bm25",
+        "search_algorithm": "wand_dynamic_bm25",
+        "node_count": 1000000,
+        "term_count": 1001020,
+        "doc_freq_term_count": 1001020,
+        "term_bound_count": 1001020,
+        "posting_count": 24499989,
+        "total_doc_len": 29999980,
+        "tombstoned_count": 0
+      },
+      "projection": false
+    }
+  ],
+  "claim_boundary": "This benchmark intentionally avoids Python scan at 1M nodes. It measures direct Rust WAND/BM25 search over the indexed Merkle DAG. projection=false rows are measured.",
+  "generated_ms": 1776449826910,
+  "claims_not_allowed": [],
+  "claims_allowed": []
+}

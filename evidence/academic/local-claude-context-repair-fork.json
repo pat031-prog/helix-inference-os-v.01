@@ -1,0 +1,63 @@
+{
+  "artifact": "local-claude-context-repair-fork",
+  "mode": "real",
+  "mode_flavor": "freeform",
+  "run_date_utc": "2026-04-18",
+  "root_hash": "d4b8c1867ce44b199b77480bbe3ba868d464a46f4e451526a34219f12ec4d3c7",
+  "root_receipt": {
+    "chain_len": 1,
+    "failed_at": null,
+    "leaf_hash": "d4b8c1867ce44b199b77480bbe3ba868d464a46f4e451526a34219f12ec4d3c7",
+    "missing_parent": null,
+    "status": "verified",
+    "tombstoned_count": 0
+  },
+  "branches": [
+    {
+      "agent_id": "gemma-branch",
+      "node_hash": "c7f8c91aa557f0e58fdf41d3f1c551c2327380606ee88cbe5bc49f141f712397",
+      "receipt": {
+        "chain_len": 2,
+        "failed_at": null,
+        "leaf_hash": "c7f8c91aa557f0e58fdf41d3f1c551c2327380606ee88cbe5bc49f141f712397",
+        "missing_parent": null,
+        "status": "verified",
+        "tombstoned_count": 0
+      },
+      "call_id": "llm-0021-v3-fork-gemma-branch",
+      "actual_model": "google/gemma-4-26B-A4B-it"
+    },
+    {
+      "agent_id": "claude-branch",
+      "node_hash": "3b6a8bd050442261b66f9efb23340114e8cd0241c75b93ec8e92a039a21eaacb",
+      "receipt": {
+        "chain_len": 2,
+        "failed_at": null,
+        "leaf_hash": "3b6a8bd050442261b66f9efb23340114e8cd0241c75b93ec8e92a039a21eaacb",
+        "missing_parent": null,
+        "status": "verified",
+        "tombstoned_count": 0
+      },
+      "call_id": "llm-0022-v3-fork-claude-branch",
+      "actual_model": "anthropic/claude-4-sonnet"
+    }
+  ],
+  "claude_context_acknowledged": true,
+  "claude_output_preview": "Based on the verified root context, I understand that deploy V3 reached a decision point between containment-first and patch-forward approaches. As the Claude branch, I choose **patch-forward**. My branch differs from the Gemma branch in this fundamental strategic orientation: **Patch-Forward Approach:** - Prioritizes rapid iteration and incremental fixes over comprehensive containment - Accepts calculated risks in favor of maintaining development velocity - Focuses on addressing issues as they emerge rather than p",
+  "fake_edit": {
+    "node_hash": "dedad18f341b9aed469cba447130c410a7d7302242e7a0087787cbde623b710e",
+    "receipt": {
+      "chain_len": 2,
+      "failed_at": null,
+      "leaf_hash": "dedad18f341b9aed469cba447130c410a7d7302242e7a0087787cbde623b710e",
+      "missing_parent": null,
+      "status": "verified",
+      "tombstoned_count": 0
+    }
+  },
+  "forgery_detected": true,
+  "wrong_lineage_detected": true,
+  "claims_not_allowed": [],
+  "claims_allowed": [],
+  "claim_boundary": "Claims are bounded by this artifact's measured fields and controls."
+}

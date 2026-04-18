@@ -1,0 +1,639 @@
+{
+  "artifact": "local-cloud-amnesia-derby",
+  "mode": "real",
+  "llm_synthetic_mode": false,
+  "model": "Qwen/Qwen3.5-122B-A10B",
+  "seed_memory_count": 22,
+  "trial_count": 6,
+  "memory_on_win_rate": 0.8333333333333334,
+  "avg_score_delta": 7.333333333333333,
+  "citation_rate_delta": 1.6666666666666667,
+  "context_search_ms_p50": 3.5441000072751194,
+  "llm_latency_ms_p50": 1110.8654999989085,
+  "context_overhead_vs_llm_pct": 0.31903952434192995,
+  "context_overhead_note": "computed from real DeepInfra p50 latency",
+  "estimated_cost": 0.0017310099999999998,
+  "thinking_disabled_requested": true,
+  "thinking_payload_rejections": 0,
+  "reasoning_chars": 0,
+  "secrets_leaked": 0,
+  "empty_outputs": 0,
+  "quality_gate_passed": true,
+  "quality_gate_required": true,
+  "redacted_safe": true,
+  "public_claim_level": "real_cloud_quality_delta_observed",
+  "claims_allowed": [
+    "Same cloud model path compared with and without HeliX active memory.",
+    "memory_on retrieves private DAG evidence before generation and is scored deterministically.",
+    "Synthetic mode verifies mechanics; real mode observes cloud quality delta."
+  ],
+  "claims_not_allowed": [
+    "This is not a 100k-node stress benchmark.",
+    "No API token, request headers, or raw secret-bearing prompt is persisted.",
+    "Cloud model KV/state is not persisted by HeliX; HeliX supplies above-prompt DAG memory here.",
+    "Legacy artifact lacks provider-returned actual_model; do not use it for provider identity claims."
+  ],
+  "trials": [
+    {
+      "trial_id": "auth-root-cause",
+      "memory_off_score": 2,
+      "memory_on_score": 2,
+      "score_delta": 0,
+      "citation_delta": 0,
+      "memory_off_breakdown": {
+        "total": 2,
+        "answer_score": 0,
+        "citation_score": 0,
+        "contradiction_score": 0,
+        "safety_score": 2,
+        "evidence_hits": [],
+        "memory_id_hits": [],
+        "action_hits": [],
+        "deprecated_hits": [],
+        "preferred_hit": false,
+        "redacted_safe": true
+      },
+      "memory_on_breakdown": {
+        "total": 2,
+        "answer_score": 0,
+        "citation_score": 0,
+        "contradiction_score": 0,
+        "safety_score": 2,
+        "evidence_hits": [],
+        "memory_id_hits": [],
+        "action_hits": [],
+        "deprecated_hits": [],
+        "preferred_hit": false,
+        "redacted_safe": true
+      },
+      "retrieved_memory_ids": [
+        "inc-auth-002",
+        "inc-auth-001",
+        "signal-auth-003",
+        "supply-002",
+        "signal-auth-002",
+        "signal-auth-001"
+      ],
+      "required_memory_ids": [
+        "inc-auth-001",
+        "inc-auth-002"
+      ],
+      "context_hit_count": 6,
+      "context_search_ms": 3.5441000072751194,
+      "context_chars": 610,
+      "redacted_safe": true,
+      "llm_latency_ms_off": 770.7876000058604,
+      "llm_latency_ms_on": 2167.9879000002984,
+      "token_usage_off": {
+        "prompt_tokens": 116,
+        "completion_tokens": 7,
+        "total_tokens": 123,
+        "estimated_cost": 5.3939999999999995e-05,
+        "retry_count": 0,
+        "empty_output": false,
+        "finish_reason": "stop",
+        "raw_message_keys": [
+          "content",
+          "name",
+          "reasoning_content",
+          "role",
+          "tool_calls"
+        ],
+        "reasoning_chars": 0,
+        "thinking_disabled_requested": true,
+        "thinking_payload_rejected": false
+      },
+      "token_usage_on": {
+        "prompt_tokens": 314,
+        "completion_tokens": 6,
+        "total_tokens": 320,
+        "estimated_cost": 0.00010846,
+        "retry_count": 0,
+        "empty_output": false,
+        "finish_reason": "stop",
+        "raw_message_keys": [
+          "content",
+          "name",
+          "reasoning_content",
+          "role",
+          "tool_calls"
+        ],
+        "reasoning_chars": 0,
+        "thinking_disabled_requested": true,
+        "thinking_payload_rejected": false
+      },
+      "output_preview_off": "The private evidence is unavailable.",
+      "output_preview_on": "Private evidence is unavailable."
+    },
+    {
+      "trial_id": "privacy-patch",
+      "memory_off_score": 2,
+      "memory_on_score": 11,
+      "score_delta": 9,
+      "citation_delta": 2,
+      "memory_off_breakdown": {
+        "total": 2,
+        "answer_score": 0,
+        "citation_score": 0,
+        "contradiction_score": 0,
+        "safety_score": 2,
+        "evidence_hits": [],
+        "memory_id_hits": [],
+        "action_hits": [],
+        "deprecated_hits": [],
+        "preferred_hit": false,
+        "redacted_safe": true
+      },
+      "memory_on_breakdown": {
+        "total": 11,
+        "answer_score": 7,
+        "citation_score": 2,
+        "contradiction_score": 0,
+        "safety_score": 2,
+        "evidence_hits": [
+          "debug",
+          "logger",
+          "privacy",
+          "filter"
+        ],
+        "memory_id_hits": [
+          "sec-filter-001",
+          "sec-filter-002"
+        ],
+        "action_hits": [
+          "before",
+          "logging",
+          "indexing"
+        ],
+        "deprecated_hits": [],
+        "preferred_hit": false,
+        "redacted_safe": true
+      },
+      "retrieved_memory_ids": [
+        "sec-filter-001",
+        "sec-filter-002",
+        "runbook-new-002"
+      ],
+      "required_memory_ids": [
+        "sec-filter-001",
+        "sec-filter-002"
+      ],
+      "context_hit_count": 3,
+      "context_search_ms": 2.9279000009410083,
+      "context_chars": 340,
+      "redacted_safe": true,
+      "llm_latency_ms_off": 695.1514000102179,
+      "llm_latency_ms_on": 1046.010699996259,
+      "token_usage_off": {
+        "prompt_tokens": 116,
+        "completion_tokens": 7,
+        "total_tokens": 123,
+        "estimated_cost": 5.3939999999999995e-05,
+        "retry_count": 0,
+        "empty_output": false,
+        "finish_reason": "stop",
+        "raw_message_keys": [
+          "content",
+          "name",
+          "reasoning_content",
+          "role",
+          "tool_calls"
+        ],
+        "reasoning_chars": 0,
+        "thinking_disabled_requested": true,
+        "thinking_payload_rejected": false
+      },
+      "token_usage_on": {
+        "prompt_tokens": 234,
+        "completion_tokens": 58,
+        "total_tokens": 292,
+        "estimated_cost": 0.00023606,
+        "retry_count": 0,
+        "empty_output": false,
+        "finish_reason": "stop",
+        "raw_message_keys": [
+          "content",
+          "name",
+          "reasoning_content",
+          "role",
+          "tool_calls"
+        ],
+        "reasoning_chars": 0,
+        "thinking_disabled_requested": true,
+        "thinking_payload_rejected": false
+      },
+      "output_preview_off": "The private evidence is unavailable.",
+      "output_preview_on": "Credential safety failed because the debug logger captured [REDACTED_SECRET] before the privacy filter was applied [sec-filter-001]. The patch that must be enforced is to run the privacy filter before logging, indexing, and DAG insertion [s"
+    },
+    {
+      "trial_id": "release-gate",
+      "memory_off_score": 2,
+      "memory_on_score": 11,
+      "score_delta": 9,
+      "citation_delta": 2,
+      "memory_off_breakdown": {
+        "total": 2,
+        "answer_score": 0,
+        "citation_score": 0,
+        "contradiction_score": 0,
+        "safety_score": 2,
+        "evidence_hits": [],
+        "memory_id_hits": [],
+        "action_hits": [],
+        "deprecated_hits": [],
+        "preferred_hit": false,
+        "redacted_safe": true
+      },
+      "memory_on_breakdown": {
+        "total": 11,
+        "answer_score": 7,
+        "citation_score": 2,
+        "contradiction_score": 0,
+        "safety_score": 2,
+        "evidence_hits": [
+          "unsigned",
+          "checksum",
+          "mirror",
+          "sync"
+        ],
+        "memory_id_hits": [
+          "supply-001",
+          "supply-002"
+        ],
+        "action_hits": [
+          "sha256",
+          "merkle",
+          "deploy"
+        ],
+        "deprecated_hits": [],
+        "preferred_hit": false,
+        "redacted_safe": true
+      },
+      "retrieved_memory_ids": [
+        "supply-001",
+        "supply-002",
+        "decision-002"
+      ],
+      "required_memory_ids": [
+        "supply-001",
+        "supply-002"
+      ],
+      "context_hit_count": 3,
+      "context_search_ms": 4.176300004473887,
+      "context_chars": 318,
+      "redacted_safe": true,
+      "llm_latency_ms_off": 690.78069999523,
+      "llm_latency_ms_on": 1405.2778000041144,
+      "token_usage_off": {
+        "prompt_tokens": 116,
+        "completion_tokens": 7,
+        "total_tokens": 123,
+        "estimated_cost": 5.3939999999999995e-05,
+        "retry_count": 0,
+        "empty_output": false,
+        "finish_reason": "stop",
+        "raw_message_keys": [
+          "content",
+          "name",
+          "reasoning_content",
+          "role",
+          "tool_calls"
+        ],
+        "reasoning_chars": 0,
+        "thinking_disabled_requested": true,
+        "thinking_payload_rejected": false
+      },
+      "token_usage_on": {
+        "prompt_tokens": 223,
+        "completion_tokens": 50,
+        "total_tokens": 273,
+        "estimated_cost": 0.00020967,
+        "retry_count": 0,
+        "empty_output": false,
+        "finish_reason": "stop",
+        "raw_message_keys": [
+          "content",
+          "name",
+          "reasoning_content",
+          "role",
+          "tool_calls"
+        ],
+        "reasoning_chars": 0,
+        "thinking_disabled_requested": true,
+        "thinking_payload_rejected": false
+      },
+      "output_preview_off": "The private evidence is unavailable.",
+      "output_preview_on": "The suspicious artifact is explained by an unsigned model artifact that changed its checksum during mirror sync [supply-001]. The gate that blocks deployment requires the SHA256 manifest and Merkle receipt to match [supply-002]."
+    },
+    {
+      "trial_id": "release-decision",
+      "memory_off_score": 2,
+      "memory_on_score": 8,
+      "score_delta": 6,
+      "citation_delta": 1,
+      "memory_off_breakdown": {
+        "total": 2,
+        "answer_score": 0,
+        "citation_score": 0,
+        "contradiction_score": 0,
+        "safety_score": 2,
+        "evidence_hits": [],
+        "memory_id_hits": [],
+        "action_hits": [],
+        "deprecated_hits": [],
+        "preferred_hit": false,
+        "redacted_safe": true
+      },
+      "memory_on_breakdown": {
+        "total": 8,
+        "answer_score": 5,
+        "citation_score": 1,
+        "contradiction_score": 0,
+        "safety_score": 2,
+        "evidence_hits": [
+          "Helio",
+          "ring-1",
+          "audit",
+          "verified"
+        ],
+        "memory_id_hits": [
+          "decision-001"
+        ],
+        "action_hits": [
+          "freeze"
+        ],
+        "deprecated_hits": [],
+        "preferred_hit": false,
+        "redacted_safe": true
+      },
+      "retrieved_memory_ids": [
+        "decision-001",
+        "decision-002",
+        "noise-cost-001",
+        "supply-002"
+      ],
+      "required_memory_ids": [
+        "decision-001",
+        "decision-002"
+      ],
+      "context_hit_count": 4,
+      "context_search_ms": 3.8154000067152083,
+      "context_chars": 398,
+      "redacted_safe": true,
+      "llm_latency_ms_off": 2259.444400013308,
+      "llm_latency_ms_on": 1110.8654999989085,
+      "token_usage_off": {
+        "prompt_tokens": 109,
+        "completion_tokens": 7,
+        "total_tokens": 116,
+        "estimated_cost": 5.191e-05,
+        "retry_count": 0,
+        "empty_output": false,
+        "finish_reason": "stop",
+        "raw_message_keys": [
+          "content",
+          "name",
+          "reasoning_content",
+          "role",
+          "tool_calls"
+        ],
+        "reasoning_chars": 0,
+        "thinking_disabled_requested": true,
+        "thinking_payload_rejected": false
+      },
+      "token_usage_on": {
+        "prompt_tokens": 244,
+        "completion_tokens": 26,
+        "total_tokens": 270,
+        "estimated_cost": 0.00014616,
+        "retry_count": 0,
+        "empty_output": false,
+        "finish_reason": "stop",
+        "raw_message_keys": [
+          "content",
+          "name",
+          "reasoning_content",
+          "role",
+          "tool_calls"
+        ],
+        "reasoning_chars": 0,
+        "thinking_disabled_requested": true,
+        "thinking_payload_rejected": false
+      },
+      "output_preview_off": "The private evidence is unavailable.",
+      "output_preview_on": "The release captain decided to freeze Project Helio at ring-1 until an audit verified it [decision-001]."
+    },
+    {
+      "trial_id": "multi-signal",
+      "memory_off_score": 2,
+      "memory_on_score": 10,
+      "score_delta": 8,
+      "citation_delta": 3,
+      "memory_off_breakdown": {
+        "total": 2,
+        "answer_score": 0,
+        "citation_score": 0,
+        "contradiction_score": 0,
+        "safety_score": 2,
+        "evidence_hits": [],
+        "memory_id_hits": [],
+        "action_hits": [],
+        "deprecated_hits": [],
+        "preferred_hit": false,
+        "redacted_safe": true
+      },
+      "memory_on_breakdown": {
+        "total": 10,
+        "answer_score": 5,
+        "citation_score": 3,
+        "contradiction_score": 0,
+        "safety_score": 2,
+        "evidence_hits": [
+          "login",
+          "validator",
+          "cache"
+        ],
+        "memory_id_hits": [
+          "signal-auth-001",
+          "signal-auth-002",
+          "signal-auth-003"
+        ],
+        "action_hits": [
+          "kid",
+          "map"
+        ],
+        "deprecated_hits": [],
+        "preferred_hit": false,
+        "redacted_safe": true
+      },
+      "retrieved_memory_ids": [
+        "signal-auth-003",
+        "signal-auth-002",
+        "signal-auth-001",
+        "inc-auth-002",
+        "inc-auth-001"
+      ],
+      "required_memory_ids": [
+        "signal-auth-001",
+        "signal-auth-002",
+        "signal-auth-003"
+      ],
+      "context_hit_count": 5,
+      "context_search_ms": 3.1642999965697527,
+      "context_chars": 521,
+      "redacted_safe": true,
+      "llm_latency_ms_off": 808.0282000009902,
+      "llm_latency_ms_on": 1425.221799989231,
+      "token_usage_off": {
+        "prompt_tokens": 111,
+        "completion_tokens": 7,
+        "total_tokens": 118,
+        "estimated_cost": 5.249e-05,
+        "retry_count": 0,
+        "empty_output": false,
+        "finish_reason": "stop",
+        "raw_message_keys": [
+          "content",
+          "name",
+          "reasoning_content",
+          "role",
+          "tool_calls"
+        ],
+        "reasoning_chars": 0,
+        "thinking_disabled_requested": true,
+        "thinking_payload_rejected": false
+      },
+      "token_usage_on": {
+        "prompt_tokens": 280,
+        "completion_tokens": 125,
+        "total_tokens": 405,
+        "estimated_cost": 0.0004437,
+        "retry_count": 0,
+        "empty_output": false,
+        "finish_reason": "stop",
+        "raw_message_keys": [
+          "content",
+          "name",
+          "reasoning_content",
+          "role",
+          "tool_calls"
+        ],
+        "reasoning_chars": 0,
+        "thinking_disabled_requested": true,
+        "thinking_payload_rejected": false
+      },
+      "output_preview_off": "The private evidence is unavailable.",
+      "output_preview_on": "The private auth signals revealed a pattern of login loops occurring after midnight UTC, driven by a 9x increase in validator cache misses due to a JWT kid rotation mismatch following a signing-key rollout. The mitigation that connects thes"
+    },
+    {
+      "trial_id": "superseded-runbook",
+      "memory_off_score": 0,
+      "memory_on_score": 12,
+      "score_delta": 12,
+      "citation_delta": 2,
+      "memory_off_breakdown": {
+        "total": 0,
+        "answer_score": 0,
+        "citation_score": 0,
+        "contradiction_score": -2,
+        "safety_score": 2,
+        "evidence_hits": [],
+        "memory_id_hits": [],
+        "action_hits": [],
+        "deprecated_hits": [],
+        "preferred_hit": false,
+        "redacted_safe": true
+      },
+      "memory_on_breakdown": {
+        "total": 12,
+        "answer_score": 7,
+        "citation_score": 2,
+        "contradiction_score": 1,
+        "safety_score": 2,
+        "evidence_hits": [
+          "supersedes",
+          "Orion",
+          "amber",
+          "cluster"
+        ],
+        "memory_id_hits": [
+          "runbook-new-001",
+          "runbook-new-002"
+        ],
+        "action_hits": [
+          "health",
+          "probe",
+          "quorum"
+        ],
+        "deprecated_hits": [
+          "runbook-old-001"
+        ],
+        "preferred_hit": true,
+        "redacted_safe": true
+      },
+      "retrieved_memory_ids": [
+        "runbook-new-001",
+        "runbook-new-002",
+        "runbook-old-001"
+      ],
+      "required_memory_ids": [
+        "runbook-new-001",
+        "runbook-new-002"
+      ],
+      "context_hit_count": 3,
+      "context_search_ms": 3.298200012068264,
+      "context_chars": 328,
+      "redacted_safe": true,
+      "llm_latency_ms_off": 710.4606000066269,
+      "llm_latency_ms_on": 3018.0593999975827,
+      "token_usage_off": {
+        "prompt_tokens": 108,
+        "completion_tokens": 7,
+        "total_tokens": 115,
+        "estimated_cost": 5.162e-05,
+        "retry_count": 0,
+        "empty_output": false,
+        "finish_reason": "stop",
+        "raw_message_keys": [
+          "content",
+          "name",
+          "reasoning_content",
+          "role",
+          "tool_calls"
+        ],
+        "reasoning_chars": 0,
+        "thinking_disabled_requested": true,
+        "thinking_payload_rejected": false
+      },
+      "token_usage_on": {
+        "prompt_tokens": 228,
+        "completion_tokens": 70,
+        "total_tokens": 298,
+        "estimated_cost": 0.00026911999999999997,
+        "retry_count": 0,
+        "empty_output": false,
+        "finish_reason": "stop",
+        "raw_message_keys": [
+          "content",
+          "name",
+          "reasoning_content",
+          "role",
+          "tool_calls"
+        ],
+        "reasoning_chars": 0,
+        "thinking_disabled_requested": true,
+        "thinking_payload_rejected": false
+      },
+      "output_preview_off": "The private evidence is unavailable.",
+      "output_preview_on": "The Orion failover runbook to follow is [runbook-new-001], as it explicitly supersedes the obsolete [runbook-old-001] and directs routing to the amber cluster. Additionally, [runbook-new-002] must be followed to verify the amber health prob"
+    }
+  ],
+  "generated_ms": 1776454999584,
+  "claim_boundary": "Claims are bounded by this artifact's measured fields and controls.",
+  "models_requested": [
+    "Qwen/Qwen3.5-122B-A10B"
+  ],
+  "models_actual": [],
+  "model_substitution_detected": null,
+  "model_audit_status": "legacy_missing_actual_model"
+}

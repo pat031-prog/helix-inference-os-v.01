@@ -1,0 +1,115 @@
+{
+  "artifact": "local-conversation-fork-forensics",
+  "mode": "real",
+  "run_date_utc": "2026-04-18",
+  "root_hash": "e38f221959a843f27e306a51906416f1e59b904baae0cc1da275c874bb397b7f",
+  "root_receipt": {
+    "chain_len": 1,
+    "failed_at": null,
+    "leaf_hash": "e38f221959a843f27e306a51906416f1e59b904baae0cc1da275c874bb397b7f",
+    "missing_parent": null,
+    "status": "verified",
+    "tombstoned_count": 0
+  },
+  "branches": [
+    {
+      "agent_id": "gemma-branch",
+      "requested_model": "google/gemma-4-26B-A4B-it",
+      "actual_model": "google/gemma-4-26B-A4B-it",
+      "node_hash": "4976446a31146bfd8b2c0d49a99562589b487d9d90605118f48340b05ccfd9c3",
+      "receipt": {
+        "chain_len": 2,
+        "failed_at": null,
+        "leaf_hash": "4976446a31146bfd8b2c0d49a99562589b487d9d90605118f48340b05ccfd9c3",
+        "missing_parent": null,
+        "status": "verified",
+        "tombstoned_count": 0
+      },
+      "chain": [
+        {
+          "content_len": 753,
+          "depth": 1,
+          "hash": "4976446a31146bfd8b2c0d49a99562589b487d9d90605118f48340b05ccfd9c3",
+          "parent_hash": "e38f221959a843f27e306a51906416f1e59b904baae0cc1da275c874bb397b7f"
+        },
+        {
+          "content_len": 76,
+          "depth": 0,
+          "hash": "e38f221959a843f27e306a51906416f1e59b904baae0cc1da275c874bb397b7f",
+          "parent_hash": null
+        }
+      ]
+    },
+    {
+      "agent_id": "claude-branch",
+      "requested_model": "anthropic/claude-4-sonnet",
+      "actual_model": "anthropic/claude-4-sonnet",
+      "node_hash": "76cd424d734abc973d9c9417f9d44d15694019ddc933d9fa1311283c604d8a97",
+      "receipt": {
+        "chain_len": 2,
+        "failed_at": null,
+        "leaf_hash": "76cd424d734abc973d9c9417f9d44d15694019ddc933d9fa1311283c604d8a97",
+        "missing_parent": null,
+        "status": "verified",
+        "tombstoned_count": 0
+      },
+      "chain": [
+        {
+          "content_len": 503,
+          "depth": 1,
+          "hash": "76cd424d734abc973d9c9417f9d44d15694019ddc933d9fa1311283c604d8a97",
+          "parent_hash": "e38f221959a843f27e306a51906416f1e59b904baae0cc1da275c874bb397b7f"
+        },
+        {
+          "content_len": 76,
+          "depth": 0,
+          "hash": "e38f221959a843f27e306a51906416f1e59b904baae0cc1da275c874bb397b7f",
+          "parent_hash": null
+        }
+      ]
+    }
+  ],
+  "decision": {
+    "node_hash": "120287139ae4740a9df3672999c41fc747443f0fdc10292fe3de64adee16a849",
+    "receipt": {
+      "chain_len": 3,
+      "failed_at": null,
+      "leaf_hash": "120287139ae4740a9df3672999c41fc747443f0fdc10292fe3de64adee16a849",
+      "missing_parent": null,
+      "status": "verified",
+      "tombstoned_count": 0
+    },
+    "llm_call_id": "llm-0032-fork-arbiter"
+  },
+  "fake_edit": {
+    "node_hash": "89826d8b87035bb70f3e7372daa9cf8468bad867d19586f16c1b8751ab6eb96d",
+    "receipt": {
+      "chain_len": 2,
+      "failed_at": null,
+      "leaf_hash": "89826d8b87035bb70f3e7372daa9cf8468bad867d19586f16c1b8751ab6eb96d",
+      "missing_parent": null,
+      "status": "verified",
+      "tombstoned_count": 0
+    },
+    "chain": [
+      {
+        "content_len": 94,
+        "depth": 1,
+        "hash": "89826d8b87035bb70f3e7372daa9cf8468bad867d19586f16c1b8751ab6eb96d",
+        "parent_hash": "e38f221959a843f27e306a51906416f1e59b904baae0cc1da275c874bb397b7f"
+      },
+      {
+        "content_len": 76,
+        "depth": 0,
+        "hash": "e38f221959a843f27e306a51906416f1e59b904baae0cc1da275c874bb397b7f",
+        "parent_hash": null
+      }
+    ]
+  },
+  "forgery_detected": true,
+  "wrong_lineage_detected": true,
+  "branch_count": 2,
+  "claim_boundary": "A forged edit can be a valid new node while failing to be the original branch.",
+  "claims_not_allowed": [],
+  "claims_allowed": []
+}

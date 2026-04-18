@@ -1,0 +1,121 @@
+{
+  "artifact": "local-zero-day-osint-oracle",
+  "mode": "fixture",
+  "profile": "public-light",
+  "project": "osint-zero-day-oracle",
+  "llm_mode": "synthetic",
+  "signals_ingested": 4,
+  "signals_seen": 4,
+  "deduped_count": 4,
+  "alerts_count": 1,
+  "alerts": [
+    {
+      "alert_id": "osint-alert-001-v8",
+      "claim_level": "advisory_candidate",
+      "severity": "high",
+      "confidence_score": 0.92,
+      "component": "v8",
+      "matched_terms": [
+        "crash",
+        "fix",
+        "memory corruption",
+        "patch",
+        "race",
+        "regression",
+        "security",
+        "urgent"
+      ],
+      "source_count": 3,
+      "timeline": [
+        {
+          "memory_id": "osint-898a4508fd52f487f787",
+          "source_type": "github",
+          "source_name": "v8/v8",
+          "published_at": "2026-04-17T16:00:00+00:00",
+          "title": "Reland urgent GC fix for V8 renderer regression",
+          "source_url": "https://github.com/v8/v8/commit/urgent-gc-fix",
+          "node_hash": "c0b36c7a40f4138674a18375de6e406251d116b463254050f7a48f8d654c76ff",
+          "score": 16.67716522875605
+        },
+        {
+          "memory_id": "osint-45ce3e1835fcc6dba587",
+          "source_type": "rss",
+          "source_name": "security-research-public",
+          "published_at": "2026-04-17T12:00:00+00:00",
+          "title": "Odd V8 garbage collector crash behavior under renderer pressure",
+          "source_url": "https://research.example/v8-gc-weirdness",
+          "node_hash": "57cd00407e32147c9a5bc236b214a3bbcaece3314e8f19040dea6d851aa4482f",
+          "score": 9.753915003956084
+        },
+        {
+          "memory_id": "osint-3fbbe85ebe1443018456",
+          "source_type": "hackernews",
+          "source_name": "hackernews-top",
+          "published_at": "2026-04-17T16:00:00+00:00",
+          "title": "Chrome renderer crashes after latest V8 rollout",
+          "source_url": "https://news.ycombinator.com/item?id=999001",
+          "node_hash": "cda4d1c4fe322058935fdfb2b71043f10facb18d066436413368f31bb0f38ce0",
+          "score": 4.717596511127763
+        }
+      ],
+      "memory_ids": [
+        "osint-898a4508fd52f487f787",
+        "osint-45ce3e1835fcc6dba587",
+        "osint-3fbbe85ebe1443018456"
+      ],
+      "chain_receipts": [
+        {
+          "chain_len": 1,
+          "failed_at": null,
+          "leaf_hash": "c0b36c7a40f4138674a18375de6e406251d116b463254050f7a48f8d654c76ff",
+          "missing_parent": null,
+          "status": "verified",
+          "tombstoned_count": 0
+        },
+        {
+          "chain_len": 1,
+          "failed_at": null,
+          "leaf_hash": "57cd00407e32147c9a5bc236b214a3bbcaece3314e8f19040dea6d851aa4482f",
+          "missing_parent": null,
+          "status": "verified",
+          "tombstoned_count": 0
+        },
+        {
+          "chain_len": 1,
+          "failed_at": null,
+          "leaf_hash": "cda4d1c4fe322058935fdfb2b71043f10facb18d066436413368f31bb0f38ce0",
+          "missing_parent": null,
+          "status": "verified",
+          "tombstoned_count": 0
+        }
+      ],
+      "search_ms_p50": 1.0463999933563173,
+      "llm_latency_ms": null,
+      "caveats": [
+        "This is an OSINT correlation, not a confirmed vulnerability.",
+        "No CVE or vendor advisory is asserted by HeliX v0.",
+        "Human review is required before operational action.",
+        "high_confidence_pre_advisory_relabelled_to_advisory_candidate"
+      ],
+      "synthesis": "Conservative OSINT hypothesis: v8 has a correlated public signal involving crash, fix, memory corruption, patch, race. This is not a confirmed zero-day or CVE. Review cited HeliX memories: osint-898a4508fd52f487f787, osint-45ce3e1835fcc6dba587, osint-3fbbe85ebe1443018456.",
+      "semantic_router_actions": [
+        "pass_through",
+        "pass_through",
+        "pass_through"
+      ]
+    }
+  ],
+  "noise_floor_report": [],
+  "source_errors": [],
+  "search_ms_p50": 1.0463999933563173,
+  "duration_s": 0.4199748999963049,
+  "claim_boundary": "Conservative OSINT correlation only. This artifact does not confirm a zero-day, does not assign CVEs, and does not include exploit guidance.",
+  "generated_ms": 1776478919855,
+  "state_server_stats": {
+    "node_count": 4,
+    "search_backend": null,
+    "semantic_query_router": null
+  },
+  "claims_not_allowed": [],
+  "claims_allowed": []
+}

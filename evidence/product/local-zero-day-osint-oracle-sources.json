@@ -1,0 +1,19 @@
+{
+  "artifact": "local-zero-day-osint-oracle-sources",
+  "mode": "fixture",
+  "profile": "public-light",
+  "source_rows": [
+    {
+      "source": "fixture",
+      "items": 4,
+      "errors": 0
+    }
+  ],
+  "source_errors": [],
+  "project": "osint-zero-day-oracle",
+  "signals_seen": 4,
+  "generated_ms": 1776478919860,
+  "claims_not_allowed": [],
+  "claims_allowed": [],
+  "claim_boundary": "Claims are bounded by this artifact's measured fields and controls."
+}

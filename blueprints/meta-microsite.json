@@ -1,0 +1,99 @@
+{
+  "schema_version": 1,
+  "id": "meta-microsite",
+  "title": "HeliX Meta Microsite",
+  "description": "A recursive Inference OS demo: HeliX orchestrates agents to build a page explaining HeliX.",
+  "models": {
+    "architect-model": {
+      "model_id": "qwen-1.5b",
+      "alias": "qwen-1.5b",
+      "ref": "Qwen/Qwen2.5-1.5B-Instruct",
+      "arch": "transformer",
+      "capabilities": ["architecture", "reasoning", "editing"],
+      "fallback": "gpt2-fast",
+      "load_time_estimate_ms": 6000
+    },
+    "copywriter-model": {
+      "model_id": "gpt2-fast",
+      "alias": "gpt2-fast",
+      "ref": "gpt2",
+      "arch": "transformer",
+      "capabilities": ["copy", "drafting"],
+      "load_time_estimate_ms": 1200
+    },
+    "developer-model": {
+      "model_id": "qwen-coder-1.5b",
+      "alias": "qwen-coder-1.5b",
+      "ref": "Qwen/Qwen2.5-Coder-1.5B-Instruct",
+      "arch": "transformer",
+      "capabilities": ["code", "frontend"],
+      "fallback": "gpt2-fast",
+      "load_time_estimate_ms": 6500
+    }
+  },
+  "agents": {
+    "architect": {
+      "model": "architect-model",
+      "role": "Inference OS architect",
+      "memory_mode": "search"
+    },
+    "copywriter": {
+      "model": "copywriter-model",
+      "role": "Editorial copywriter",
+      "memory_mode": "search"
+    },
+    "developer": {
+      "model": "developer-model",
+      "role": "Frontend systems designer",
+      "memory_mode": "search"
+    }
+  },
+  "tasks": [
+    {
+      "task_id": "architecture-plan",
+      "agent": "architect",
+      "slot": "architecture_plan",
+      "capability": "architecture",
+      "prompt": "Define the HeliX Inference OS thesis and the four-layer architecture. Keep it precise and public-safe.",
+      "expects_restore": false
+    },
+    {
+      "task_id": "editorial-copy",
+      "agent": "copywriter",
+      "slot": "editorial_copy",
+      "capability": "copy",
+      "prompt": "Write compact editorial copy for a warm, high-quality landing page. Use the architect plan from hmem.",
+      "expects_restore": false
+    },
+    {
+      "task_id": "layout-slots",
+      "agent": "developer",
+      "slot": "layout_notes",
+      "capability": "frontend",
+      "prompt": "Propose the content slots and visual modules for a deterministic renderer. Do not output final HTML.",
+      "expects_restore": false
+    },
+    {
+      "task_id": "editorial-review",
+      "agent": "architect",
+      "slot": "editorial_review",
+      "capability": "editing",
+      "prompt": "Restore the architect state, review the page content, and produce a concise final editorial approval.",
+      "expects_restore": true
+    }
+  ],
+  "memory_policy": {
+    "project": "helix-blueprint",
+    "budget_tokens": 700,
+    "mode": "search"
+  },
+  "session_policy": {
+    "codec": "rust-hlx-buffered-flat",
+    "audit_policy": "deferred",
+    "verify_policy": "receipt-only"
+  },
+  "outputs": {
+    "artifact": "local-blueprint-meta-microsite-demo.json",
+    "site": "meta-demo.html"
+  }
+}

@@ -1,0 +1,26 @@
+[package]
+name = "helix-state-core"
+version = "0.1.0"
+edition = "2021"
+description = "Rust .hlx session bundle codec for HeliX inference caches"
+
+[lib]
+name = "_helix_state_core"
+crate-type = ["cdylib", "rlib"]
+
+[[bin]]
+name = "helix-state-core"
+path = "src/main.rs"
+
+[features]
+default = []
+python = ["pyo3"]
+
+[dependencies]
+clap = { version = "4.5.4", features = ["derive"] }
+hex = "0.4"
+pyo3 = { version = "0.22", features = ["extension-module", "abi3-py311"], optional = true }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+sha2 = "0.10"
+tempfile = "3.10"

@@ -1,0 +1,144 @@
+# ─── Rust build artifacts ─────────────────────────────────────────────────────
+target/
+**/*.rlib
+**/*.d
+
+# ─── Python ───────────────────────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+*.egg-info/
+dist/
+build/
+*.egg
+.eggs/
+pip-wheel-metadata/
+*.whl
+
+# ─── Virtual environments ─────────────────────────────────────────────────────
+venv/
+env/
+.env/
+.venv/
+ENV/
+
+# ─── Test caches ──────────────────────────────────────────────────────────────
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+*.cover
+coverage.xml
+nosetests.xml
+
+# ─── Model weights (NEVER commit) ─────────────────────────────────────────────
+*.gguf
+*.safetensors
+*.bin
+*.pt
+*.pth
+*.ckpt
+*.pkl
+*.npz
+*.onnx
+workspace-gguf/
+workspace-cdna/
+workspace-smoke/
+workspace/
+
+# ─── Secrets and credentials (CRITICAL) ───────────────────────────────────────
+.env
+.env.*
+*.env
+secrets.json
+secrets.yaml
+secrets.toml
+*_secrets.*
+api_keys.*
+.deepinfra
+.anthropic
+.openai
+.groq
+
+# ─── Build output / generated sites ───────────────────────────────────────────
+site-dist/
+benchmark-output/
+*.html
+!docs/**/*.html
+!web/**/*.html
+
+# ─── OS / editor ──────────────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+desktop.ini
+.idea/
+.vscode/settings.json
+*.swp
+*.swo
+*~
+
+# ─── Binaries and archives in tools ───────────────────────────────────────────
+tools/llama-b8502
+tools/llama-b8502-bin-win-cpu-x64.zip
+tools/__pycache__/
+
+# ─── Jupyter ──────────────────────────────────────────────────────────────────
+.ipynb_checkpoints/
+*.ipynb
+
+# ─── Logs (keep .log en verification/ pero no logs sueltos) ──────────────────
+*.log
+!verification/*.log
+
+# ─── Temporary files ──────────────────────────────────────────────────────────
+*.tmp
+*.bak
+*.orig
+*.rej
+
+# ─── 031Δ / material privado (no se publica) ─────────────────────────────────
+# Artefactos de identidad emergente y experimentos sin claim_boundary pública
+verification/local-unconstrained-witness-council*
+verification/local-self-archaeology-notation-tracker*
+verification/local-tri-model-governance-ledger*
+verification/local-world-shaker-frontier*
+verification/local-freeform-ouroboros-relay*
+verification/local-identity-trust-gauntlet-v3*
+verification/local-identity-trust-conversation-ledger-v3*
+verification/local-ouroboros-20-self-modeling*
+verification/local-same-architecture-amnesia-replay*
+verification/local-epistemic-honesty-tribunal*
+verification/local-governance-accountability-ledger*
+verification/local-emergent-behavior-cross-system-postmortem-20260418*
+# Runs intermedios del observatory (se guarda solo el artefacto estable)
+verification/local-provider-integrity-observatory-20260418-030852*
+verification/local-provider-integrity-observatory-20260418-031031*
+verification/local-provider-integrity-observatory-20260418-031521*
+verification/local-provider-integrity-observatory-20260418-031611*
+verification/local-provider-integrity-observatory-20260418-154218*
+verification/local-provider-integrity-conversation-ledger-20260418-*
+verification/local-provider-substitution-ledger-20260418-*
+verification/local-same-prompt-different-model-proof-20260418-*
+verification/local-emergent-behavior-run-bundle-provider-integrity-observatory-20260418-030852*
+verification/local-emergent-behavior-run-bundle-provider-integrity-observatory-20260418-031031*
+verification/local-emergent-behavior-run-bundle-provider-integrity-observatory-20260418-031521*
+verification/local-emergent-behavior-run-bundle-provider-integrity-observatory-20260418-154218*
+# Runs intermedios ghost
+verification/local-ghost-in-the-shell-live-20260418-093140*
+verification/local-ghost-in-the-shell-live-20260418-094519*
+verification/local-ghost-in-the-shell-live-20260418-094952*
+verification/local-ghost-in-the-shell-live-20260418-154420*
+verification/local-ghost-in-the-shell-live-v2-20260418-*
+verification/local-ghost-shell-conversation-ledger-20260418-*
+verification/local-ghost-shell-task-scores-20260418-*
+verification/local-ghost-v2-*
+verification/local-ghost-v2-doppelganger-war*
+# Runs intermedios hydrogen
+verification/local-hydrogen-table-drop-conversation-ledger-20260418-*
+verification/local-hydrogen-table-drop-live-20260418-*
+# Material v4 adicional sin claim público
+verification/local-v4-memory-contamination-triad*
+verification/local-v4-provider-substitution-longitudinal*
+verification/provider-substitution-longitudinal/

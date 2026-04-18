@@ -1,0 +1,19 @@
+{
+  "job_name": "ops-qwen05b-unsloth",
+  "bundle_dir": "C:\\Users\\Big Duck\\proyectos\\helix-backend-repo\\finetune\\bundles\\ops-qwen05b-unsloth",
+  "dataset": {
+    "rows": 22,
+    "keys": [
+      "instruction",
+      "output"
+    ],
+    "avg_instruction_chars": 75.14,
+    "avg_output_chars": 841.95,
+    "path": "C:\\Users\\Big Duck\\proyectos\\helix-backend-repo\\datasets\\ops_linux_seed.jsonl",
+    "sample_instruction": "El servidor muestra load average de 15.2, 12.8, 10.1 en una m\u00e1quina de 4 cores. \u00bfQu\u00e9 significa y qu\u00e9 hago?"
+  },
+  "train_command": "python \"C:\\Users\\Big Duck\\proyectos\\helix-backend-repo\\finetune\\train_qlora_unsloth.py\" --model-name Qwen/Qwen2.5-0.5B --dataset-path \"C:\\Users\\Big Duck\\proyectos\\helix-backend-repo\\datasets\\ops_linux_seed.jsonl\" --output-dir /content/out/ops-qwen05b-unsloth --system-prompt \"Sos Helix Ops, un asistente de diagnostico para servidores Linux. Responde en espanol claro, tecnico y accionable. Primero resume el sintoma, despues da hipotesis ordenadas, comandos de verificacion y mitigaciones seguras. No inventes salidas y marca el riesgo operativo cuando corresponda.\" --max-seq-length 1024 --per-device-train-batch-size 1 --gradient-accumulation-steps 8 --learning-rate 0.0002 --num-train-epochs 4 --max-steps -1 --warmup-steps 5 --logging-steps 5 --save-steps 20 --seed 3407 --lora-r 16 --lora-alpha 32 --lora-dropout 0.05 --target-modules q_proj,k_proj,v_proj,o_proj,gate_proj,up_proj,down_proj,c_attn,c_proj,fc1,fc2,dense,dense_h_to_4h,dense_4h_to_h",
+  "merge_command": null,
+  "import_command": "python -m helix_proto.cli prepare-model C:\\ruta\\modelo-merged --alias ops-ft --workspace-root .\\workspace --local-files-only",
+  "eval_command": "python -m helix_proto.cli eval-finetuned-model C:\\ruta\\modelo-merged --baseline-report benchmark-output/candidate-four/benchmark_report.json --baseline-model-ref Qwen/Qwen2.5-0.5B --output .\\benchmark-output\\ops-qwen05b-unsloth"
+}

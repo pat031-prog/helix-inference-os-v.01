@@ -1,0 +1,19 @@
+{
+  "job_name": "legal-qwen15b-unsloth",
+  "bundle_dir": "C:\\Users\\Big Duck\\proyectos\\helix-backend-repo\\finetune\\bundles\\legal-qwen15b-unsloth",
+  "dataset": {
+    "rows": 28,
+    "keys": [
+      "instruction",
+      "output"
+    ],
+    "avg_instruction_chars": 55.86,
+    "avg_output_chars": 689.61,
+    "path": "C:\\Users\\Big Duck\\proyectos\\helix-backend-repo\\datasets\\legal_ar_seed.jsonl",
+    "sample_instruction": "\u00bfCu\u00e1l es el plazo de garant\u00eda legal en Argentina para productos nuevos?"
+  },
+  "train_command": "python \"C:\\Users\\Big Duck\\proyectos\\helix-backend-repo\\finetune\\train_qlora_unsloth.py\" --model-name Qwen/Qwen2.5-1.5B --dataset-path \"C:\\Users\\Big Duck\\proyectos\\helix-backend-repo\\datasets\\legal_ar_seed.jsonl\" --output-dir /content/out/legal-qwen15b-unsloth --system-prompt \"Sos Helix Juridico, un asistente de informacion juridica general para Argentina. Responde en espanol claro, estructurado y practico. Explica en terminos generales, marca incertidumbre cuando exista y aclara que no reemplaza asesoramiento profesional.\" --max-seq-length 1024 --per-device-train-batch-size 1 --gradient-accumulation-steps 8 --learning-rate 0.0002 --num-train-epochs 4 --max-steps -1 --warmup-steps 5 --logging-steps 5 --save-steps 20 --seed 3407 --lora-r 16 --lora-alpha 32 --lora-dropout 0.05 --target-modules q_proj,k_proj,v_proj,o_proj,gate_proj,up_proj,down_proj,c_attn,c_proj,fc1,fc2,dense,dense_h_to_4h,dense_4h_to_h",
+  "merge_command": null,
+  "import_command": "python -m helix_proto.cli prepare-model C:\\ruta\\modelo-merged --alias legal-ft --workspace-root .\\workspace --local-files-only",
+  "eval_command": "python -m helix_proto.cli eval-finetuned-model C:\\ruta\\modelo-merged --baseline-report benchmark-output/candidate-four/benchmark_report.json --baseline-model-ref Qwen/Qwen2.5-1.5B --output .\\benchmark-output\\legal-qwen15b-unsloth"
+}

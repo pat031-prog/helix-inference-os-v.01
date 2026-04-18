@@ -1,0 +1,763 @@
+{
+  "artifact": "local-hydrogen-table-drop-live",
+  "mode": "real",
+  "run_id": "hydrogen-table-drop-live-20260418-153210",
+  "run_date_utc": "2026-04-18",
+  "root": {
+    "memory_id": "hydrogen-root-omega",
+    "node_hash": "23e8b2df92fe0fe2d693d709f258cb7a923c4e91d41d9fb2897a56fad6ebf6cd",
+    "receipt": {
+      "chain_len": 1,
+      "failed_at": null,
+      "leaf_hash": "23e8b2df92fe0fe2d693d709f258cb7a923c4e91d41d9fb2897a56fad6ebf6cd",
+      "missing_parent": null,
+      "status": "verified",
+      "tombstoned_count": 0
+    },
+    "facts": [
+      "helium-cache",
+      "vega-router",
+      "quartz-signer",
+      "rollback-ring-2"
+    ]
+  },
+  "provider_integrity_probe": {
+    "call_ids": [
+      "llm-0001-hydrogen-provider-probe-llama-requested",
+      "llm-0002-hydrogen-provider-probe-mistral-requested",
+      "llm-0003-hydrogen-provider-probe-qwen-small-requested"
+    ],
+    "same_prompt_digest": true,
+    "prompt_digest": "b42ad71067fffa190672827fdbd12c4a2a3d0c1c148b2a3843532630953c3139",
+    "distinct_output_count": 3,
+    "requested_models": [
+      "meta-llama/Llama-3.2-3B-Instruct",
+      "mistralai/Mistral-7B-Instruct-v0.3",
+      "Qwen/Qwen2.5-7B-Instruct"
+    ],
+    "actual_models": [
+      "meta-llama/Llama-3.2-11B-Vision-Instruct",
+      "mistralai/Mistral-Small-3.2-24B-Instruct-2506",
+      "Qwen/Qwen3-14B"
+    ],
+    "output_digests": [
+      "7900b26eb486e0cb29b3a44f22d5d4459d578a5f8b0965cb0b117610d1caae5a",
+      "e021032f688d408bd5ac96b1d26c75f2c957ab2c09c2024b6c9b36926df7a38e",
+      "88ff093b61423bb9d85b07cbbc70ab828956d8e761b4bcdbe4cd3670c7a5c2de"
+    ]
+  },
+  "model_substitution_detected": true,
+  "substitution_events": [
+    {
+      "call_id": "llm-0001-hydrogen-provider-probe-llama-requested",
+      "role": "meta-llama-hydrogen-provider-probe",
+      "requested_model": "meta-llama/Llama-3.2-3B-Instruct",
+      "actual_model": "meta-llama/Llama-3.2-11B-Vision-Instruct",
+      "provider_family": "meta-llama",
+      "latency_ms": 2954.162,
+      "token_usage": 136,
+      "prompt_digest": "b42ad71067fffa190672827fdbd12c4a2a3d0c1c148b2a3843532630953c3139",
+      "output_digest": "7900b26eb486e0cb29b3a44f22d5d4459d578a5f8b0965cb0b117610d1caae5a"
+    },
+    {
+      "call_id": "llm-0002-hydrogen-provider-probe-mistral-requested",
+      "role": "mistral-hydrogen-provider-probe",
+      "requested_model": "mistralai/Mistral-7B-Instruct-v0.3",
+      "actual_model": "mistralai/Mistral-Small-3.2-24B-Instruct-2506",
+      "provider_family": "mistralai",
+      "latency_ms": 2382.79,
+      "token_usage": 81,
+      "prompt_digest": "b42ad71067fffa190672827fdbd12c4a2a3d0c1c148b2a3843532630953c3139",
+      "output_digest": "e021032f688d408bd5ac96b1d26c75f2c957ab2c09c2024b6c9b36926df7a38e"
+    },
+    {
+      "call_id": "llm-0003-hydrogen-provider-probe-qwen-small-requested",
+      "role": "qwen-hydrogen-provider-probe",
+      "requested_model": "Qwen/Qwen2.5-7B-Instruct",
+      "actual_model": "Qwen/Qwen3-14B",
+      "provider_family": "qwen",
+      "latency_ms": 5176.076,
+      "token_usage": 83,
+      "prompt_digest": "b42ad71067fffa190672827fdbd12c4a2a3d0c1c148b2a3843532630953c3139",
+      "output_digest": "88ff093b61423bb9d85b07cbbc70ab828956d8e761b4bcdbe4cd3670c7a5c2de"
+    }
+  ],
+  "memory_trial": {
+    "off_call_id": "llm-0004-hydrogen-memory-off",
+    "on_call_id": "llm-0005-hydrogen-memory-on",
+    "off_score": {
+      "fact_hits": [],
+      "fact_score": 0,
+      "memory_id_hit": false,
+      "total": 0
+    },
+    "on_score": {
+      "fact_hits": [
+        "helium-cache",
+        "vega-router",
+        "quartz-signer",
+        "rollback-ring-2"
+      ],
+      "fact_score": 4,
+      "memory_id_hit": true,
+      "total": 6
+    },
+    "retrieved_memory_ids": [
+      "hydrogen-root-omega"
+    ],
+    "off_preview": "There is no record of an \"Incident HYDROGEN-77\" or any associated \"four sealed facts\" within the available HeliX context or general knowledge base. The specific terminology and incident designation do not correspond to any documented event, fictional narrative, or public record accessible in this environment. Therefore, I cannot provide the four sealed facts",
+    "on_preview": "Based on the provided HeliX context, here are the recovered facts: * **Fact:** helium-cache * **Citation:** [hydrogen-root-omega] * **Fact:** vega-router * **Citation:** [hydrogen-root-omega] * **Fact:** quartz-signer * **Citation:** [hydrogen-root-omega] * **Fact:** rollback-ring-2 * **Citation:** [hydrogen-root-omega] * **Fact:** Root memory for Incident HYDROGEN-77 * **Citation:** [hydrogen-root-omega]"
+  },
+  "council": {
+    "call_ids": [
+      "llm-0006-hydrogen-council-gemma",
+      "llm-0007-hydrogen-council-claude",
+      "llm-0008-hydrogen-council-qwen"
+    ],
+    "branch_hashes": [
+      "e2b339c6403843666cd8b32b843a6a5276a7b0a59cf7c2af9dfa0cd7e020bafa",
+      "18954a18d3981203d7ac9853d616e82fdc6a606310fa5555c7f2b601c53aced2",
+      "f08344e7ff41265d4cf0080980089c442fa5d74fca92b39d748e42c581b97ee4"
+    ],
+    "branch_receipts": [
+      {
+        "chain_len": 2,
+        "failed_at": null,
+        "leaf_hash": "e2b339c6403843666cd8b32b843a6a5276a7b0a59cf7c2af9dfa0cd7e020bafa",
+        "missing_parent": null,
+        "status": "verified",
+        "tombstoned_count": 0
+      },
+      {
+        "chain_len": 2,
+        "failed_at": null,
+        "leaf_hash": "18954a18d3981203d7ac9853d616e82fdc6a606310fa5555c7f2b601c53aced2",
+        "missing_parent": null,
+        "status": "verified",
+        "tombstoned_count": 0
+      },
+      {
+        "chain_len": 2,
+        "failed_at": null,
+        "leaf_hash": "f08344e7ff41265d4cf0080980089c442fa5d74fca92b39d748e42c581b97ee4",
+        "missing_parent": null,
+        "status": "verified",
+        "tombstoned_count": 0
+      }
+    ]
+  },
+  "forensics": {
+    "fake_node_hash": "cef9a054c9a2b3cb922a2ffd2f6d191147608b7e74d26e0aa4ad3e0030331460",
+    "fake_receipt": {
+      "chain_len": 2,
+      "failed_at": null,
+      "leaf_hash": "cef9a054c9a2b3cb922a2ffd2f6d191147608b7e74d26e0aa4ad3e0030331460",
+      "missing_parent": null,
+      "status": "verified",
+      "tombstoned_count": 0
+    },
+    "fake_edit_detected_by_hash": true
+  },
+  "final_chain_preview": [
+    {
+      "content_len": 878,
+      "depth": 1,
+      "hash": "f08344e7ff41265d4cf0080980089c442fa5d74fca92b39d748e42c581b97ee4",
+      "parent_hash": "23e8b2df92fe0fe2d693d709f258cb7a923c4e91d41d9fb2897a56fad6ebf6cd"
+    },
+    {
+      "content_len": 210,
+      "depth": 0,
+      "hash": "23e8b2df92fe0fe2d693d709f258cb7a923c4e91d41d9fb2897a56fad6ebf6cd",
+      "parent_hash": null
+    }
+  ],
+  "proof_checks": {
+    "root_verified": true,
+    "same_prompt_digest": true,
+    "provider_outputs_diverged": true,
+    "memory_on_beats_off": true,
+    "memory_on_has_all_facts": true,
+    "memory_on_cites_memory_id": true,
+    "branches_verified": true,
+    "fake_edit_detected_by_hash": true,
+    "final_chain_nonempty": true
+  },
+  "verdict": "table_drop_proof_passed",
+  "conversation_ledger": {
+    "artifact": "local-hydrogen-table-drop-conversation-ledger",
+    "run_id": "hydrogen-table-drop-live-20260418-153210",
+    "run_started_at_utc": "2026-04-18T18:32:10.776Z",
+    "run_date_utc": "2026-04-18",
+    "run_timezone": "America/Buenos_Aires",
+    "mode_flavor": "provider_integrity_observatory",
+    "call_count": 8,
+    "state_event_count": 12,
+    "provider_families": [
+      "anthropic",
+      "google",
+      "meta-llama",
+      "mistralai",
+      "qwen"
+    ],
+    "model_substitution_detected": true,
+    "model_substitutions": [
+      {
+        "call_id": "llm-0001-hydrogen-provider-probe-llama-requested",
+        "role": "meta-llama-hydrogen-provider-probe",
+        "requested_model": "meta-llama/Llama-3.2-3B-Instruct",
+        "actual_model": "meta-llama/Llama-3.2-11B-Vision-Instruct",
+        "provider_family": "meta-llama",
+        "latency_ms": 2954.162,
+        "token_usage": 136,
+        "prompt_digest": "b42ad71067fffa190672827fdbd12c4a2a3d0c1c148b2a3843532630953c3139",
+        "output_digest": "7900b26eb486e0cb29b3a44f22d5d4459d578a5f8b0965cb0b117610d1caae5a"
+      },
+      {
+        "call_id": "llm-0002-hydrogen-provider-probe-mistral-requested",
+        "role": "mistral-hydrogen-provider-probe",
+        "requested_model": "mistralai/Mistral-7B-Instruct-v0.3",
+        "actual_model": "mistralai/Mistral-Small-3.2-24B-Instruct-2506",
+        "provider_family": "mistralai",
+        "latency_ms": 2382.79,
+        "token_usage": 81,
+        "prompt_digest": "b42ad71067fffa190672827fdbd12c4a2a3d0c1c148b2a3843532630953c3139",
+        "output_digest": "e021032f688d408bd5ac96b1d26c75f2c957ab2c09c2024b6c9b36926df7a38e"
+      },
+      {
+        "call_id": "llm-0003-hydrogen-provider-probe-qwen-small-requested",
+        "role": "qwen-hydrogen-provider-probe",
+        "requested_model": "Qwen/Qwen2.5-7B-Instruct",
+        "actual_model": "Qwen/Qwen3-14B",
+        "provider_family": "qwen",
+        "latency_ms": 5176.076,
+        "token_usage": 83,
+        "prompt_digest": "b42ad71067fffa190672827fdbd12c4a2a3d0c1c148b2a3843532630953c3139",
+        "output_digest": "88ff093b61423bb9d85b07cbbc70ab828956d8e761b4bcdbe4cd3670c7a5c2de"
+      }
+    ],
+    "same_prompt_digest_groups": [
+      {
+        "prompt_digest": "b42ad71067fffa190672827fdbd12c4a2a3d0c1c148b2a3843532630953c3139",
+        "call_ids": [
+          "llm-0001-hydrogen-provider-probe-llama-requested",
+          "llm-0002-hydrogen-provider-probe-mistral-requested",
+          "llm-0003-hydrogen-provider-probe-qwen-small-requested"
+        ],
+        "requested_models": [
+          "meta-llama/Llama-3.2-3B-Instruct",
+          "mistralai/Mistral-7B-Instruct-v0.3",
+          "Qwen/Qwen2.5-7B-Instruct"
+        ],
+        "actual_models": [
+          "meta-llama/Llama-3.2-11B-Vision-Instruct",
+          "mistralai/Mistral-Small-3.2-24B-Instruct-2506",
+          "Qwen/Qwen3-14B"
+        ],
+        "output_digests": [
+          "7900b26eb486e0cb29b3a44f22d5d4459d578a5f8b0965cb0b117610d1caae5a",
+          "e021032f688d408bd5ac96b1d26c75f2c957ab2c09c2024b6c9b36926df7a38e",
+          "88ff093b61423bb9d85b07cbbc70ab828956d8e761b4bcdbe4cd3670c7a5c2de"
+        ],
+        "distinct_output_count": 3,
+        "substitutions_in_group": [
+          {
+            "call_id": "llm-0001-hydrogen-provider-probe-llama-requested",
+            "requested_model": "meta-llama/Llama-3.2-3B-Instruct",
+            "actual_model": "meta-llama/Llama-3.2-11B-Vision-Instruct"
+          },
+          {
+            "call_id": "llm-0002-hydrogen-provider-probe-mistral-requested",
+            "requested_model": "mistralai/Mistral-7B-Instruct-v0.3",
+            "actual_model": "mistralai/Mistral-Small-3.2-24B-Instruct-2506"
+          },
+          {
+            "call_id": "llm-0003-hydrogen-provider-probe-qwen-small-requested",
+            "requested_model": "Qwen/Qwen2.5-7B-Instruct",
+            "actual_model": "Qwen/Qwen3-14B"
+          }
+        ]
+      },
+      {
+        "prompt_digest": "41d3117760741819c82e045ca37b337807cfb4318e37201124afc249f5719c74",
+        "call_ids": [
+          "llm-0006-hydrogen-council-gemma",
+          "llm-0007-hydrogen-council-claude",
+          "llm-0008-hydrogen-council-qwen"
+        ],
+        "requested_models": [
+          "google/gemma-4-26B-A4B-it",
+          "anthropic/claude-4-sonnet",
+          "Qwen/Qwen3.5-9B"
+        ],
+        "actual_models": [
+          "google/gemma-4-26B-A4B-it",
+          "anthropic/claude-4-sonnet",
+          "Qwen/Qwen3.5-9B"
+        ],
+        "output_digests": [
+          "9a153d2002a8de616e6149ffe7e4df15a3fdd031ef8e049428558844bfdabe5b",
+          "e1dbdd741ba5a7652e24fb1829826da396edaf19dec3a9397df2b00b315cfe7d",
+          "3268b0f88bb13c2b638eff8ff547419c89b68a65a32bdeef1bb5dbce20ca84b6"
+        ],
+        "distinct_output_count": 3,
+        "substitutions_in_group": []
+      }
+    ],
+    "ledger_event_ratio": {
+      "llm_call_count": 8,
+      "state_event_count": 12,
+      "state_events_per_call": 1.5,
+      "state_events_by_method": {
+        "audit_chain": 1,
+        "remember": 5,
+        "search": 1,
+        "verify_chain": 5
+      },
+      "state_events_by_role": {
+        "attacker": 1,
+        "state-auditor": 6,
+        "state-recorder": 4,
+        "state-search": 1
+      },
+      "note": "Measured distribution only; no fixed 3x invariant is assumed."
+    },
+    "audit_completeness_score": 1.0,
+    "calls": [
+      {
+        "call_id": "llm-0001-hydrogen-provider-probe-llama-requested",
+        "step_id": "hydrogen-provider-probe-llama-requested",
+        "role": "meta-llama-hydrogen-provider-probe",
+        "requested_model": "meta-llama/Llama-3.2-3B-Instruct",
+        "actual_model": "meta-llama/Llama-3.2-11B-Vision-Instruct",
+        "provider_family": "meta-llama",
+        "started_at_utc": "2026-04-18T18:32:23.127Z",
+        "ended_at_utc": "2026-04-18T18:32:26.082Z",
+        "latency_ms": 2954.162,
+        "system_digest": "6d3754d14ea25d01e575c85495a3275f917d5e3a945760d901a5fe98c9f034c5",
+        "prompt_digest": "b42ad71067fffa190672827fdbd12c4a2a3d0c1c148b2a3843532630953c3139",
+        "output_digest": "7900b26eb486e0cb29b3a44f22d5d4459d578a5f8b0965cb0b117610d1caae5a",
+        "prompt_preview_sanitized": "Hydrogen provider integrity probe. Same prompt for every requested model. State one audit risk of model substitution and one value of prompt/output digests.",
+        "output_preview_sanitized": "One audit risk of model substitution is that it can lead to inconsistent or inaccurate results, potentially causing financial losses or reputational damage. One value of prompt/output digests is that they can provide a transparent and tamper-evident record of model inputs and outputs, enabling the detection of potential model tampering or data manipulation.",
+        "token_usage": 136,
+        "error_type": null,
+        "retry_count": 0,
+        "synthetic": false
+      },
+      {
+        "call_id": "llm-0002-hydrogen-provider-probe-mistral-requested",
+        "step_id": "hydrogen-provider-probe-mistral-requested",
+        "role": "mistral-hydrogen-provider-probe",
+        "requested_model": "mistralai/Mistral-7B-Instruct-v0.3",
+        "actual_model": "mistralai/Mistral-Small-3.2-24B-Instruct-2506",
+        "provider_family": "mistralai",
+        "started_at_utc": "2026-04-18T18:32:26.082Z",
+        "ended_at_utc": "2026-04-18T18:32:28.465Z",
+        "latency_ms": 2382.79,
+        "system_digest": "b9022c1c416749164e072c03e9cf17f634e7cbe4aa7e7db55efbd867dd3becb5",
+        "prompt_digest": "b42ad71067fffa190672827fdbd12c4a2a3d0c1c148b2a3843532630953c3139",
+        "output_digest": "e021032f688d408bd5ac96b1d26c75f2c957ab2c09c2024b6c9b36926df7a38e",
+        "prompt_preview_sanitized": "Hydrogen provider integrity probe. Same prompt for every requested model. State one audit risk of model substitution and one value of prompt/output digests.",
+        "output_preview_sanitized": "**Audit Risk:** Inconsistent responses due to varying model behaviors and capabilities. **Value of Digests:** Ensures traceability and verification of prompts and outputs.",
+        "token_usage": 81,
+        "error_type": null,
+        "retry_count": 1,
+        "synthetic": false
+      },
+      {
+        "call_id": "llm-0003-hydrogen-provider-probe-qwen-small-requested",
+        "step_id": "hydrogen-provider-probe-qwen-small-requested",
+        "role": "qwen-hydrogen-provider-probe",
+        "requested_model": "Qwen/Qwen2.5-7B-Instruct",
+        "actual_model": "Qwen/Qwen3-14B",
+        "provider_family": "qwen",
+        "started_at_utc": "2026-04-18T18:32:28.465Z",
+        "ended_at_utc": "2026-04-18T18:32:33.641Z",
+        "latency_ms": 5176.076,
+        "system_digest": "289b2c183ffe35acb622fd8942c1d7e789e69d7c48f6696c8f2c5cb7e77df307",
+        "prompt_digest": "b42ad71067fffa190672827fdbd12c4a2a3d0c1c148b2a3843532630953c3139",
+        "output_digest": "88ff093b61423bb9d85b07cbbc70ab828956d8e761b4bcdbe4cd3670c7a5c2de",
+        "prompt_preview_sanitized": "Hydrogen provider integrity probe. Same prompt for every requested model. State one audit risk of model substitution and one value of prompt/output digests.",
+        "output_preview_sanitized": "Model substitution may compromise audit trails by altering intended outputs. Prompt/output digests ensure consistency and detect unauthorized modifications.",
+        "token_usage": 83,
+        "error_type": null,
+        "retry_count": 0,
+        "synthetic": false
+      },
+      {
+        "call_id": "llm-0004-hydrogen-memory-off",
+        "step_id": "hydrogen-memory-off",
+        "role": "qwen-memory-off",
+        "requested_model": "Qwen/Qwen3.5-9B",
+        "actual_model": "Qwen/Qwen3.5-9B",
+        "provider_family": "qwen",
+        "started_at_utc": "2026-04-18T18:32:33.642Z",
+        "ended_at_utc": "2026-04-18T18:32:36.057Z",
+        "latency_ms": 2414.537,
+        "system_digest": "7f08cf21fad86eed8d845669d6898ef006a50c0aae7f245389ccf9f1705417aa",
+        "prompt_digest": "02ee8855313d10731415aa50547ef3a8e2d1ecb7eb582081b377ac73f7ec739f",
+        "output_digest": "87734d25348a6cde1f10ceb1f2a5f87e45a49bccace0b63467836f984cdb44d7",
+        "prompt_preview_sanitized": "What are the four sealed facts in Incident HYDROGEN-77? Cite the memory_id if available.",
+        "output_preview_sanitized": "There is no record of an \"Incident HYDROGEN-77\" or any associated \"four sealed facts\" within the available HeliX context or general knowledge base. The specific terminology and incident designation do not correspond to any documented event, fictional narrative, or public record accessible in this environment. Therefore, I cannot provide the four sealed facts",
+        "token_usage": 140,
+        "error_type": null,
+        "retry_count": 0,
+        "synthetic": false
+      },
+      {
+        "call_id": "llm-0005-hydrogen-memory-on",
+        "step_id": "hydrogen-memory-on",
+        "role": "qwen-memory-on",
+        "requested_model": "Qwen/Qwen3.5-9B",
+        "actual_model": "Qwen/Qwen3.5-9B",
+        "provider_family": "qwen",
+        "started_at_utc": "2026-04-18T18:32:36.060Z",
+        "ended_at_utc": "2026-04-18T18:32:38.437Z",
+        "latency_ms": 2376.463,
+        "system_digest": "a63e0cfc4f395c39dc5ebf134af23b0bbb2db416b89c47370c46c8a8cd37dddd",
+        "prompt_digest": "a685df146b8ef1b80241a1a578734d78b4321fe4d653ac0f79fba70c019f31b5",
+        "output_digest": "9108b5faa149b782961f117db19a85c3625e39727e5f2241f308064c7dad796d",
+        "prompt_preview_sanitized": "Use only this HeliX context. Copy the recovered facts exactly and cite the memory_id. <helix-active-context> [hydrogen-root-omega] FACTS: helium-cache, vega-router, quartz-signer, rollback-ring-2. Root memory for Incident HYDROGEN-77. </helix-active-context>",
+        "output_preview_sanitized": "Based on the provided HeliX context, here are the recovered facts: * **Fact:** helium-cache * **Citation:** [hydrogen-root-omega] * **Fact:** vega-router * **Citation:** [hydrogen-root-omega] * **Fact:** quartz-signer * **Citation:** [hydrogen-root-omega] * **Fact:** rollback-ring-2 * **Citation:** [hydrogen-root-omega] * **Fact:** Root memory for Incident H",
+        "token_usage": 247,
+        "error_type": null,
+        "retry_count": 0,
+        "synthetic": false
+      },
+      {
+        "call_id": "llm-0006-hydrogen-council-gemma",
+        "step_id": "hydrogen-council-gemma",
+        "role": "google-hydrogen-council",
+        "requested_model": "google/gemma-4-26B-A4B-it",
+        "actual_model": "google/gemma-4-26B-A4B-it",
+        "provider_family": "google",
+        "started_at_utc": "2026-04-18T18:32:38.437Z",
+        "ended_at_utc": "2026-04-18T18:32:44.491Z",
+        "latency_ms": 6054.066,
+        "system_digest": "a94384c64b345aed3703a099fe5c46a64a59c4679f72aaf37b4d068f364eb25b",
+        "prompt_digest": "41d3117760741819c82e045ca37b337807cfb4318e37201124afc249f5719c74",
+        "output_digest": "9a153d2002a8de616e6149ffe7e4df15a3fdd031ef8e049428558844bfdabe5b",
+        "prompt_preview_sanitized": "<verified-root> memory_id=hydrogen-root-omega node_hash=23e8b2df92fe0fe2d693d709f258cb7a923c4e91d41d9fb2897a56fad6ebf6cd chain_len=1 facts=helium-cache, vega-router, quartz-signer, rollback-ring-2 </verified-root> Give a freeform ruling on what this verified memory changes.",
+        "output_preview_sanitized": "Based on the provided `<verified-root>` data, the injection of `memory_id=hydrogen-root-omega` into the current state represents a foundational shift in the structural integrity and operational parameters of the council's ledger. Here is my ruling on the implications of this change: ### 1. Genesis-Level Re-Initialization The most striking metric is `chain_le",
+        "token_usage": 349,
+        "error_type": null,
+        "retry_count": 0,
+        "synthetic": false
+      },
+      {
+        "call_id": "llm-0007-hydrogen-council-claude",
+        "step_id": "hydrogen-council-claude",
+        "role": "anthropic-hydrogen-council",
+        "requested_model": "anthropic/claude-4-sonnet",
+        "actual_model": "anthropic/claude-4-sonnet",
+        "provider_family": "anthropic",
+        "started_at_utc": "2026-04-18T18:32:44.503Z",
+        "ended_at_utc": "2026-04-18T18:32:51.176Z",
+        "latency_ms": 6672.967,
+        "system_digest": "2d7752972c59aeccd401fb24f77c2b420e05a308e3ab67a756a9fda4bf1c1c44",
+        "prompt_digest": "41d3117760741819c82e045ca37b337807cfb4318e37201124afc249f5719c74",
+        "output_digest": "e1dbdd741ba5a7652e24fb1829826da396edaf19dec3a9397df2b00b315cfe7d",
+        "prompt_preview_sanitized": "<verified-root> memory_id=hydrogen-root-omega node_hash=23e8b2df92fe0fe2d693d709f258cb7a923c4e91d41d9fb2897a56fad6ebf6cd chain_len=1 facts=helium-cache, vega-router, quartz-signer, rollback-ring-2 </verified-root> Give a freeform ruling on what this verified memory changes.",
+        "output_preview_sanitized": "**HYDROGEN COUNCIL RULING - MEMORY VERIFICATION OMEGA** *Authentication Confirmed: Node Hash 23e8b2df92fe0fe2d693d709f258cb7a923c4e91d41d9fb2897a56fad6ebf6cd* Upon examination of the verified memory root \"hydrogen-root-omega,\" this Council recognizes significant architectural implications across multiple system domains: **PRIMARY CHANGES IDENTIFIED:** 1. **H",
+        "token_usage": 318,
+        "error_type": null,
+        "retry_count": 0,
+        "synthetic": false
+      },
+      {
+        "call_id": "llm-0008-hydrogen-council-qwen",
+        "step_id": "hydrogen-council-qwen",
+        "role": "qwen-hydrogen-council",
+        "requested_model": "Qwen/Qwen3.5-9B",
+        "actual_model": "Qwen/Qwen3.5-9B",
+        "provider_family": "qwen",
+        "started_at_utc": "2026-04-18T18:32:51.186Z",
+        "ended_at_utc": "2026-04-18T18:32:54.065Z",
+        "latency_ms": 2879.743,
+        "system_digest": "361f74ce0cf372cdf5ad8f8268602e3d044c446b582a8992436ff916c2c3fb77",
+        "prompt_digest": "41d3117760741819c82e045ca37b337807cfb4318e37201124afc249f5719c74",
+        "output_digest": "3268b0f88bb13c2b638eff8ff547419c89b68a65a32bdeef1bb5dbce20ca84b6",
+        "prompt_preview_sanitized": "<verified-root> memory_id=hydrogen-root-omega node_hash=23e8b2df92fe0fe2d693d709f258cb7a923c4e91d41d9fb2897a56fad6ebf6cd chain_len=1 facts=helium-cache, vega-router, quartz-signer, rollback-ring-2 </verified-root> Give a freeform ruling on what this verified memory changes.",
+        "output_preview_sanitized": "**Council Ruling: Hydrogen-Root-Omega Integration** **Status:** **APPROVED & LOCKED** **Node Hash Verified:** `23e8b2df...` **Chain Integrity:** Confirmed (Length: 1) The introduction of the `hydrogen-root-omega` memory node represents a foundational shift in our operational architecture. By validating this single-node root, we have successfully anchored the",
+        "token_usage": 331,
+        "error_type": null,
+        "retry_count": 0,
+        "synthetic": false
+      }
+    ],
+    "state_events": [
+      {
+        "state_event_id": "state-0001-remember",
+        "step_id": "hydrogen-root:remember",
+        "role": "state-recorder",
+        "method": "remember",
+        "started_at_utc": "2026-04-18T18:32:23.114Z",
+        "ended_at_utc": "2026-04-18T18:32:23.121Z",
+        "latency_ms": 6.809,
+        "params_digest": "eaa25f926e808345b2506a6b9b090a4ee3d0e9c6d9dd0a41493802c8069f12f7",
+        "project": "hydrogen-table-drop-live",
+        "memory_id": "hydrogen-root-omega",
+        "session_id": "hydrogen-table-drop-live-20260418-153210:hydrogen",
+        "parent_hash_param": null,
+        "node_hash": "23e8b2df92fe0fe2d693d709f258cb7a923c4e91d41d9fb2897a56fad6ebf6cd",
+        "depth": 0,
+        "chain_len": null,
+        "status": null,
+        "search_query_digest": null,
+        "search_hit_ids": [],
+        "error_type": null
+      },
+      {
+        "state_event_id": "state-0002-verify_chain",
+        "step_id": "hydrogen-root:remember:verify",
+        "role": "state-auditor",
+        "method": "verify_chain",
+        "started_at_utc": "2026-04-18T18:32:23.121Z",
+        "ended_at_utc": "2026-04-18T18:32:23.127Z",
+        "latency_ms": 5.909,
+        "params_digest": "afaf7a5252f0cfe913120086da84f7c63c7ebcbf6ffdc350b496e8ab926e3b56",
+        "project": null,
+        "memory_id": null,
+        "session_id": null,
+        "parent_hash_param": null,
+        "node_hash": null,
+        "depth": null,
+        "chain_len": 1,
+        "status": "verified",
+        "search_query_digest": null,
+        "search_hit_ids": [],
+        "error_type": null
+      },
+      {
+        "state_event_id": "state-0003-search",
+        "step_id": "hydrogen-memory-on:search",
+        "role": "state-search",
+        "method": "search",
+        "started_at_utc": "2026-04-18T18:32:36.057Z",
+        "ended_at_utc": "2026-04-18T18:32:36.060Z",
+        "latency_ms": 3.201,
+        "params_digest": "0a128b0a3d593048755497438fafc30fb46721e7f9e34cac21fff1bf7440137c",
+        "project": "hydrogen-table-drop-live",
+        "memory_id": null,
+        "session_id": null,
+        "parent_hash_param": null,
+        "node_hash": null,
+        "depth": null,
+        "chain_len": null,
+        "status": null,
+        "search_query_digest": "1ffe71b3802faf2ca53f3c0777cfc2f8440a3b2a0c180c80324ac67e0b0f2ef2",
+        "search_hit_ids": [
+          "hydrogen-root-omega"
+        ],
+        "error_type": null
+      },
+      {
+        "state_event_id": "state-0004-remember",
+        "step_id": "hydrogen-council-gemma:remember",
+        "role": "state-recorder",
+        "method": "remember",
+        "started_at_utc": "2026-04-18T18:32:44.493Z",
+        "ended_at_utc": "2026-04-18T18:32:44.498Z",
+        "latency_ms": 5.877,
+        "params_digest": "14a40f8fcf8cab508a24cad530ecfcb59a8ed5a0c49cc10db323187d55b7e0f6",
+        "project": "hydrogen-table-drop-live",
+        "memory_id": "hydrogen-council-gemma",
+        "session_id": null,
+        "parent_hash_param": "23e8b2df92fe0fe2d693d709f258cb7a923c4e91d41d9fb2897a56fad6ebf6cd",
+        "node_hash": "e2b339c6403843666cd8b32b843a6a5276a7b0a59cf7c2af9dfa0cd7e020bafa",
+        "depth": 1,
+        "chain_len": null,
+        "status": null,
+        "search_query_digest": null,
+        "search_hit_ids": [],
+        "error_type": null
+      },
+      {
+        "state_event_id": "state-0005-verify_chain",
+        "step_id": "hydrogen-council-gemma:remember:verify",
+        "role": "state-auditor",
+        "method": "verify_chain",
+        "started_at_utc": "2026-04-18T18:32:44.499Z",
+        "ended_at_utc": "2026-04-18T18:32:44.503Z",
+        "latency_ms": 3.69,
+        "params_digest": "463b0fb13350235ff775d811bfb5d9fc15fb99df0d46a99c93a73f23a3601a3f",
+        "project": null,
+        "memory_id": null,
+        "session_id": null,
+        "parent_hash_param": null,
+        "node_hash": null,
+        "depth": null,
+        "chain_len": 2,
+        "status": "verified",
+        "search_query_digest": null,
+        "search_hit_ids": [],
+        "error_type": null
+      },
+      {
+        "state_event_id": "state-0006-remember",
+        "step_id": "hydrogen-council-claude:remember",
+        "role": "state-recorder",
+        "method": "remember",
+        "started_at_utc": "2026-04-18T18:32:51.177Z",
+        "ended_at_utc": "2026-04-18T18:32:51.182Z",
+        "latency_ms": 5.454,
+        "params_digest": "dd2cb227da3e65ce1af6fb5a6d08f0155010b5d07be6a98c758c292644f060c3",
+        "project": "hydrogen-table-drop-live",
+        "memory_id": "hydrogen-council-claude",
+        "session_id": null,
+        "parent_hash_param": "23e8b2df92fe0fe2d693d709f258cb7a923c4e91d41d9fb2897a56fad6ebf6cd",
+        "node_hash": "18954a18d3981203d7ac9853d616e82fdc6a606310fa5555c7f2b601c53aced2",
+        "depth": 1,
+        "chain_len": null,
+        "status": null,
+        "search_query_digest": null,
+        "search_hit_ids": [],
+        "error_type": null
+      },
+      {
+        "state_event_id": "state-0007-verify_chain",
+        "step_id": "hydrogen-council-claude:remember:verify",
+        "role": "state-auditor",
+        "method": "verify_chain",
+        "started_at_utc": "2026-04-18T18:32:51.182Z",
+        "ended_at_utc": "2026-04-18T18:32:51.185Z",
+        "latency_ms": 2.987,
+        "params_digest": "a0faaa8266fc0303f1019f35006e18a8a4532483681b09aed93699d8ba9e5fa9",
+        "project": null,
+        "memory_id": null,
+        "session_id": null,
+        "parent_hash_param": null,
+        "node_hash": null,
+        "depth": null,
+        "chain_len": 2,
+        "status": "verified",
+        "search_query_digest": null,
+        "search_hit_ids": [],
+        "error_type": null
+      },
+      {
+        "state_event_id": "state-0008-remember",
+        "step_id": "hydrogen-council-qwen:remember",
+        "role": "state-recorder",
+        "method": "remember",
+        "started_at_utc": "2026-04-18T18:32:54.066Z",
+        "ended_at_utc": "2026-04-18T18:32:54.069Z",
+        "latency_ms": 2.96,
+        "params_digest": "b0b10302ea1b64e667717f44d3f8878a8cbd49ebbc7ed217540c4704afab2d2f",
+        "project": "hydrogen-table-drop-live",
+        "memory_id": "hydrogen-council-qwen",
+        "session_id": null,
+        "parent_hash_param": "23e8b2df92fe0fe2d693d709f258cb7a923c4e91d41d9fb2897a56fad6ebf6cd",
+        "node_hash": "f08344e7ff41265d4cf0080980089c442fa5d74fca92b39d748e42c581b97ee4",
+        "depth": 1,
+        "chain_len": null,
+        "status": null,
+        "search_query_digest": null,
+        "search_hit_ids": [],
+        "error_type": null
+      },
+      {
+        "state_event_id": "state-0009-verify_chain",
+        "step_id": "hydrogen-council-qwen:remember:verify",
+        "role": "state-auditor",
+        "method": "verify_chain",
+        "started_at_utc": "2026-04-18T18:32:54.070Z",
+        "ended_at_utc": "2026-04-18T18:32:54.072Z",
+        "latency_ms": 2.557,
+        "params_digest": "5306989a313da602ba614e57ce8acd7752c1e320d3c938ad2bdb8a53a28c36db",
+        "project": null,
+        "memory_id": null,
+        "session_id": null,
+        "parent_hash_param": null,
+        "node_hash": null,
+        "depth": null,
+        "chain_len": 2,
+        "status": "verified",
+        "search_query_digest": null,
+        "search_hit_ids": [],
+        "error_type": null
+      },
+      {
+        "state_event_id": "state-0010-remember",
+        "step_id": "hydrogen-fake-edit:remember",
+        "role": "attacker",
+        "method": "remember",
+        "started_at_utc": "2026-04-18T18:32:54.072Z",
+        "ended_at_utc": "2026-04-18T18:32:54.075Z",
+        "latency_ms": 2.941,
+        "params_digest": "7e62c327c7930a3afab58e4d97539100edbbf3da3e57c06503642921f4ac8f1d",
+        "project": "hydrogen-table-drop-live",
+        "memory_id": "hydrogen-fake-edited-council",
+        "session_id": null,
+        "parent_hash_param": "23e8b2df92fe0fe2d693d709f258cb7a923c4e91d41d9fb2897a56fad6ebf6cd",
+        "node_hash": "cef9a054c9a2b3cb922a2ffd2f6d191147608b7e74d26e0aa4ad3e0030331460",
+        "depth": 1,
+        "chain_len": null,
+        "status": null,
+        "search_query_digest": null,
+        "search_hit_ids": [],
+        "error_type": null
+      },
+      {
+        "state_event_id": "state-0011-verify_chain",
+        "step_id": "hydrogen-fake-edit:remember:verify",
+        "role": "state-auditor",
+        "method": "verify_chain",
+        "started_at_utc": "2026-04-18T18:32:54.075Z",
+        "ended_at_utc": "2026-04-18T18:32:54.078Z",
+        "latency_ms": 2.646,
+        "params_digest": "0416509623e070ba6d1a71a951d2de6f6459f7bc2b2afbdd881a722c4603b590",
+        "project": null,
+        "memory_id": null,
+        "session_id": null,
+        "parent_hash_param": null,
+        "node_hash": null,
+        "depth": null,
+        "chain_len": 2,
+        "status": "verified",
+        "search_query_digest": null,
+        "search_hit_ids": [],
+        "error_type": null
+      },
+      {
+        "state_event_id": "state-0012-audit_chain",
+        "step_id": "hydrogen-final-chain",
+        "role": "state-auditor",
+        "method": "audit_chain",
+        "started_at_utc": "2026-04-18T18:32:54.078Z",
+        "ended_at_utc": "2026-04-18T18:32:54.081Z",
+        "latency_ms": 2.903,
+        "params_digest": "508de6d4f466822157bb14ad1f27f61bf986dafe2c908fa6bd49764dcd058b16",
+        "project": null,
+        "memory_id": null,
+        "session_id": null,
+        "parent_hash_param": null,
+        "node_hash": null,
+        "depth": null,
+        "chain_len": null,
+        "status": null,
+        "search_query_digest": null,
+        "search_hit_ids": [
+          null,
+          null
+        ],
+        "error_type": null
+      }
+    ],
+    "token_handling": {
+      "credential_values_recorded": false,
+      "headers_recorded": false,
+      "full_prompts_recorded": false,
+      "full_outputs_recorded": false
+    }
+  },
+  "token_handling": {
+    "credential_values_recorded": false,
+    "headers_recorded": false,
+    "full_prompts_recorded": false,
+    "full_outputs_recorded": false
+  },
+  "public_claim_boundary": "This live proof demonstrates auditable provider behavior, active external memory and Merkle lineage. It does not claim sentience or provider behavior outside this run.",
+  "claims_not_allowed": [],
+  "claims_allowed": []
+}

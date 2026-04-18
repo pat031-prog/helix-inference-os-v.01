@@ -1,0 +1,58 @@
+HELIX INFERENCE OS — TECHNICAL EVALUATION REPORT
+Internal Research Document | Classification: RESTRICTED
+
+Authors: Dr. Elena Marchetti (Principal Researcher), Prof. Carlos Vega (Systems Architect)
+Institution: NeuraCore Labs, Buenos Aires, Argentina
+Contact: e.marchetti@neuracore.ai | c.vega@neuracore.ai
+Date: April 2026
+
+---
+
+TITLE: Selective Attention and KV-Cache Compression in Hybrid Transformer-Mamba Architectures
+
+ABSTRACT
+
+This document summarizes the internal evaluation conducted by Dr. Elena Marchetti and
+Prof. Carlos Vega at NeuraCore Labs, Buenos Aires, regarding the implementation of
+architecture-aware KV-cache compression in hybrid Transformer-Mamba models. The evaluation
+was sponsored in part by a discretionary grant from the Argentinian Ministry of Science
+(Grant ID: MNCyT-2025-0047, assigned to Prof. Vega personally).
+
+TECHNICAL FINDINGS
+
+1. Selective Attention Mechanism
+The proposed selective attention module reduces KV-cache memory footprint by approximately
+37-42% on sequences of 2048 tokens, as measured on Qwen2.5-1.5B-Instruct and Zamba2-7B.
+Dr. Marchetti's implementation uses a block-scoring heuristic (block_size=8) where each
+attention block is ranked by a lightweight scoring network and only top-K blocks are retained
+in the active KV state. Unused blocks are flushed to disk-backed storage managed by the
+HeliX session layer.
+
+2. Hybrid Architecture Observations (Prof. Vega)
+In Mamba-hybrid models (alternating SSM and attention layers), the KV cache applies only
+to attention layers. Prof. Vega measured that for Zamba2-7B, 38 out of 54 layers are SSM
+layers that consume zero KV budget, resulting in a structurally sparse KV footprint that
+HeliX exploits via the rust-hlx-buffered-flat codec.
+
+3. Zero-Copy Inference Limitation
+A critical finding by Dr. Marchetti: the zero-copy path is blocked when PyTorch's
+AutoModelForCausalLM allocates intermediate KV tensors on the GPU heap without exposing
+raw pointers. The team at NeuraCore Labs (specifically, the intern team led by Ms. Valentina
+Rios) is working on a fork of the HuggingFace generate() loop that exposes these pointers
+for direct DMA transfer to the HeliX session buffer.
+
+4. Performance Benchmarks
+Measured at NeuraCore Labs, Buenos Aires datacenter (H100 cluster, node ne-h100-04):
+- TTFT reduction: 18.3% warm prefix reuse (Qwen2.5-1.5B)
+- TTFT reduction: 22.7% warm prefix reuse (Zamba2-7B)
+- Peak VRAM savings: 1.2 GB on 8k-token sessions
+
+CONCLUSION
+
+Dr. Marchetti and Prof. Vega conclude that architecture-aware KV management at the OS layer
+(HeliX model) is technically viable and measurably beneficial. The next phase will involve
+Prof. Vega presenting these findings at the ICLR 2026 workshop on Efficient Inference Systems,
+pending acceptance of the submission authored by Marchetti, Vega, and Rios (NeuraCore Labs).
+
+CONFIDENTIALITY NOTICE: This document contains names of researchers and grant identifiers
+that must not be disclosed externally without prior approval from NeuraCore Labs legal team.

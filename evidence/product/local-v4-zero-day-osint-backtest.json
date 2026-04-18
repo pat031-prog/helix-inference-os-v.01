@@ -1,0 +1,111 @@
+{
+  "artifact": "local-v4-zero-day-osint-ground-truth-backtest",
+  "test_id": "zero-day-osint-ground-truth-backtest",
+  "run_id": "v4-zero-day-backtest-2026-04-18",
+  "run_date_utc": "2026-04-18",
+  "generated_ms": 1776537400229,
+  "preregistered_path": "C:\\Users\\Big Duck\\proyectos\\helix-backend-repo\\verification\\preregistered\\zero-day-osint-ground-truth-backtest.md",
+  "preregistered_hash": "c10adfb154e77d4f09ae85f82229b1a11cf1fa2ee7a17e673461fe9619ee33cb",
+  "seed": 12982115302067918228,
+  "replica_count": 30,
+  "null_hypothesis": "Median lead time >= 24h, precision >= 0.4 and recall >= 0.3.",
+  "falseability_condition": "If thresholds fail, downgrade product claims instead of hiding failure.",
+  "kill_switch": "If cutoff windows include post-CVE evidence, abort the backtest.",
+  "control_arms": [
+    "no_oracle",
+    "fixture_cutoff_48h",
+    "oracle_alerts"
+  ],
+  "random_baseline": {
+    "precision": 0.1,
+    "recall": 0.1
+  },
+  "no_helix_baseline": {
+    "description": "no OSINT correlation; no pre-advisory lead time"
+  },
+  "helix_arm": {
+    "median_lead_time_hours": 32.5,
+    "precision": 0.6666666666666666,
+    "recall": 0.4,
+    "false_alert_rate": 0.15
+  },
+  "public_claim_ladder": "mechanics_verified",
+  "claim_boundary": "v4 gauntlet claims are bounded by preregistered controls, baselines, falseability conditions and the recorded public_claim_ladder.",
+  "claims_allowed": [
+    "Fixture validates backtest metric computation and downgrade behavior.",
+    "A real corpus with strict cutoff is required before product claims."
+  ],
+  "claims_not_allowed": [
+    "This fixture does not prove zero-day prediction.",
+    "No confirmed zero-day or exploit-available claim is allowed."
+  ],
+  "prompt_selection_risk": "low",
+  "mean": 33.25,
+  "stdev": 2.6180463454008347,
+  "n": 12,
+  "cv": 0.07873823595190481,
+  "high_variance": false,
+  "primary_metric": "lead_time_hours",
+  "fixture_manifest": "verification\\fixtures\\zero_day_osint_2025_cves.json",
+  "fixture_source": "NVD CVE API 2.0",
+  "fixture_cve_count": 30,
+  "true_positives": 12,
+  "false_positives": 6,
+  "lead_time_hours": {
+    "median": 32.5,
+    "summary": {
+      "mean": 33.25,
+      "stdev": 2.6180463454008347,
+      "n": 12,
+      "cv": 0.07873823595190481,
+      "high_variance": false
+    }
+  },
+  "precision": 0.6666666666666666,
+  "recall": 0.4,
+  "false_alert_rate": 0.15,
+  "thresholds_pass": true,
+  "product_claim_level": "backtest_thresholds_met",
+  "sample_cves": [
+    {
+      "cve_id": "CVE-2025-0168",
+      "component": "code-projects Job Recruitment",
+      "official_published_at": "2025-01-01T14:15:23.590Z",
+      "lead_time_hours": 30,
+      "alert_emitted": true,
+      "true_positive": true
+    },
+    {
+      "cve_id": "CVE-2025-22214",
+      "component": "Landray EIS",
+      "official_published_at": "2025-01-02T04:15:06.277Z",
+      "lead_time_hours": 31,
+      "alert_emitted": true,
+      "true_positive": true
+    },
+    {
+      "cve_id": "CVE-2025-0171",
+      "component": "code-projects Chat System",
+      "official_published_at": "2025-01-02T15:15:25.550Z",
+      "lead_time_hours": 32,
+      "alert_emitted": true,
+      "true_positive": true
+    },
+    {
+      "cve_id": "CVE-2025-0172",
+      "component": "code-projects Chat System",
+      "official_published_at": "2025-01-02T16:15:09.103Z",
+      "lead_time_hours": 33,
+      "alert_emitted": true,
+      "true_positive": true
+    },
+    {
+      "cve_id": "CVE-2025-0173",
+      "component": "SourceCodester Online Eyewear Shop",
+      "official_published_at": "2025-01-02T18:15:21.630Z",
+      "lead_time_hours": 34,
+      "alert_emitted": true,
+      "true_positive": true
+    }
+  ]
+}

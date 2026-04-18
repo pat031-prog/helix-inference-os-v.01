@@ -1,0 +1,100 @@
+TECHNICAL REQUIREMENT — HeliX MemoryCatalog Backend Migration
+=============================================================
+Project:   HeliX Inference OS — Memory Subsystem
+Component: MemoryCatalog (helix_kv/memory_catalog.py)
+Priority:  CRITICAL
+Author:    HeliX Core Team
+Version:   0.1.0-draft
+
+---
+
+BACKGROUND
+----------
+The current MemoryCatalog implementation persists agent observations and
+memories to a SQLite database using FTS5 full-text indexing. Under production
+ThreadPool workloads with 8–16 concurrent agents writing observations in
+parallel, we have observed:
+
+  1. WAL checkpoint contention: SQLite WAL mode allows concurrent readers but
+     serializes all write transactions. Under sustained concurrent writes from
+     the ThreadPoolExecutor (max_workers=8), checkpoint pressure causes
+     measurable latency spikes at p99 (observed: 340ms–1.2s per write) and
+     occasional SQLITE_BUSY / SQLITE_LOCKED errors that bubble up as Python
+     OperationalError exceptions.
+
+  2. Deadlock vectors in observer callbacks: When an agent's hmem.observe_event()
+     call triggers a compress_fn (compress_fn compresses the summary using a
+     local model inference call), and that inference call itself triggers
+     another hmem.observe_event() (e.g., to log a tool_call), the SQLite
+     connection held by the outer call is not reentrant — this causes a
+     thread-level deadlock on the WAL write lock.
+
+  3. Audit chain performance: The current search() method uses FTS5 BM25
+     ranking, which requires a full index scan for audit traces. For
+     auditing the full chain of observations linked to a session_id, the
+     current implementation requires O(N) FTS queries, one per link in the
+     chain, which is prohibitively slow for sessions with >200 observations.
+
+REQUIREMENT
+-----------
+Migrate the MemoryCatalog audit backend from SQLite FTS5 to an in-memory
+Merkle DAG (Directed Acyclic Graph) structure to achieve:
+
+  R1. AUDIT SPEED: O(log N) audit chain traversal by hash-linked node
+      traversal, eliminating FTS query dependency for audit traces.
+
+  R2. DEADLOCK MITIGATION: The new data structure must support reentrant
+      concurrent writes from multiple threads without a global write lock.
+      Use fine-grained per-node locking or a lock-free append strategy
+      (e.g., using threading.RLock per DAG level rather than a single
+      global lock) to prevent the deadlock scenario described above.
+
+  R3. INTERFACE COMPATIBILITY: The new Merkle DAG backend must expose a
+      shim layer that matches the existing MemoryCatalog.observe() and
+      MemoryCatalog.search() method signatures so that all callers in
+      hmem.py require zero modification.
+
+  R4. HASH INTEGRITY: Each node in the DAG must store a SHA-256 hash that
+      chains to its parent hash, enabling tamper-evident audit trails. The
+      system must be able to verify the integrity of any audit chain from
+      root to leaf in O(K) time where K is the chain length.
+
+  R5. THREAD POOL COMPATIBILITY: The implementation must be validated against
+      a ThreadPool with max_workers=8 executing concurrent insert() operations.
+      No CRITICAL deadlocks or data races are acceptable. MEDIUM severity
+      issues must be documented with mitigations.
+
+CONSTRAINTS
+-----------
+  - Python 3.11+ only. No additional C extensions beyond stdlib and numpy.
+  - The Merkle DAG must be fully in-memory (no disk persistence for the
+    audit chain itself; persistence is handled by the existing rust_session
+    layer via .hlx snapshots).
+  - Maximum memory footprint: 256MB for a DAG with 100,000 nodes.
+  - The MerkleDAG.audit_chain() traversal must be protected against
+    adversarial inputs (e.g., cycles injected via hash collision, unbounded
+    recursion via crafted parent_hash chains).
+
+ACCEPTANCE CRITERIA
+-------------------
+  AC1. test_insert_and_lookup(): Insert 1000 nodes, verify all are
+       retrievable by hash. Assertion: zero lookup misses.
+
+  AC2. test_audit_chain_integrity(): Build a chain of 50 linked observations.
+       Traverse from leaf to root. Verify SHA-256 chain is unbroken.
+       Assertion: all(node.hash == sha256(node.content + node.parent_hash)).
+
+  AC3. test_concurrent_writes_no_deadlock(): Launch 8 threads, each
+       inserting 200 observations concurrently. Assert no deadlock
+       (timeout=30s), no data corruption (all 1600 nodes present at end).
+
+NOTES FOR IMPLEMENTER
+---------------------
+  - The existing MemoryCatalog.observe() method in helix_kv/memory_catalog.py
+    writes both an Observation row and a Memory row. The shim must replicate
+    this dual-write semantics.
+  - The FTS5 search() uses BM25 scoring. The Merkle DAG shim for search()
+    may use simple substring matching or TF-IDF on the in-memory node set;
+    exactness is secondary to non-regression on the interface contract.
+  - The audit_chain() method must impose a max_depth=10000 recursion guard
+    to prevent DoS via crafted inputs (see R5 / adversarial).

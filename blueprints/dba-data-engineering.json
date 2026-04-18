@@ -1,0 +1,10 @@
+{
+  "schema_version": 1,
+  "id": "dba-data-engineering",
+  "title": "DBA & Data Engineering",
+  "description": "Blueprint spec for schema design, SQL generation, migration review and query audit.",
+  "status": "spec_smoke",
+  "agents": ["data_architect", "sql_specialist", "migration_reviewer", "query_auditor"],
+  "capabilities": ["schema-design", "sql", "migration", "audit"],
+  "claim_boundary": "Spec-only v0; heavyweight model/backend choices remain future work."
+}

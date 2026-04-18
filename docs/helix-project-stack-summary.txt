@@ -1,0 +1,495 @@
+Helix Project Stack Summary
+Generated: 2026-03-29
+Workspace: C:\Users\Big Duck\proyectos\helix-backend-repo
+
+1. Executive Summary
+
+Helix hoy es un stack local de inferencia y agentes con:
+- runtime propio para modelos exportados a tensores locales,
+- backend GGUF via llama-cpp-python,
+- workspace de modelos con alias,
+- asistentes base (general, code, legal),
+- benchmark suite para calidad local y tool calling,
+- API con streaming SSE,
+- frontend local de demo sin build system,
+- investigación propia de compresión de KV cache.
+
+La conclusión técnica principal de esta etapa es:
+- el modelo base local Qwen3.5-4B Q4 quedó integrado y usable,
+- tool calling pasó de 0% a 75% corrigiendo parser + template + calibración,
+- la mejor compresión real de KV cache hoy es nuestra línea TurboQuant propia,
+- Hadamard ya es el default para turbo-int8,
+- turbo-4bit ya es funcional,
+- turbo-qjl mejoró fuerte pero sigue en desarrollo.
+
+2. Repo / Stack Actual
+
+Repo principal:
+C:\Users\Big Duck\proyectos\helix-backend-repo
+
+Componentes principales:
+- Backend / CLI / API: src\helix_proto
+- Runtime de compresión de pesos puenteado: src\helix_substrate
+- Frontend demo: frontend\index.html
+- Scripts local demo: scripts\
+- Workspace de asistentes y modelos: workspace\
+- GGUFs locales: workspace-gguf\
+- Benchmarks y verificación: benchmark-output\ y verification\
+- Tests: tests\
+
+Capas del producto:
+- CLI: preparar modelos, correr benchmarks, servir API, demos GPT.
+- API: assistants endpoints + streaming SSE.
+- Frontend: demo local simple, sin React/Next/build.
+- Runtime GGUF: llama-cpp-python.
+- Runtime HF exportado: motor local propio de streaming GPT2 y experimentos de KV.
+
+3. Modelo Base Local
+
+Modelo local promovido:
+- Alias: qwen35-4b-q4
+- Archivo: workspace-gguf\qwen35-4b-q4_k_m.gguf
+- Tamaño GGUF: 2,708,804,000 bytes (~2.71 GB)
+
+Estado:
+- Registrado en workspace por alias.
+- Asignado como base para assistants.
+- Cache original HF de ~9.34 GB fue limpiado después de la promoción.
+
+Archivo de benchmark principal:
+C:\Users\Big Duck\proyectos\helix-backend-repo\benchmark-output\qwen35-4b-q4-bench\benchmark_report.json
+
+Métricas principales del benchmark local:
+- general = 0.6667
+- code = 0.6667
+- legal = 0.2
+- tokens_per_second = 2.7004
+- cache_size_bytes = 2708804000
+
+Lectura:
+- general/code: buenos para un modelo local 4B Q4 en CPU.
+- legal: flojo; no usar como “legal premium”.
+
+4. Tool Calling: Evolución del Benchmark
+
+Archivo final:
+C:\Users\Big Duck\proyectos\helix-backend-repo\benchmark-output\qwen35-4b-q4-toolcall\tool_call_report.json
+
+Etapas del fix:
+
+4.1 Estado inicial
+- step_success_rate = 0.0
+- json_valid_rate = 0.0
+- case_success_rate = 0.0
+
+Problema:
+- El modelo emitía thinking libre y el benchmark esperaba JSON/planner en formato equivocado.
+
+4.2 Primeros fixes
+- strip de <think>...</think>
+- parser más robusto buscando JSON interno
+- limpieza de output y /no_think
+
+Resultado:
+- insuficiente
+
+4.3 Fix decisivo
+- cambio al template correcto de Qwen3.5 tool calling
+- parsing de <tool_call>...</tool_call>
+- uso del protocolo de tools del modelo
+
+Resultado intermedio:
+- step_success_rate = 0.5
+- json_valid_rate = 0.6429
+- case_success_rate = 0.5
+
+4.4 Calibración final
+- matching de argumentos menos estricto
+- max_tokens más alto
+- mejor prompt del planner
+
+Resultado final:
+- total_steps = 14
+- step_success_rate = 0.7857
+- json_valid_rate = 1.0
+- case_success_rate = 0.75
+- total_generated_tokens = 2693
+- total_generation_time_s = 3252.3214
+- tokens_per_second = 0.828
+
+Lectura:
+- el problema era formato/calibración, no capacidad base del modelo.
+- el modelo quedó usable para planner/tool calling local.
+
+5. Demo Producto Local
+
+Estado:
+- API con SSE streaming funcionando.
+- Frontend mínimo usable y luego pulido visualmente.
+- Demo local con 2 terminales (backend + frontend).
+
+Componentes:
+- API streaming: src\helix_proto\api.py
+- Frontend: frontend\index.html
+- Scripts: scripts\run-local-backend.ps1, scripts\run-local-frontend.ps1, scripts\start-local-demo.ps1
+
+Notas:
+- se mejoró TTFT percibido, limpieza de thinking y estética.
+- sigue siendo CPU local; la latencia física no desaparece, pero la UX quedó mucho más mostrable.
+
+6. Verificación de Repos de Josh
+
+6.1 helix-substrate
+
+Archivo:
+C:\Users\Big Duck\proyectos\helix-backend-repo\verification\substrate-results.json
+
+Resultado:
+- pip install funciona
+- la compresión funciona
+- el ratio es real y alto
+- la fidelidad no quedó “gratis”
+
+Métricas:
+- conversion_seconds_cpu = 361.6767
+- manifest_reported_ratio = 7.31
+- adjusted_ratio_excluding_attn_bias_buffers = 6.6016
+- output_total_bytes = 75487316
+- logits.max_abs_err = 33.2527
+- logits.mean_abs_err = 7.3328
+- logits.cosine_similarity = 0.9961
+- perplexity original = 1588.6476
+- perplexity reconstructed = 2918.5029
+- next_token_match = true
+
+Conclusión:
+- substrate comprime de verdad.
+- packaging/API del paquete está verde.
+- fidelidad en modelos chicos no quedó al nivel ideal.
+
+6.2 helix-online-kv
+
+Archivo:
+C:\Users\Big Duck\proyectos\helix-backend-repo\verification\online-kv-results.json
+
+Resultado:
+- no instala desde PyPI como estaba documentado
+- solo funcionó desde source
+- mantiene output igual
+- no entrega ahorro real de memoria en la implementación actual
+- agrega mucho overhead de tiempo
+
+Métricas:
+- pip_install_from_pypi_works = false
+- baseline_seconds = 2.7202
+- compressed_seconds = 31.1496
+- time_overhead_ratio = 11.4512
+- output_match_exact = true
+- baseline_exact_cache_bytes = 17326080
+- effective_total_bytes_with_current_impl = 19156480
+- effective_savings_vs_baseline = 0.9045
+- memory_report_shows_real_savings = false
+
+Conclusión:
+- el claim operativo no pasó.
+- no se integró al stack.
+
+6.3 Comparación directa con nuestro turbo-int8
+
+Archivo:
+C:\Users\Big Duck\proyectos\helix-backend-repo\verification\kv-comparison.json
+
+Resultado:
+- nuestro turbo-int8 fue la mejor reducción real observada
+
+Métricas:
+- helix_proto_fp32.kv_cache_bytes = 17399808
+- helix_proto_turbo_int8.kv_cache_bytes = 4485888
+- kv_compression_ratio_vs_helix_proto_fp32 = 3.8788
+- output_match_vs_helix_proto_fp32 = true
+- time_ratio_vs_helix_proto_fp32 = 1.0018
+
+Conclusión:
+- turbo-int8 fue mejor que online-kv en la implementación verificada.
+
+7. Turbo-Int8 Original
+
+Estado:
+- primer prototipo propio de compresión de KV cache en el runtime HF local.
+
+Resultados históricos principales:
+- compresión real de ~3.56x a ~3.88x
+- output idéntico
+- error muy bajo
+- prácticamente sin overhead en nuestro runtime
+
+Esto fue la base para la evolución posterior hacia TurboQuant real.
+
+8. Evolución hacia TurboQuant
+
+Referencia usada:
+- repo leído como referencia, no como dependencia:
+  https://github.com/OnlyTerp/turboquant
+
+Objetivos:
+- Hadamard en vez de QR
+- 4-bit Lloyd-Max
+- QJL residual
+- mantener backward compatibility
+
+Archivo consolidado:
+C:\Users\Big Duck\proyectos\helix-backend-repo\verification\turboquant-evolution-benchmark.json
+
+8.1 Hadamard vs QR
+
+Resultado clave:
+- mismo tamaño de KV cache que turbo-int8-qr
+- error de logits mucho menor
+- generación igual al baseline en el benchmark real
+
+Benchmark real GPT2 exportado:
+- turbo-int8-qr:
+  - kv_cache_bytes = 380160
+  - max_abs_err = 0.6770
+  - mean_abs_err = 0.5845
+  - cosine_similarity = 0.9999997616
+  - generated_match_vs_baseline = true
+- turbo-int8-hadamard:
+  - kv_cache_bytes = 380160
+  - max_abs_err = 0.1800
+  - mean_abs_err = 0.0945
+  - cosine_similarity = 0.9999998808
+  - generated_match_vs_baseline = true
+
+Conclusión:
+- Hadamard fue una mejora clara y casi gratis.
+- ya quedó como default.
+
+8.2 turbo-4bit
+
+Resultado clave:
+- compresión de KV ~7.5x vs FP32 en la microprueba sintética
+- en prompts cortos chicos, la generación siguió matcheando baseline
+- en GPT2 exportado grande, sigue siendo experimental y no siempre matchea
+
+Sintético:
+- kv_cache_bytes = 13056
+- compression_ratio_vs_fp32 = 7.5294
+- max_abs_err = 0.04056
+- mean_abs_err = 0.00761
+- cosine_similarity = 0.99541
+
+Tiny GPT2 smoke:
+C:\Users\Big Duck\proyectos\helix-backend-repo\verification\turboquant-cli-smoke-qjl-v3\benchmark_report.json
+- kv_cache_bytes = 960
+- prompt_perplexity = 68.1273
+- cosine_similarity = 0.998512
+- max_abs_err = 0.014999
+- generated_match_vs_baseline = true
+
+Targeted GPT2 export:
+C:\Users\Big Duck\proyectos\helix-backend-repo\verification\turboquant-qjl-targeted-gpt2.json
+- kv_cache_bytes = 97920
+- prompt_perplexity = 1603.3159
+- cosine_similarity = 0.9999039
+- max_abs_err = 17.5399
+- generated_match_vs_baseline = false
+
+Conclusión:
+- turbo-4bit ya es funcional y prometedor.
+- todavía no está “production default” para todos los casos.
+
+8.3 turbo-qjl
+
+Fase 1 de implementación:
+- QJL estaba aplicado como reconstrucción completa del residual del vector.
+- Eso fue demasiado ruidoso para nuestro runtime.
+
+Antes del rediseño (tiny smoke histórico):
+C:\Users\Big Duck\proyectos\helix-backend-repo\verification\turboquant-cli-smoke\benchmark_report.json
+- kv_cache_bytes = 1440
+- cosine_similarity = 0.7427
+- max_abs_err = 0.3234
+- generated_match_vs_baseline = false
+
+Aprendizaje:
+- QJL como decode completo del vector no conviene en nuestro path.
+- El paper lo usa como corrección de producto interno / score.
+
+Fase 2 de implementación:
+- se pasó a usar:
+  - matriz gaussiana para QJL,
+  - residual unitario en encode,
+  - score correction sobre K en atención,
+  - decode estable del vector usando solo base 4-bit para materialización/contexto.
+
+Estado actual (tiny smoke v3):
+C:\Users\Big Duck\proyectos\helix-backend-repo\verification\turboquant-cli-smoke-qjl-v3\benchmark_report.json
+- kv_cache_bytes = 1440
+- prompt_perplexity = 68.1273
+- cosine_similarity = 0.998512
+- max_abs_err = 0.014994
+- generated_match_vs_baseline = true
+
+Comparación directa antes/después en tiny smoke:
+- antes: match = false, cosine = 0.7427
+- después: match = true, cosine = 0.9985
+
+Targeted GPT2 export:
+C:\Users\Big Duck\proyectos\helix-backend-repo\verification\turboquant-qjl-targeted-gpt2.json
+- kv_cache_bytes = 126720
+- prompt_perplexity = 1558.4559
+- cosine_similarity = 0.9999075
+- max_abs_err = 18.6271
+- generated_match_vs_baseline = false
+
+Lectura honesta:
+- turbo-qjl dejó de romperse feo en el smoke chico.
+- ahora se comporta parecido a turbo-4bit, no peor.
+- todavía no da una mejora decisiva sobre turbo-4bit en el benchmark GPT2 exportado más representativo.
+- necesita más trabajo en la corrección de score / selección parcial / hot-window / decode selectivo.
+
+8.4 Hot-Window Exacto + Pasado Comprimido
+
+Implementación:
+- se agregó un contenedor de cache con:
+  - cold prefix comprimido
+  - hot tail exacto en float32
+- el hot-window se cableó a runtime, CLI, benchmarks y sesiones
+- flag nuevo: --kv-hot-window
+
+Objetivo:
+- mantener exactos los últimos N tokens
+- comprimir solo el pasado lejano
+- mejorar fidelidad en la parte más sensible de la atención
+- preparar el camino para speedups futuros con atención selectiva
+
+Tiny smoke con hot_window=4:
+C:\Users\Big Duck\proyectos\helix-backend-repo\verification\turboquant-cli-hotwindow4\benchmark_report.json
+
+Resultados:
+- turbo-4bit:
+  - kv_cache_bytes = 2624
+  - prompt_perplexity = 61.743441
+  - cosine_similarity = 0.999895
+  - max_abs_err = 0.004684
+  - generated_match_vs_baseline = true
+- turbo-qjl:
+  - kv_cache_bytes = 2912
+  - prompt_perplexity = 61.743441
+  - cosine_similarity = 0.999895
+  - max_abs_err = 0.004668
+  - generated_match_vs_baseline = true
+
+Lectura:
+- en el smoke chico, hot-window mejoró mucho la fidelidad de 4bit/qjl.
+- el costo fue usar más bytes porque parte del cache queda exacta.
+
+Targeted GPT2 export con hot_window=4:
+C:\Users\Big Duck\proyectos\helix-backend-repo\verification\turboquant-hotwindow4-targeted-gpt2.json
+
+Resultados:
+- turbo-4bit-hot4:
+  - kv_cache_bytes = 353664
+  - prompt_perplexity = 1543.8383
+  - max_abs_err = 10.5114
+  - mean_abs_err = 5.0249
+  - cosine_similarity = 0.9999177
+  - generated_match_vs_baseline = false
+- turbo-qjl-hot4:
+  - kv_cache_bytes = 370944
+  - prompt_perplexity = 1543.8383
+  - max_abs_err = 10.4571
+  - mean_abs_err = 4.9736
+  - cosine_similarity = 0.9999175
+  - generated_match_vs_baseline = false
+
+Comparado contra no-hot:
+- hot-window mejoró bastante el error de logits de 4bit/qjl en GPT2 exportado
+- la secuencia todavía no matchea baseline en ese caso
+- el tiempo quedó casi igual; todavía no hay speedup real
+
+Conclusión:
+- hot-window ya sirve como mejora de fidelidad y como base arquitectónica.
+- todavía no da aceleración porque seguimos materializando el pasado frío completo.
+- el siguiente paso de research/productividad real es:
+  - score aproximado sobre cold prefix
+  - exact decode solo para top-K relevantes
+  - hot window exacto para el tramo reciente
+
+9. Estado Actual del Runtime de Compresión
+
+Modos actuales:
+- fp32
+- turbo-int8
+- turbo-4bit
+- turbo-qjl
+
+Estado recomendado hoy:
+- Default estable: turbo-int8 con Hadamard
+- Experimental usable: turbo-4bit
+- Experimental en desarrollo: turbo-qjl
+
+Cambios ya incorporados:
+- Hadamard es el default del runtime y la CLI para benchmarks GPT.
+- backward compatibility mantenida.
+
+10. Tests y Salud del Código
+
+Último estado validado:
+- tests/test_hf_kv_quant.py -> 6 passed
+- tests/test_cli_smoke.py -> 5 passed
+
+Cobertura agregada:
+- Hadamard roundtrip
+- turbo-4bit roundtrip
+- turbo-qjl payload y score correction
+- parser CLI acepta flags de kv
+- parser CLI default a hadamard
+
+11. Archivos de Evidencia Más Importantes
+
+Modelo local / assistants:
+- C:\Users\Big Duck\proyectos\helix-backend-repo\benchmark-output\qwen35-4b-q4-bench\benchmark_report.json
+- C:\Users\Big Duck\proyectos\helix-backend-repo\benchmark-output\qwen35-4b-q4-toolcall\tool_call_report.json
+
+Verificación repos Josh:
+- C:\Users\Big Duck\proyectos\helix-backend-repo\verification\substrate-results.json
+- C:\Users\Big Duck\proyectos\helix-backend-repo\verification\online-kv-results.json
+- C:\Users\Big Duck\proyectos\helix-backend-repo\verification\kv-comparison.json
+
+Evolución TurboQuant:
+- C:\Users\Big Duck\proyectos\helix-backend-repo\verification\turboquant-evolution-benchmark.json
+- C:\Users\Big Duck\proyectos\helix-backend-repo\verification\turboquant-cli-smoke\benchmark_report.json
+- C:\Users\Big Duck\proyectos\helix-backend-repo\verification\turboquant-cli-smoke-qjl-v3\benchmark_report.json
+- C:\Users\Big Duck\proyectos\helix-backend-repo\verification\turboquant-qjl-targeted-gpt2.json
+
+12. Recomendaciones Actuales
+
+1. Mantener Qwen3.5-4B Q4 como base local para demo/producto.
+2. Mantener Hadamard como default de turbo-int8.
+3. Seguir explorando turbo-4bit como modo agresivo de compresión.
+4. Seguir turbo-qjl por el camino actual:
+   - corrección de score,
+   - no decode completo del residual,
+   - eventualmente hot-window exacto + score aproximado + top-K refine.
+5. No integrar por ahora helix-online-kv ni depender de su claim como base del producto.
+
+13. Estado Final Honesto
+
+Lo que ya está sólido:
+- producto demo local usable,
+- modelo base local integrado,
+- tool calling funcional,
+- benchmark suite corriendo,
+- compresión de KV propia con resultados reales,
+- Hadamard mejorando int8 sin costo serio,
+- turbo-4bit funcionando.
+
+Lo que sigue siendo investigación:
+- hacer que turbo-4bit matchee baseline en más prompts/modelos,
+- convertir turbo-qjl en una mejora real sobre 4bit en benchmarks representativos,
+- eventualmente evitar dequantización global y pasar a atención selectiva / partial reconstruction.
+
+Resumen en una línea:
+Helix ya es un producto local funcional con una capa de research propia de compresión que, en varios puntos, ya supera lo que los repos externos verificados entregan hoy en la práctica.

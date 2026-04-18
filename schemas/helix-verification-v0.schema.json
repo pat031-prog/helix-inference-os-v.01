@@ -1,0 +1,39 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://helix.local/schemas/helix-verification-v0.schema.json",
+  "title": "HeliX Verification Artifact v0",
+  "type": "object",
+  "required": ["artifact"],
+  "properties": {
+    "artifact": { "type": "string" },
+    "run_id": { "type": "string" },
+    "run_date_utc": { "type": "string" },
+    "claim_boundary": { "type": "string" },
+    "public_claim_boundary": { "type": "string" },
+    "claims_allowed": { "type": "array", "items": { "type": "string" } },
+    "claims_not_allowed": { "type": "array", "items": { "type": "string" } },
+    "prompt_selection_risk": { "enum": ["low", "medium", "high"] },
+    "public_claim_ladder": {
+      "enum": ["mechanics_verified", "empirically_observed", "replicated", "longitudinal", "external_replication"]
+    },
+    "model_substitution_detected": { "type": "boolean" },
+    "requested_model": { "type": "string" },
+    "actual_model": { "type": "string" },
+    "models_requested": { "type": "array", "items": { "type": "string" } },
+    "models_actual": { "type": "array", "items": { "type": "string" } },
+    "llm_synthetic_mode": { "type": "boolean" },
+    "avg_template_completion_delta": { "type": "number" },
+    "avg_score_delta": { "type": "number" },
+    "preregistered_hash": { "type": "string" },
+    "seed": { "type": "integer" },
+    "null_hypothesis": { "type": "string" },
+    "falseability_condition": { "type": "string" },
+    "kill_switch": { "type": "string" },
+    "control_arms": { "type": "array", "items": { "type": "string" } }
+  },
+  "anyOf": [
+    { "required": ["claim_boundary"] },
+    { "required": ["public_claim_boundary"] }
+  ],
+  "additionalProperties": true
+}

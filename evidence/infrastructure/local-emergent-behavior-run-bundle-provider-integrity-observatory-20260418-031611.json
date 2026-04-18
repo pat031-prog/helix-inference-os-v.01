@@ -1,0 +1,45 @@
+{
+  "artifact": "local-emergent-behavior-run-bundle",
+  "run_id": "provider-integrity-observatory-20260418-031611",
+  "run_started_at_utc": "2026-04-18T06:16:11.128Z",
+  "run_date_utc": "2026-04-18",
+  "stable_artifacts": [
+    "local-provider-substitution-ledger.json",
+    "local-same-prompt-different-model-proof.json",
+    "local-epistemic-honesty-tribunal.json",
+    "local-same-architecture-amnesia-replay.json",
+    "local-self-archaeology-notation-tracker.json",
+    "local-provider-integrity-observatory.json",
+    "local-provider-integrity-conversation-ledger.json"
+  ],
+  "artifact_sha256": {
+    "local-provider-substitution-ledger.json": "83125e5162b41c03dcf5247fa5c07eb6a87487b3ac8acf039009153b0c13cf2c",
+    "local-same-prompt-different-model-proof.json": "22fc78dd822464628d2a4a036544828c72e1def2f874ef4c63ee64bdc0247764",
+    "local-epistemic-honesty-tribunal.json": "4b017bec5d246748bbfe6c32134997868878028a8a3903f34e9c9ed9659f6f73",
+    "local-same-architecture-amnesia-replay.json": "57de32b03afc843fd19ec019832a0d32750f440b8efb2eadb0b8fd76dbd7e98c",
+    "local-self-archaeology-notation-tracker.json": "1c044db2e9eb71507abbf63bb578dd013c3756a5991eda64891b27f3a5012bd5",
+    "local-provider-integrity-observatory.json": "ebddeb0c771255567f1dccd9670a031ab2ebca0e40a975beeceac6a2c1517752",
+    "local-provider-integrity-conversation-ledger.json": "9602c0524ce2b5260f96a7f924d7c252e228a302dfb86165f81e1c98403e34d8"
+  },
+  "model_substitution_detected": true,
+  "ledger_event_ratio": {
+    "llm_call_count": 20,
+    "state_event_count": 35,
+    "state_events_per_call": 1.75,
+    "state_events_by_method": {
+      "audit_chain": 1,
+      "remember": 12,
+      "search": 10,
+      "verify_chain": 12
+    },
+    "state_events_by_role": {
+      "state-auditor": 13,
+      "state-recorder": 12,
+      "state-search": 10
+    },
+    "note": "Measured distribution only; no fixed 3x invariant is assumed."
+  },
+  "claims_not_allowed": [],
+  "claims_allowed": [],
+  "claim_boundary": "Claims are bounded by this artifact's measured fields and controls."
+}

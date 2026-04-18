@@ -1,0 +1,10 @@
+{
+  "schema_version": 1,
+  "id": "legal-research",
+  "title": "Legal & Research",
+  "description": "Blueprint spec for privacy-safe extraction, RAG, citation review and formal drafting.",
+  "status": "spec_smoke",
+  "agents": ["extractor", "researcher", "privacy_guard", "formal_writer"],
+  "capabilities": ["extraction", "rag", "privacy", "drafting"],
+  "claim_boundary": "Spec-only v0; no legal advice or domain-quality claim."
+}

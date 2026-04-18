@@ -1,0 +1,106 @@
+{
+  "schema_version": 1,
+  "id": "resilient-pipeline",
+  "blueprint_id": "resilient-pipeline",
+  "title": "HeliX Resilient Inference Pipeline \u2014 Session Rollback + Auto-Retry",
+  "description": "When a model fails the quality gate, HeliX fences the bad memory in hmem (importance=9 rollback_fence marker), excludes it from the retry context via exclude_memory_ids hard filter, and swaps to the fallback model. The retry has an analytical advantage: it knows exactly what failed and why.",
+  "layers_demonstrated": [
+    "active_model",
+    "private_hlx_state",
+    "shared_hmem",
+    "multimodel_scheduler",
+    "quality_gate",
+    "session_rollback",
+    "hmem_exclusion"
+  ],
+  "outputs": [
+    {"slot": "primary_analysis", "label": "Primary Analysis"},
+    {"slot": "final_report", "label": "Architectural Report"}
+  ],
+  "models": {
+    "primary-model": {
+      "model_id": "gpt2-fast",
+      "alias": "gpt2-fast",
+      "ref": "gpt2",
+      "arch": "transformer",
+      "arch_family": "decoder-only-gpt",
+      "kv_layers": 12,
+      "ssm_layers": 0,
+      "total_layers": 12,
+      "capabilities": ["fast-generation", "baseline-text"],
+      "fallback": null,
+      "load_time_estimate_ms": 800,
+      "key": "primary-model"
+    },
+    "fallback-model": {
+      "model_id": "qwen-1.5b",
+      "alias": "qwen-1.5b",
+      "ref": "Qwen/Qwen2.5-1.5B-Instruct",
+      "arch": "transformer",
+      "arch_family": "decoder-only-transformer",
+      "kv_layers": 28,
+      "ssm_layers": 0,
+      "total_layers": 28,
+      "capabilities": ["reasoning", "analysis", "verification"],
+      "trust_remote_code": false,
+      "load_time_estimate_ms": 6000,
+      "key": "fallback-model"
+    }
+  },
+  "agents": {
+    "primary-analyst": {
+      "model": "primary-model",
+      "role": "Primary fast analyst \u2014 subject to quality gate enforcement. Produces initial output for HeliX architecture analysis.",
+      "memory_mode": "search"
+    },
+    "fallback-analyst": {
+      "model": "fallback-model",
+      "role": "Fallback semantic analyst \u2014 activated when primary fails gate. Receives rollback_fence marker at importance=9 in context: knows what to avoid and why.",
+      "memory_mode": "search"
+    }
+  },
+  "quality_gate": {
+    "min_chars": 60,
+    "must_contain_any": ["HeliX", "four-layer", "hmem", "scheduler", ".hlx"],
+    "forbidden_phrases": ["I cannot", "As an AI", "I don't have", "placeholder", "Task: Analyze"],
+    "max_repetition_ratio": 0.70,
+    "gate_label": "helix-semantic-coherence-v0"
+  },
+  "attempt_policy": {
+    "max_attempts": 2,
+    "swap_agent_on_fail": true,
+    "fence_on_fail": true,
+    "rollback_on_fail": true,
+    "rollback_strategy": "exclude_fenced_ids"
+  },
+  "memory_policy": {
+    "project": "helix-resilient",
+    "mode": "search",
+    "budget_tokens": 800
+  },
+  "session_policy": {
+    "codec": "rust-hlx-buffered-flat",
+    "audit_policy": "deferred"
+  },
+  "tasks": [
+    {
+      "task_id": "initial-analysis",
+      "id": "task-001",
+      "agent": "primary-analyst",
+      "on_fail_agent": "fallback-analyst",
+      "slot": "primary_analysis",
+      "prompt": "Analyze the HeliX Inference OS architecture. Describe the four-layer stack (active model, .hlx private state, hmem shared memory, multimodel scheduler) and explain how the scheduler manages model lifecycle. Focus on how hmem enables cross-architecture inference continuity.",
+      "quality_gated": true,
+      "outputs": ["primary_analysis"]
+    },
+    {
+      "task_id": "architectural-report",
+      "id": "task-002",
+      "agent": "fallback-analyst",
+      "slot": "final_report",
+      "prompt": "Based on the analysis above, write a concise architectural summary for the HeliX Inference OS documentation. Emphasize the scheduler role and the hmem semantic bridge.",
+      "quality_gated": false,
+      "uses_slot": "primary_analysis"
+    }
+  ]
+}

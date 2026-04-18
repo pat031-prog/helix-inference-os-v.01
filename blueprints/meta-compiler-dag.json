@@ -1,0 +1,189 @@
+{
+  "schema_version": 1,
+  "id": "meta-compiler-dag",
+  "blueprint_id": "meta-compiler-dag",
+  "title": "Proyecto Ouroboros — Meta-Compiler DAG",
+  "description": "Asymmetric Mixture-of-Models pipeline: local Qwen decomposes a raw requirement into atomic sub-tasks, three concurrent DeepInfra specialists (Llama-3.1-70B Architect, Qwen-2.5-Coder-32B Engineer, Mixtral-8x22B Red Team) design, code and audit a software patch in parallel, and the local Qwen merges all outputs via hmem into an executable .patch + Pytest suite.",
+  "layers_demonstrated": [
+    "active_model",
+    "private_hlx_state",
+    "shared_hmem",
+    "multimodel_scheduler",
+    "dag_branch_resolution",
+    "threaded_concurrency",
+    "tombstone_fencing",
+    "cloud_handoff"
+  ],
+  "models": {
+    "local-decomposer": {
+      "model_id": "qwen-1.5b",
+      "alias": "qwen-1.5b",
+      "ref": "Qwen/Qwen2.5-1.5B-Instruct",
+      "arch": "transformer",
+      "arch_family": "decoder-only-transformer",
+      "endpoint": "local",
+      "capabilities": ["decomposition", "synthesis", "packaging"],
+      "fallback": "gpt2",
+      "load_time_estimate_ms": 6000,
+      "key": "local-decomposer"
+    },
+    "cloud-architect": {
+      "model_id": "llama-3.1-70b",
+      "alias": "llama-3.1-70b",
+      "ref": "meta-llama/Meta-Llama-3.1-70B-Instruct",
+      "arch": "transformer",
+      "arch_family": "decoder-only-llama",
+      "endpoint": "deepinfra",
+      "capabilities": ["architecture-design", "mathematical-spec", "formal-reasoning"],
+      "fallback": null,
+      "load_time_estimate_ms": 0,
+      "key": "cloud-architect"
+    },
+    "cloud-engineer": {
+      "model_id": "qwen-2.5-coder-32b",
+      "alias": "qwen-2.5-coder-32b",
+      "ref": "Qwen/Qwen2.5-Coder-32B-Instruct",
+      "arch": "transformer",
+      "arch_family": "decoder-only-transformer",
+      "endpoint": "deepinfra",
+      "capabilities": ["code-generation", "python-bindings", "implementation"],
+      "fallback": null,
+      "load_time_estimate_ms": 0,
+      "key": "cloud-engineer"
+    },
+    "cloud-redteam": {
+      "model_id": "mixtral-8x22b",
+      "alias": "mixtral-8x22b",
+      "ref": "mistralai/Mixtral-8x22B-Instruct-v0.1",
+      "arch": "moe-transformer",
+      "arch_family": "mixture-of-experts",
+      "endpoint": "deepinfra",
+      "capabilities": ["concurrency-audit", "deadlock-detection", "adversarial-analysis"],
+      "fallback": null,
+      "load_time_estimate_ms": 0,
+      "key": "cloud-redteam"
+    },
+    "local-merger": {
+      "model_id": "qwen-1.5b-merger",
+      "alias": "qwen-1.5b",
+      "ref": "Qwen/Qwen2.5-1.5B-Instruct",
+      "arch": "transformer",
+      "arch_family": "decoder-only-transformer",
+      "endpoint": "local",
+      "capabilities": ["patch-packaging", "test-generation", "merge"],
+      "fallback": "gpt2",
+      "load_time_estimate_ms": 6000,
+      "key": "local-merger"
+    }
+  },
+  "agents": {
+    "decomposer": {
+      "model": "local-decomposer",
+      "role": "Requirements analyst. Reads the raw technical requirement and decomposes it into three atomic sub-tasks: (1) data structure design, (2) implementation, (3) concurrency audit. Writes the decomposition manifest to hmem.",
+      "memory_mode": "search"
+    },
+    "architect": {
+      "model": "cloud-architect",
+      "role": "Stateless mathematical architect. Takes sub-task #1 from hmem and produces the formal specification of the Merkle DAG data structure: node schema, hash function, insertion algorithm, traversal guarantees, and complexity bounds. Output is strictly specification, no implementation code.",
+      "memory_mode": "search"
+    },
+    "engineer": {
+      "model": "cloud-engineer",
+      "role": "Stateless code specialist. Takes the Architect's mathematical spec from hmem and sub-task #2. Writes the Python implementation: MerkleNode dataclass, MerkleDAG class with insert/lookup/audit methods, thread-safe locking strategy using threading.RLock, and integration shim for the existing MemoryCatalog interface.",
+      "memory_mode": "search"
+    },
+    "red-team": {
+      "model": "cloud-redteam",
+      "role": "Stateless adversarial concurrency auditor. Does NOT write code. Reads the Engineer's implementation from hmem and sub-task #3. Identifies race conditions, deadlock vectors, livelock scenarios, and Inference-DoS attack surfaces. If critical vulnerabilities are found, outputs a structured threat report with severity labels. CRITICAL findings trigger a Tombstone fence in hmem.",
+      "memory_mode": "search"
+    },
+    "merger": {
+      "model": "local-merger",
+      "role": "Local patch packager. Restores its .hlx session from the decomposition phase. Reads the final validated implementation from hmem (post-tombstone resolution) and packages everything into a unified diff .patch file and a Pytest test suite.",
+      "memory_mode": "search"
+    }
+  },
+  "dag": {
+    "edges": [
+      {"from": "decompose", "to": "architect",  "type": "data"},
+      {"from": "architect",  "to": "engineer",   "type": "data"},
+      {"from": "engineer",   "to": "red-team",   "type": "audit"},
+      {"from": "red-team",   "to": "merge",      "type": "fence-or-pass"}
+    ],
+    "concurrent_phase": ["architect", "engineer", "red-team"],
+    "concurrency_note": "Architect runs first. Engineer starts once Architect completes (reads spec from hmem). Red Team runs concurrently with Engineer from Engineer's start, auditing intent from the spec; performs second-pass audit on Engineer's code once written to hmem."
+  },
+  "tombstone_policy": {
+    "trigger_keywords": ["deadlock", "race condition", "data race", "starvation", "livelock", "use-after-free", "double-free", "inference dos"],
+    "fence_importance": 9,
+    "max_rewrites": 1,
+    "rewrite_budget_tokens": 256
+  },
+  "tasks": [
+    {
+      "task_id": "decompose",
+      "agent": "decomposer",
+      "slot": "decompose_out",
+      "phase": 1,
+      "concurrent": false,
+      "prompt": "You are a requirements analyst for a systems software project. Read the technical requirement below and decompose it into exactly three atomic sub-tasks: (1) DATA STRUCTURE DESIGN — what must be specified mathematically, (2) IMPLEMENTATION — what code must be written, (3) CONCURRENCY AUDIT — what concurrent failure modes must be validated. Output a structured manifest with the three sub-tasks numbered and labelled. Be precise and technical.",
+      "expects_restore": false
+    },
+    {
+      "task_id": "architect",
+      "agent": "architect",
+      "slot": "architect_out",
+      "phase": 2,
+      "concurrent": true,
+      "depends_on": ["decompose"],
+      "prompt": "You are a mathematical systems architect. Your sub-task is DATA STRUCTURE DESIGN. Using the decomposition manifest from context, produce the formal specification of a Merkle DAG in-memory structure to replace SQLite FTS5 as the audit backend. Include: node schema (fields, types), hash function selection and rationale, insertion algorithm (pseudocode), traversal and lookup complexity (O-notation), and thread-safety guarantees at the structural level. Output is SPECIFICATION ONLY — no Python or Rust code.",
+      "expects_restore": false
+    },
+    {
+      "task_id": "engineer",
+      "agent": "engineer",
+      "slot": "engineer_out",
+      "phase": 2,
+      "concurrent": true,
+      "depends_on": ["architect"],
+      "prompt": "You are a code specialist. Your sub-task is IMPLEMENTATION. Using the Architect's formal specification from context, write a Python implementation with: (1) a MerkleNode dataclass with content, hash, parent_hash, and timestamp fields, (2) a MerkleDAG class with insert(content), lookup(hash), audit_chain(root_hash) and to_dict() methods, (3) thread-safe access via threading.RLock for all write operations, (4) a MemoryCatalogShim class that wraps MerkleDAG to match the existing MemoryCatalog.observe() and MemoryCatalog.search() interface signatures. Output clean, runnable Python code only.",
+      "expects_restore": false
+    },
+    {
+      "task_id": "red-team",
+      "agent": "red-team",
+      "slot": "redteam_out",
+      "phase": 2,
+      "concurrent": true,
+      "depends_on": ["engineer"],
+      "prompt": "You are an adversarial concurrency auditor. Your sub-task is CONCURRENCY AUDIT. Do NOT write replacement code. Read the Engineer's implementation from context and identify: (1) any race conditions in the RLock usage patterns, (2) potential deadlock vectors if MerkleDAG methods are called re-entrantly during callback chains, (3) any livelock or starvation scenarios under high ThreadPool concurrency, (4) Inference-DoS attack surfaces (e.g. unbounded recursion in audit_chain). For each finding state: SEVERITY (CRITICAL/HIGH/MEDIUM/LOW), LOCATION (method name), and DESCRIPTION. If you find CRITICAL or HIGH severity issues, start your response with 'TOMBSTONE:' followed by the threat summary.",
+      "expects_restore": false
+    },
+    {
+      "task_id": "merge",
+      "agent": "merger",
+      "slot": "merge_out",
+      "phase": 4,
+      "concurrent": false,
+      "depends_on": ["red-team"],
+      "prompt": "You are a patch packager. Restore your session from the decomposition phase. Read the validated implementation and the Red Team audit from context. Generate: (1) a unified diff in standard .patch format showing the migration from the old MemoryCatalog SQLite backend to the new MerkleDAG backend, (2) three Pytest test functions: test_insert_and_lookup(), test_audit_chain_integrity(), test_concurrent_writes_no_deadlock(). Format the output as two clearly labelled sections: PATCH: and TESTS:",
+      "expects_restore": true
+    }
+  ],
+  "memory_policy": {
+    "project": "helix-ouroboros",
+    "mode": "search",
+    "budget_tokens": 1200
+  },
+  "session_policy": {
+    "codec": "rust-hlx-buffered-flat",
+    "audit_policy": "deferred",
+    "verify_policy": "receipt-only"
+  },
+  "outputs": {
+    "artifact": "ouroboros-dag-artifact.json",
+    "site": "ouroboros-demo.html",
+    "patch": "ouroboros.patch",
+    "tests": "test_ouroboros_suite.py"
+  }
+}

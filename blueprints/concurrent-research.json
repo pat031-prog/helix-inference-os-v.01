@@ -1,0 +1,105 @@
+{
+  "schema_version": 1,
+  "id": "concurrent-research",
+  "blueprint_id": "concurrent-research",
+  "title": "HeliX Concurrent Pipeline \u2014 ThreadPool DAG Resolution",
+  "description": "Proves ThreadPool-based multicore dispatching in HeliX. Independent tasks dispatch asynchronously. Synthesis task blocks pending completion of its DAG roots. MemoryCatalog handles write collisions.",
+  "layers_demonstrated": [
+    "multimodel_scheduler",
+    "dag_branch_resolution",
+    "threaded_concurrency",
+    "sqlite_wal_persistence"
+  ],
+  "outputs": [
+    {"slot": "research_a_out", "label": "Research Alpha"},
+    {"slot": "research_b_out", "label": "Research Beta"},
+    {"slot": "research_c_out", "label": "Research Gamma"},
+    {"slot": "synthesis_out", "label": "Final Synthesis"}
+  ],
+  "models": {
+    "primary-model": {
+      "model_id": "gpt2-fast",
+      "alias": "gpt2-fast",
+      "ref": "gpt2",
+      "arch": "transformer",
+      "arch_family": "decoder-only-gpt",
+      "kv_layers": 12,
+      "ssm_layers": 0,
+      "total_layers": 12,
+      "capabilities": ["fast-generation"],
+      "fallback": null,
+      "load_time_estimate_ms": 800,
+      "key": "primary-model"
+    },
+    "synthesis-model": {
+      "model_id": "qwen-1.5b",
+      "alias": "qwen-1.5b",
+      "ref": "Qwen/Qwen2.5-1.5B-Instruct",
+      "arch": "transformer",
+      "arch_family": "decoder-only-transformer",
+      "kv_layers": 28,
+      "ssm_layers": 0,
+      "total_layers": 28,
+      "capabilities": ["reasoning", "synthesis"],
+      "trust_remote_code": false,
+      "load_time_estimate_ms": 6000,
+      "key": "synthesis-model"
+    }
+  },
+  "agents": {
+    "research-bot": {
+      "model": "primary-model",
+      "role": "Fast parallel researcher collecting isolated data fragments.",
+      "memory_mode": "search"
+    },
+    "synthesis-bot": {
+      "model": "synthesis-model",
+      "role": "Orchestrator that reviews combined data and produces a final summary.",
+      "memory_mode": "search"
+    }
+  },
+  "memory_policy": {
+    "project": "helix-concurrent",
+    "mode": "search",
+    "budget_tokens": 1200
+  },
+  "session_policy": {
+    "codec": "rust-hlx-buffered-flat",
+    "audit_policy": "deferred"
+  },
+  "tasks": [
+    {
+      "task_id": "research-a",
+      "id": "research-a",
+      "agent": "research-bot",
+      "slot": "research_a_out",
+      "prompt": "Analyze the speed limits of concurrent KV cache transfer via direct PCIe access."
+    },
+    {
+      "task_id": "research-b",
+      "id": "research-b",
+      "agent": "research-bot",
+      "slot": "research_b_out",
+      "prompt": "Analyze PyTorch inference drop-in limits when multithreading context arrays."
+    },
+    {
+      "task_id": "research-c",
+      "id": "research-c",
+      "agent": "research-bot",
+      "slot": "research_c_out",
+      "prompt": "Determine SQLite WAL robustness limits for millions of write events."
+    },
+    {
+      "task_id": "synthesis-task",
+      "id": "synthesis-task",
+      "agent": "synthesis-bot",
+      "slot": "synthesis_out",
+      "depends_on": [
+        "research-a",
+        "research-b",
+        "research-c"
+      ],
+      "prompt": "Synthesize the three preceding research observations regarding KV cache speed, PyTorch limits, and SQLite robustness into a single document."
+    }
+  ]
+}

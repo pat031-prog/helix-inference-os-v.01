@@ -1,0 +1,10 @@
+{
+  "schema_version": 1,
+  "id": "frontend-factory",
+  "title": "Frontend Factory",
+  "description": "Blueprint spec for UI/web work: architect, frontend coder, copywriter and release reviewer.",
+  "status": "spec_smoke",
+  "agents": ["architect", "frontend_coder", "copywriter", "release_reviewer"],
+  "capabilities": ["ui-architecture", "frontend-code", "copy", "qa"],
+  "claim_boundary": "Spec-only v0; not a real model-quality benchmark yet."
+}

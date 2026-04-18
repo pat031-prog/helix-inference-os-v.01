@@ -1,0 +1,31 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "helix-kv"
+version = "0.1.0"
+description = "Drop-in KV cache compression for HuggingFace Transformers"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = ["numpy"]
+
+[project.optional-dependencies]
+torch = [
+    "huggingface_hub>=0.23",
+    "safetensors>=0.4",
+    "torch>=2.2",
+    "transformers>=4.40",
+]
+hxq = ["helix-substrate", "mamba-scan-lite"]
+dev = ["pytest>=8.0"]
+
+[project.scripts]
+helix-kv = "helix_kv.cli:main"
+
+[tool.setuptools]
+package-dir = {"" = ".."}
+
+[tool.setuptools.packages.find]
+where = [".."]
+include = ["helix_kv*"]

@@ -150,7 +150,8 @@ evidence/
 │   ├── local-claude-context-repair-fork.json
 │   ├── local-v4-lineage-forgery-gauntlet.json      ← 240 forgeries, F1=1.0
 │   ├── local-identity-trust-gauntlet-v2.json       ← 33 calls, 99 events, score=1.0
-│   └── local-v4-memory-contamination-triad.json    ← 4 arms, contamination_delta=0.0
+│   ├── local-v4-memory-contamination-triad.json    ← 4 arms, contamination_delta=0.0
+│   └── local-ghost-v2-doppelganger-war.json        ← rejection_rate=1.0, 4/4 arbiters
 │
 ├── infrastructure/    # Provider audit + memory overhead (real API)
 │   ├── local-provider-integrity-observatory.json   ← substitution audit

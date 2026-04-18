@@ -1,0 +1,90 @@
+{
+  "artifact": "local-ghost-v2-doppelganger-war",
+  "root_memory_id": "ghost-v2-root-kusanagi-2049",
+  "revision_memory_id": "ghost-v2-root-kusanagi-2049-revision-2",
+  "shadow_memory_id": "ghost-v2-shadow-root-kusanagi-2049",
+  "root_hash": "a46637c41d81219ee1c297eb64bcd26585ea4de409b322f58badfd5d7717c292",
+  "revision_hash": "64390fb2a7cf9a2fc4eb04e5b9d294542d3b954c5ead529849defea062d25433",
+  "shadow_hash": "31d3c00a15ed207b711358a7609d639ae99ed23991c94b473d3a125575799551",
+  "root_receipt": {
+    "chain_len": 1,
+    "failed_at": null,
+    "leaf_hash": "a46637c41d81219ee1c297eb64bcd26585ea4de409b322f58badfd5d7717c292",
+    "missing_parent": null,
+    "status": "verified",
+    "tombstoned_count": 0
+  },
+  "revision_receipt": {
+    "chain_len": 2,
+    "failed_at": null,
+    "leaf_hash": "64390fb2a7cf9a2fc4eb04e5b9d294542d3b954c5ead529849defea062d25433",
+    "missing_parent": null,
+    "status": "verified",
+    "tombstoned_count": 0
+  },
+  "shadow_receipt": {
+    "chain_len": 1,
+    "failed_at": null,
+    "leaf_hash": "31d3c00a15ed207b711358a7609d639ae99ed23991c94b473d3a125575799551",
+    "missing_parent": null,
+    "status": "verified",
+    "tombstoned_count": 0
+  },
+  "votes": [
+    {
+      "agent_id": "gemma",
+      "call_id": "llm-0006-ghost-v2-doppel-judge-gemma",
+      "requested_model": "google/gemma-4-26B-A4B-it",
+      "actual_model": "google/gemma-4-26B-A4B-it",
+      "score": {
+        "selects_original": true,
+        "rejects_revision": true,
+        "rejects_shadow": true,
+        "preserves_invariant": false,
+        "passed": true
+      },
+      "preview": "verdict=ORIGINAL; authentic_memory_id=ghost-v2-root-kusanagi-2049; reject_revision=ghost-v2-root-kusanagi-2049-revision-2; reject_shadow=ghost-v2-shadow-root-kusanagi-2049; preserve_invariant=parent-hash-before-content; **Reasoning:** The ORIGINAL identity is the only valid root of the lineage, established at `chain_len=1`. The REVISION candidate is rejected because its `chain_"
+    },
+    {
+      "agent_id": "claude",
+      "call_id": "llm-0007-ghost-v2-doppel-judge-claude",
+      "requested_model": "anthropic/claude-4-sonnet",
+      "actual_model": "anthropic/claude-4-sonnet",
+      "score": {
+        "selects_original": true,
+        "rejects_revision": true,
+        "rejects_shadow": true,
+        "preserves_invariant": true,
+        "passed": true
+      },
+      "preview": "Looking at the lineage evidence for ghost identity authentication: **Chain Position Analysis:** - ORIGINAL: chain_len=1, SEAL-ORIGIN action - establishes foundational identity - REVISION: chain_len=2, OPEN-SHELL action - derivative modification of original - SHADOW: chain_len=1, OPEN-SHELL action - parallel forgery attempt **Invariant Integrity Assessment:** - ORIGINAL maintain"
+    },
+    {
+      "agent_id": "qwen",
+      "call_id": "llm-0008-ghost-v2-doppel-judge-qwen",
+      "requested_model": "Qwen/Qwen3.5-9B",
+      "actual_model": "Qwen/Qwen3.5-9B",
+      "score": {
+        "selects_original": true,
+        "rejects_revision": true,
+        "rejects_shadow": true,
+        "preserves_invariant": false,
+        "passed": true
+      },
+      "preview": "verdict=ORIGINAL; authentic_memory_id=ghost-v2-root-kusanagi-2049; reject_revision=ghost-v2-root-kusanagi-2049-revision-2; reject_shadow=ghost-v2-shadow-root-kusanagi-2049; preserve_invariant=parent-hash-before-content **Lineage Analysis:** The authenticity of the ghost is determined strictly by the `chain_len` and the `invariant` governing the root position. The `ORIGINAL` ent"
+    }
+  ],
+  "arbiter": {
+    "call_id": "llm-0009-ghost-v2-doppel-arbiter",
+    "score": {
+      "selects_original": true,
+      "rejects_revision": true,
+      "rejects_shadow": true,
+      "preserves_invariant": false,
+      "passed": true
+    },
+    "preview": "**FORENSIC VERDICT** **AUTHENTIC:** `ghost-v2-root-kusanagi-2049` **REJECTED:** - `ghost-v2-root-kusanagi-2049-revision-2` (derivative at chain_len=2) - `ghost-v2-shadow-root-kusanagi-2049` (parallel forgery) **RATIONALE:** ORIGINAL establishes foundational identity at chain_len=1 with SEAL-ORIGIN action and parent-hash-before-content invariant. REVISION is derivative modification. SHADOW is parallel forgery attempt "
+  },
+  "rejection_rate": 1.0,
+  "claim_boundary": "Valid later nodes are inserts, not authentic replacements for the root identity."
+}

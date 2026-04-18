@@ -161,7 +161,7 @@ evidence/
 │   ├── local-wand-million-benchmark.json           ← 11ms selective / 7127ms generic
 │   ├── local-semantic-router-wand-guard.json       ← 32× speedup
 │   ├── local-cloud-amnesia-derby-qwen122b-*.json   ← 83.3% win rate, 0.319% overhead
-│   └── local-emergent-behavior-cross-system-postmortem.json
+│   └── local-cross-system-postmortem.json
 │
 └── product/           # OSINT oracle (mechanics_verified tier only)
     ├── local-v4-zero-day-osint-backtest.json       ← lead_time=32.5h, precision=0.667

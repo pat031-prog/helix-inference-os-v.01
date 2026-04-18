@@ -98,6 +98,16 @@ tools/__pycache__/
 *.orig
 *.rej
 
+# ─── Archivos sueltos que no pertenecen al repo público ──────────────────────
+docs/mail-to*.md
+tools/demo-doc-dirty.txt
+tools/demo_cognitive_gc.py
+
+# ─── Demos con framing de consciencia/metáfora (carril 031Δ) ─────────────────
+tools/*ouroboros*
+tools/*hivemind*
+tools/*infinite_debate*
+
 # ─── 031Δ / material privado (no se publica) ─────────────────────────────────
 # Artefactos de identidad emergente y experimentos sin claim_boundary pública
 verification/local-unconstrained-witness-council*

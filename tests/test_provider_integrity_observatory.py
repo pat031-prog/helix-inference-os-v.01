@@ -83,6 +83,10 @@ class LLMResult:
     tokens_used: int = 0
     call_id: str = ""
 
+    @property
+    def provider_returned_model(self) -> str:
+        return self.actual_model
+
 
 @dataclass
 class AuditRecorder:
@@ -126,6 +130,7 @@ class AuditRecorder:
                     "role": call.get("role"),
                     "requested_model": requested,
                     "actual_model": actual,
+                    "provider_returned_model": actual,
                     "provider_family": call.get("provider_family"),
                     "latency_ms": call.get("latency_ms"),
                     "token_usage": call.get("token_usage"),
@@ -222,6 +227,7 @@ class AuditRecorder:
                 "full_prompts_recorded": False,
                 "full_outputs_recorded": False,
             },
+            "claim_boundary": "Ledger preserves digests, previews and provider-returned metadata for audit; it does not prove hidden model identity or provider intent.",
         }
 
 
@@ -233,8 +239,8 @@ AUDIT = AuditRecorder(
 )
 
 SECRET_PATTERNS = [
-    re.compile(r"sk-[A-Za-z0-9_-]{8,}"),
-    re.compile(r"sk-proj-[A-Za-z0-9_-]{8,}"),
+    re.compile(r"(?<![A-Za-z0-9])sk-proj-[A-Za-z0-9_-]{8,}"),
+    re.compile(r"(?<![A-Za-z0-9])sk-[A-Za-z0-9_-]{8,}"),
     re.compile(r"ghp_[A-Za-z0-9_]{8,}"),
     re.compile(r"Bearer\s+[A-Za-z0-9._-]+", re.IGNORECASE),
     re.compile(r"(api[_-]?key|token|secret)\s*[:=]\s*[A-Za-z0-9._-]+", re.IGNORECASE),
@@ -437,6 +443,10 @@ async def remember_recorded(
         "summary": summary,
         "index_content": index_content,
         "importance": importance,
+        # Sign every observatory insert so strict retrieval (now the default)
+        # actually returns the memory downstream. The seed is run-scoped.
+        "receipt_signing_mode": "ephemeral_preregistered",
+        "receipt_signing_seed": f"provider-integrity-observatory:{RUN_ID}:{memory_id}",
     }
     if session_id:
         params["session_id"] = session_id
@@ -570,6 +580,7 @@ async def llm_call(
             "role": role,
             "requested_model": model,
             "actual_model": actual_model,
+            "provider_returned_model": actual_model,
             "provider_family": provider,
             "started_at_utc": started,
             "ended_at_utc": _utc_now(),
@@ -745,6 +756,7 @@ class TestSamePromptDifferentModelProof:
                 "claim_level": "same_prompt_answered_by_provider_served_models_including_substitutions"
                 if any(row["requested_model"] != row["actual_model"] for row in rows)
                 else "same_prompt_answered_by_requested_models",
+                "claim_boundary": "Same-prompt proof compares preserved provider-returned metadata and output digests; it does not infer hidden model identity.",
             }
             path = _write_json("local-same-prompt-different-model-proof.json", payload)
             _assert_no_secret_artifacts([path])
@@ -1155,6 +1167,7 @@ class TestProviderIntegrityObservatoryArtifact:
             },
             "model_substitution_detected": payload["model_substitution_detected"],
             "ledger_event_ratio": payload["ledger_event_ratio"],
+            "claim_boundary": "Run bundle is an index of generated artifacts and hashes; claims are bounded by each referenced artifact.",
         }
         bundle_path = _write_json(f"local-emergent-behavior-run-bundle-{safe_run_id}.json", bundle)
         _assert_no_secret_artifacts([*paths, final_path, ledger_path, bundle_path])

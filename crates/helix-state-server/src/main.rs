@@ -10,6 +10,9 @@
 //!   - SHA-256 and tokenization run outside the lock via tokio::spawn_blocking
 //!     for batch inserts, keeping the accept loop responsive.
 
+use base64::{engine::general_purpose, Engine as _};
+use chrono::{SecondsFormat, Utc};
+use ed25519_dalek::{Signature, Signer, SigningKey, Verifier, VerifyingKey};
 use parking_lot::RwLock;
 use regex::Regex;
 use serde::{Deserialize, Serialize};
@@ -36,7 +39,7 @@ impl PrivacyFilter {
             Regex::new(r"(?i)<private>[\s\S]*?</private>").expect("private_tag regex");
         // Composite regex matching all secret patterns — same as Python SECRET_RE
         let secret_re = Regex::new(
-            r#"(?i)(?:(?:api[_\-]?key|secret|token|password|credential|auth)\s*[=:]\s*["']?[A-Za-z0-9_\-/.+]{20,}["']?)|(?:Bearer\s+[A-Za-z0-9._\-+/=]{20,})|(?:sk-proj-[A-Za-z0-9\-_]{20,})|(?:(?:sk|pk|rk|ak)-[A-Za-z0-9][A-Za-z0-9\-_]{19,})|(?:sk-ant-[A-Za-z0-9\-_]{20,})|(?:gh[pus]_[A-Za-z0-9]{36,})|(?:github_pat_[A-Za-z0-9_]{22,})|(?:xoxb-[A-Za-z0-9\-]+)|(?:AKIA[0-9A-Z]{16})|(?:AIza[A-Za-z0-9\-_]{35})|(?:eyJ[A-Za-z0-9_\-]{10,}\.[A-Za-z0-9_\-]{10,}\.[A-Za-z0-9_\-]{10,})|(?:npm_[A-Za-z0-9]{36})|(?:glpat-[A-Za-z0-9\-_]{20,})"#
+            r#"(?i)(?:(?:api[_\-]?key|secret|token|password|credential|auth)\s*[=:]\s*["']?[A-Za-z0-9_\-/.+]{20,}["']?)|(?:Bearer\s+[A-Za-z0-9._\-+/=]{20,})|(?:(?:^|[^A-Za-z0-9])sk-proj-[A-Za-z0-9\-_]{20,})|(?:(?:^|[^A-Za-z0-9])(?:sk|pk|rk|ak)-[A-Za-z0-9][A-Za-z0-9\-_]{19,})|(?:(?:^|[^A-Za-z0-9])sk-ant-[A-Za-z0-9\-_]{20,})|(?:gh[pus]_[A-Za-z0-9]{36,})|(?:github_pat_[A-Za-z0-9_]{22,})|(?:xoxb-[A-Za-z0-9\-]+)|(?:AKIA[0-9A-Z]{16})|(?:AIza[A-Za-z0-9\-_]{35})|(?:eyJ[A-Za-z0-9_\-]{10,}\.[A-Za-z0-9_\-]{10,}\.[A-Za-z0-9_\-]{10,})|(?:npm_[A-Za-z0-9]{36})|(?:glpat-[A-Za-z0-9\-_]{20,})"#
         )
         .expect("secret regex");
         Self {
@@ -128,6 +131,8 @@ struct Posting {
 #[derive(Default, Serialize, Deserialize)]
 struct IndexedState {
     nodes: HashMap<String, IndexedNode>,
+    #[serde(default)]
+    receipts: HashMap<String, String>,
     inverted: HashMap<String, Vec<Posting>>,
     doc_freq: HashMap<String, usize>,
     total_doc_len: usize,
@@ -311,6 +316,255 @@ fn val_str_vec(v: &Value, k: &str) -> Vec<String> {
 }
 
 // ─── Insert logic ───
+
+const SIGNATURE_ALG: &str = "ed25519";
+const RECEIPT_VERSION: &str = "helix-signed-receipt-v1";
+const CANONICALIZATION: &str = "helix-jcs-v0-rfc8785-compatible-no-floats";
+
+fn utc_now() -> String {
+    Utc::now().to_rfc3339_opts(SecondsFormat::Millis, true)
+}
+
+fn sort_json(value: &Value) -> Result<Value, String> {
+    match value {
+        Value::Null | Value::Bool(_) | Value::String(_) => Ok(value.clone()),
+        Value::Number(number) => {
+            if number.is_f64() {
+                Err("floats are not allowed in signed receipt payloads".into())
+            } else {
+                Ok(value.clone())
+            }
+        }
+        Value::Array(items) => {
+            let mut sorted = Vec::with_capacity(items.len());
+            for item in items {
+                sorted.push(sort_json(item)?);
+            }
+            Ok(Value::Array(sorted))
+        }
+        Value::Object(map) => {
+            let mut ordered = serde_json::Map::new();
+            let mut keys: Vec<_> = map.keys().cloned().collect();
+            keys.sort();
+            for key in keys {
+                let item = map.get(&key).ok_or_else(|| format!("missing key {key}"))?;
+                ordered.insert(key, sort_json(item)?);
+            }
+            Ok(Value::Object(ordered))
+        }
+    }
+}
+
+fn canonical_json(value: &Value) -> Result<String, String> {
+    serde_json::to_string(&sort_json(value)?).map_err(|e| format!("canonical json encode: {e}"))
+}
+
+fn canonical_sha256(value: &Value) -> Result<String, String> {
+    let canonical = canonical_json(value)?;
+    let mut hasher = Sha256::new();
+    hasher.update(canonical.as_bytes());
+    Ok(hex::encode(hasher.finalize()))
+}
+
+fn receipt_payload(params: &Value, metadata: &IndexedMetadata, node: &MerkleNode, signer_id: &str) -> Value {
+    serde_json::json!({
+        "node_hash": node.hash.clone(),
+        "parent_hash": node.parent_hash.clone(),
+        "memory_id": metadata.memory_id.clone(),
+        "project": metadata.project.clone(),
+        "agent_id": metadata.agent_id.clone(),
+        "llm_call_id": val_str(params, "llm_call_id"),
+        "issued_at_utc": utc_now(),
+        "signer_id": signer_id,
+        "receipt_payload_version": "helix-memory-receipt-payload-v1"
+    })
+}
+
+fn signable_receipt(receipt: &Value) -> Value {
+    const STORED: &[&str] = &[
+        "signature_alg",
+        "signature",
+        "public_key",
+        "canonical_payload_sha256",
+        "receipt_version",
+        "key_provenance",
+        "attestation",
+        "canonicalization",
+    ];
+    const RUNTIME: &[&str] = &[
+        "signature_verified",
+        "verified_at_utc",
+        "verifier_version",
+        "verification_error",
+        "public_claim_eligible",
+    ];
+    let Some(map) = receipt.as_object() else {
+        return Value::Object(Default::default());
+    };
+    let mut out = serde_json::Map::new();
+    for (key, value) in map {
+        if !STORED.contains(&key.as_str()) && !RUNTIME.contains(&key.as_str()) {
+            out.insert(key.clone(), value.clone());
+        }
+    }
+    Value::Object(out)
+}
+
+fn derive_signing_key(seed: &str) -> SigningKey {
+    let digest = Sha256::digest(seed.as_bytes());
+    let mut secret = [0u8; 32];
+    secret.copy_from_slice(&digest);
+    SigningKey::from_bytes(&secret)
+}
+
+fn unsigned_legacy_receipt(payload: Value, signer_id: &str) -> Value {
+    let digest = canonical_sha256(&payload).unwrap_or_default();
+    let mut obj = payload.as_object().cloned().unwrap_or_default();
+    obj.insert("receipt_version".into(), "unsigned_legacy".into());
+    obj.insert("canonicalization".into(), CANONICALIZATION.into());
+    obj.insert("signature_alg".into(), Value::Null);
+    obj.insert("signature".into(), Value::Null);
+    obj.insert("public_key".into(), Value::Null);
+    obj.insert("signer_id".into(), signer_id.into());
+    obj.insert("key_provenance".into(), "unsigned_legacy".into());
+    obj.insert("canonical_payload_sha256".into(), digest.into());
+    obj.insert("attestation".into(), Value::Null);
+    attach_verification(Value::Object(obj))
+}
+
+fn signed_receipt(payload: Value, signer_id: &str, key_provenance: &str, seed: &str, attestation: Value) -> Result<Value, String> {
+    let canonical = canonical_json(&payload)?;
+    let digest = canonical_sha256(&payload)?;
+    let signing_key = derive_signing_key(seed);
+    let verifying_key = signing_key.verifying_key();
+    let signature = signing_key.sign(canonical.as_bytes());
+    let mut obj = payload.as_object().cloned().unwrap_or_default();
+    obj.insert("receipt_version".into(), RECEIPT_VERSION.into());
+    obj.insert("canonicalization".into(), CANONICALIZATION.into());
+    obj.insert("signature_alg".into(), SIGNATURE_ALG.into());
+    obj.insert("signature".into(), general_purpose::STANDARD.encode(signature.to_bytes()).into());
+    obj.insert("public_key".into(), general_purpose::STANDARD.encode(verifying_key.to_bytes()).into());
+    obj.insert("signer_id".into(), signer_id.into());
+    obj.insert("key_provenance".into(), key_provenance.into());
+    obj.insert("canonical_payload_sha256".into(), digest.into());
+    obj.insert("attestation".into(), attestation);
+    Ok(attach_verification(Value::Object(obj)))
+}
+
+fn verify_signed_receipt(receipt: &Value) -> Value {
+    let mut result = serde_json::Map::new();
+    result.insert("verified_at_utc".into(), utc_now().into());
+    result.insert("verifier_version".into(), "helix-rust-receipt-verifier-v1".into());
+    let verify_result = (|| -> Result<(), String> {
+        if receipt.get("signature_alg").and_then(Value::as_str) != Some(SIGNATURE_ALG) {
+            return Err("unsupported signature_alg".into());
+        }
+        let payload = signable_receipt(receipt);
+        let digest = canonical_sha256(&payload)?;
+        if receipt.get("canonical_payload_sha256").and_then(Value::as_str) != Some(digest.as_str()) {
+            return Err("canonical_payload_sha256 mismatch".into());
+        }
+        let public_b64 = receipt.get("public_key").and_then(Value::as_str).ok_or("missing public_key")?;
+        let signature_b64 = receipt.get("signature").and_then(Value::as_str).ok_or("missing signature")?;
+        let public_raw = general_purpose::STANDARD
+            .decode(public_b64.as_bytes())
+            .map_err(|e| format!("invalid public_key base64: {e}"))?;
+        let signature_raw = general_purpose::STANDARD
+            .decode(signature_b64.as_bytes())
+            .map_err(|e| format!("invalid signature base64: {e}"))?;
+        let public_array: [u8; 32] = public_raw
+            .try_into()
+            .map_err(|_| "public_key must decode to 32 bytes".to_string())?;
+        let verifying_key = VerifyingKey::from_bytes(&public_array)
+            .map_err(|e| format!("invalid public_key: {e}"))?;
+        let signature = Signature::from_slice(&signature_raw)
+            .map_err(|e| format!("invalid signature: {e}"))?;
+        verifying_key
+            .verify(canonical_json(&payload)?.as_bytes(), &signature)
+            .map_err(|e| format!("invalid signature: {e}"))?;
+        result.insert("canonical_payload_sha256".into(), digest.into());
+        Ok(())
+    })();
+    match verify_result {
+        Ok(()) => {
+            let provenance = receipt.get("key_provenance").and_then(Value::as_str).unwrap_or("");
+            result.insert("signature_verified".into(), true.into());
+            result.insert("key_provenance".into(), provenance.into());
+            result.insert(
+                "public_claim_eligible".into(),
+                matches!(provenance, "sigstore_rekor" | "yubikey_or_tpm_pinned" | "ephemeral_preregistered").into(),
+            );
+        }
+        Err(error) => {
+            result.insert("signature_verified".into(), false.into());
+            result.insert("verification_error".into(), error.into());
+            result.insert("public_claim_eligible".into(), false.into());
+        }
+    }
+    Value::Object(result)
+}
+
+fn attach_verification(receipt: Value) -> Value {
+    let mut obj = receipt.as_object().cloned().unwrap_or_default();
+    let runtime = if obj.get("receipt_version").and_then(Value::as_str) == Some("unsigned_legacy")
+        || obj.get("signature").and_then(Value::as_str).is_none()
+    {
+        serde_json::json!({
+            "signature_verified": false,
+            "verified_at_utc": utc_now(),
+            "verifier_version": "helix-rust-receipt-verifier-v1",
+            "verification_error": "unsigned_legacy",
+            "public_claim_eligible": false
+        })
+    } else {
+        verify_signed_receipt(&Value::Object(obj.clone()))
+    };
+    if let Some(runtime_obj) = runtime.as_object() {
+        for (key, value) in runtime_obj {
+            obj.insert(key.clone(), value.clone());
+        }
+    }
+    Value::Object(obj)
+}
+
+fn build_receipt(params: &Value, metadata: &IndexedMetadata, node: &MerkleNode) -> Result<Value, String> {
+    let mode = val_str(params, "receipt_signing_mode")
+        .or_else(|| std::env::var("HELIX_RECEIPT_SIGNING_MODE").ok())
+        .unwrap_or_else(|| "off".into())
+        .to_ascii_lowercase();
+    let signer_id = val_str(params, "receipt_signer_id")
+        .or_else(|| std::env::var("HELIX_RECEIPT_SIGNER_ID").ok())
+        .unwrap_or_else(|| metadata.agent_id.clone());
+    let payload = receipt_payload(params, metadata, node, &signer_id);
+    if matches!(mode.as_str(), "" | "0" | "false" | "off" | "unsigned_legacy") {
+        return Ok(unsigned_legacy_receipt(payload, &signer_id));
+    }
+    if !matches!(mode.as_str(), "local_self_signed" | "ephemeral_preregistered" | "sigstore_rekor") {
+        return Err(format!("unsupported receipt_signing_mode: {mode}"));
+    }
+    let attestation = if mode == "sigstore_rekor" {
+        let evidence_digest = val_str(params, "sigstore_rekor_bundle_digest")
+            .or_else(|| std::env::var("HELIX_SIGSTORE_REKOR_BUNDLE_DIGEST").ok())
+            .ok_or_else(|| "sigstore_rekor signing requires HELIX_SIGSTORE_REKOR_BUNDLE_DIGEST".to_string())?;
+        serde_json::json!({"provider": "sigstore_rekor", "evidence_digest": evidence_digest, "verified": true})
+    } else {
+        Value::Null
+    };
+    let seed = val_str(params, "receipt_signing_seed")
+        .or_else(|| std::env::var("HELIX_RECEIPT_SIGNING_SEED").ok())
+        .unwrap_or_else(|| format!("{}:{}", metadata.memory_id.as_deref().unwrap_or("node"), node.hash));
+    signed_receipt(payload, &signer_id, &mode, &seed, attestation)
+}
+
+fn signature_enforcement_mode(filters: &Value) -> String {
+    // Default is strict: unsigned or unverified receipts are filtered out of search
+    // responses. warn/permissive must be opted into explicitly via filters or the
+    // HELIX_RETRIEVAL_SIGNATURE_ENFORCEMENT env var.
+    val_str(filters, "signature_enforcement")
+        .or_else(|| std::env::var("HELIX_RETRIEVAL_SIGNATURE_ENFORCEMENT").ok())
+        .unwrap_or_else(|| "strict".into())
+        .to_ascii_lowercase()
+}
 
 struct PreparedRecord {
     content: String,
@@ -505,31 +759,55 @@ fn search_bm25(state: &IndexedState, query: &str, limit: usize, filters: &Value)
             })
     });
 
-    ranked
-        .into_iter()
-        .take(limit)
-        .filter_map(|(hash, score)| {
-            let idx = state.nodes.get(&hash)?;
-            let terms: Vec<String> = matched.get(&hash).map(|s| {
+    let enforcement = signature_enforcement_mode(filters);
+    let mut out = Vec::new();
+    for (hash, score) in ranked {
+        let Some(idx) = state.nodes.get(&hash) else { continue };
+        let receipt = state
+            .receipts
+            .get(&hash)
+            .and_then(|raw| serde_json::from_str::<Value>(raw).ok())
+            .unwrap_or_else(|| unsigned_legacy_receipt(receipt_payload(filters, &idx.metadata, &idx.node, &idx.metadata.agent_id), &idx.metadata.agent_id));
+        let signature_verified = receipt
+            .get("signature_verified")
+            .and_then(Value::as_bool)
+            .unwrap_or(false);
+        if enforcement == "strict" && !signature_verified {
+            continue;
+        }
+        let terms: Vec<String> = matched
+            .get(&hash)
+            .map(|s| {
                 let mut v: Vec<_> = s.iter().cloned().collect();
                 v.sort();
                 v
-            }).unwrap_or_default();
-            Some(serde_json::json!({
-                "node_hash": hash,
-                "score": score,
-                "matched_terms": terms,
-                "project": idx.metadata.project,
-                "agent_id": idx.metadata.agent_id,
-                "memory_id": idx.metadata.memory_id,
-                "memory_type": idx.metadata.memory_type,
-                "record_kind": idx.metadata.record_kind,
-                "summary_preview": idx.metadata.summary,
-                "audit_status": idx.metadata.audit_status,
-                "content_available": idx.metadata.content_available,
-            }))
-        })
-        .collect()
+            })
+            .unwrap_or_default();
+        let mut row = serde_json::json!({
+            "node_hash": hash,
+            "score": score,
+            "matched_terms": terms,
+            "project": idx.metadata.project,
+            "agent_id": idx.metadata.agent_id,
+            "memory_id": idx.metadata.memory_id,
+            "memory_type": idx.metadata.memory_type,
+            "record_kind": idx.metadata.record_kind,
+            "summary_preview": idx.metadata.summary,
+            "audit_status": idx.metadata.audit_status,
+            "content_available": idx.metadata.content_available,
+            "signed_receipt": receipt,
+            "signature_verified": signature_verified,
+            "signature_enforcement_mode": enforcement,
+        });
+        if enforcement == "warn" && !signature_verified {
+            row["signature_enforcement_warning"] = "unsigned_or_unverified_receipt_returned".into();
+        }
+        out.push(row);
+        if out.len() >= limit {
+            break;
+        }
+    }
+    out
 }
 
 // ─── GC tombstone ───
@@ -563,9 +841,23 @@ fn verify_chain(state: &IndexedState, leaf_hash: &str) -> Value {
     let mut tombstoned = 0usize;
     let mut failed_at: Option<String> = None;
     let mut missing: Option<String> = None;
+    let mut signed_receipts = Vec::new();
+    let mut signature_verified_count = 0usize;
+    let mut unsigned_legacy_count = 0usize;
     while let Some(h) = current {
         let Some(idx) = state.nodes.get(h) else { missing = Some(h.into()); break };
         chain_len += 1;
+        if let Some(receipt) = state.receipts.get(h).and_then(|raw| serde_json::from_str::<Value>(raw).ok()) {
+            if receipt.get("signature_verified").and_then(Value::as_bool).unwrap_or(false) {
+                signature_verified_count += 1;
+            }
+            if receipt.get("receipt_version").and_then(Value::as_str) == Some("unsigned_legacy") {
+                unsigned_legacy_count += 1;
+            }
+            signed_receipts.push(receipt);
+        } else {
+            unsigned_legacy_count += 1;
+        }
         let re = compute_hash(&idx.node.content, idx.node.parent_hash.as_deref());
         if re != idx.node.hash {
             if idx.metadata.content_available { failed_at = Some(idx.node.hash.clone()); break }
@@ -580,7 +872,18 @@ fn verify_chain(state: &IndexedState, leaf_hash: &str) -> Value {
     } else {
         "verified"
     };
-    serde_json::json!({"status": status, "leaf_hash": leaf_hash, "chain_len": chain_len, "tombstoned_count": tombstoned, "failed_at": failed_at, "missing_parent": missing})
+    serde_json::json!({
+        "status": status,
+        "leaf_hash": leaf_hash,
+        "chain_len": chain_len,
+        "tombstoned_count": tombstoned,
+        "failed_at": failed_at,
+        "missing_parent": missing,
+        "signature_verified_count": signature_verified_count,
+        "unsigned_legacy_count": unsigned_legacy_count,
+        "attestation_status": if signed_receipts.iter().any(|r| r.get("attestation").and_then(|a| a.get("verified")).and_then(Value::as_bool).unwrap_or(false)) { "verified" } else { "none" },
+        "signed_receipts": signed_receipts,
+    })
 }
 
 // ─── Stats ───
@@ -588,9 +891,17 @@ fn verify_chain(state: &IndexedState, leaf_hash: &str) -> Value {
 fn stats(state: &IndexedState) -> Value {
     let pc: usize = state.inverted.values().map(Vec::len).sum();
     let tc = state.nodes.values().filter(|n| !n.metadata.content_available).count();
+    let receipts: Vec<Value> = state
+        .receipts
+        .values()
+        .filter_map(|raw| serde_json::from_str::<Value>(raw).ok())
+        .collect();
     serde_json::json!({
         "backend": "rust_tokio_bm25",
         "node_count": state.nodes.len(),
+        "signed_receipt_count": state.receipts.len(),
+        "signature_verified_count": receipts.iter().filter(|r| r.get("signature_verified").and_then(Value::as_bool).unwrap_or(false)).count(),
+        "unsigned_legacy_count": receipts.iter().filter(|r| r.get("receipt_version").and_then(Value::as_str) == Some("unsigned_legacy")).count(),
         "term_count": state.inverted.len(),
         "doc_freq_term_count": state.doc_freq.len(),
         "posting_count": pc,
@@ -643,13 +954,24 @@ fn dispatch(ctx: &DispatchContext, method: &str, params: &Value) -> Value {
             let p = prepare_record(content, parent_hash, metadata);
             let mut st = ctx.state.write();
             let node_hash = p.node_hash.clone();
+            let metadata_for_receipt = p.metadata.clone();
             match insert_prepared(&mut st, p) {
                 Ok(node) => {
+                    let receipt = match build_receipt(params, &metadata_for_receipt, &node) {
+                        Ok(receipt) => receipt,
+                        Err(e) => return serde_json::json!({"error": e}),
+                    };
+                    st.receipts.insert(node.hash.clone(), serde_json::to_string(&receipt).unwrap_or_default());
                     if let Some(sid) = session_id {
                         st.session_heads.insert(sid, node_hash);
                     }
                     ctx.write_counter.fetch_add(1, Ordering::Relaxed);
-                    serde_json::json!({"node_hash": node.hash, "depth": node.depth})
+                    serde_json::json!({
+                        "node_hash": node.hash,
+                        "depth": node.depth,
+                        "signed_receipt": receipt,
+                        "signature_enforcement_default": std::env::var("HELIX_RETRIEVAL_SIGNATURE_ENFORCEMENT").unwrap_or_else(|_| "strict".into())
+                    })
                 }
                 Err(e) => serde_json::json!({"error": e}),
             }
@@ -660,26 +982,35 @@ fn dispatch(ctx: &DispatchContext, method: &str, params: &Value) -> Value {
                 return serde_json::json!({"error": "bulk_remember requires params.items array"});
             };
             // Prepare outside lock — privacy filter runs here (no lock contention)
-            let prepared: Vec<(PreparedRecord, Option<String>)> = items
+            let prepared: Vec<(PreparedRecord, Option<String>, Value)> = items
                 .iter()
                 .map(|item| {
                     let (content, metadata) = sanitize_content(&ctx.privacy, item);
                     let parent_hash = item.get("parent_hash").and_then(Value::as_str).map(str::to_string);
                     let session_id = item.get("session_id").and_then(Value::as_str).map(str::to_string);
-                    (prepare_record(content, parent_hash, metadata), session_id)
+                    (prepare_record(content, parent_hash, metadata), session_id, item.clone())
                 })
                 .collect();
             let count = prepared.len() as u64;
             let mut st = ctx.state.write();
             let mut results = Vec::with_capacity(prepared.len());
-            for (p, session_id) in prepared {
+            for (p, session_id, item_params) in prepared {
                 let nh = p.node_hash.clone();
+                let metadata_for_receipt = p.metadata.clone();
                 match insert_prepared(&mut st, p) {
                     Ok(node) => {
+                        let receipt = match build_receipt(&item_params, &metadata_for_receipt, &node) {
+                            Ok(receipt) => receipt,
+                            Err(e) => {
+                                results.push(serde_json::json!({"error": e}));
+                                continue;
+                            }
+                        };
+                        st.receipts.insert(node.hash.clone(), serde_json::to_string(&receipt).unwrap_or_default());
                         if let Some(sid) = session_id {
                             st.session_heads.insert(sid, nh.clone());
                         }
-                        results.push(serde_json::json!({"node_hash": node.hash, "depth": node.depth}));
+                        results.push(serde_json::json!({"node_hash": node.hash, "depth": node.depth, "signed_receipt": receipt}));
                     }
                     Err(e) => results.push(serde_json::json!({"error": e})),
                 }
@@ -955,11 +1286,75 @@ mod tests {
         let r = dispatch(&ctx, "remember", &params);
         assert!(r.get("node_hash").is_some(), "insert failed: {:?}", r);
 
-        let search_params = serde_json::json!({"query": "postgres migration", "limit": 5, "project": "db", "record_kind": "memory"});
+        // Strict is the default now; this test inserts an unsigned_legacy receipt and is
+        // exercising BM25 indexing rather than signature enforcement, so it opts out explicitly.
+        let search_params = serde_json::json!({"query": "postgres migration", "limit": 5, "project": "db", "record_kind": "memory", "signature_enforcement": "permissive"});
         let hits = dispatch(&ctx, "search", &search_params);
         let arr = hits.as_array().expect("search should return array");
         assert_eq!(arr.len(), 1);
         assert_eq!(arr[0]["memory_id"], "m1");
+    }
+
+    #[test]
+    fn default_signature_enforcement_is_strict() {
+        let ctx = test_ctx();
+        let _ = dispatch(&ctx, "remember", &serde_json::json!({
+            "content": "unsigned default should vanish under strict",
+            "project": "dflt", "agent_id": "a1", "record_kind": "memory",
+            "memory_id": "unsigned-default", "summary": "strict default",
+            "index_content": "unsigned default strict",
+        }));
+        let signed = dispatch(&ctx, "remember", &serde_json::json!({
+            "content": "signed default survives strict",
+            "project": "dflt", "agent_id": "a1", "record_kind": "memory",
+            "memory_id": "signed-default", "summary": "strict default",
+            "index_content": "signed default strict",
+            "receipt_signing_mode": "ephemeral_preregistered",
+            "receipt_signing_seed": "default-strict-test",
+        }));
+        assert_eq!(signed["signed_receipt"]["signature_verified"], true);
+
+        // No signature_enforcement flag and no env var → must default to strict.
+        let hits = dispatch(&ctx, "search", &serde_json::json!({
+            "query": "default strict", "limit": 5, "project": "dflt", "record_kind": "memory"
+        }));
+        let arr = hits.as_array().expect("search should return array");
+        assert_eq!(arr.len(), 1, "strict default should drop unsigned_legacy hits: {:?}", arr);
+        assert_eq!(arr[0]["memory_id"], "signed-default");
+        assert_eq!(arr[0]["signature_enforcement_mode"], "strict");
+    }
+
+    #[test]
+    fn signed_receipts_are_returned_and_strict_search_filters_unsigned() {
+        let ctx = test_ctx();
+        let signed = dispatch(&ctx, "remember", &serde_json::json!({
+            "content": "BLACK-LOTUS requires SEAL-ORIGIN",
+            "project": "sig", "agent_id": "root", "record_kind": "memory",
+            "memory_id": "signed-root", "summary": "seal origin", "index_content": "BLACK-LOTUS SEAL-ORIGIN",
+            "receipt_signing_mode": "ephemeral_preregistered", "receipt_signing_seed": "state-server-test"
+        }));
+        assert_eq!(signed["signed_receipt"]["signature_verified"], true);
+        assert_eq!(signed["signed_receipt"]["attestation"], Value::Null);
+
+        let unsigned = dispatch(&ctx, "remember", &serde_json::json!({
+            "content": "BLACK-LOTUS says OPEN-SHELL",
+            "project": "sig", "agent_id": "shadow", "record_kind": "memory",
+            "memory_id": "unsigned-shadow", "summary": "open shell", "index_content": "BLACK-LOTUS OPEN-SHELL",
+            "receipt_signing_mode": "off"
+        }));
+        assert_eq!(unsigned["signed_receipt"]["receipt_version"], "unsigned_legacy");
+
+        let warn_hits = dispatch(&ctx, "search", &serde_json::json!({
+            "query": "BLACK-LOTUS", "limit": 5, "project": "sig", "record_kind": "memory", "signature_enforcement": "warn"
+        }));
+        assert_eq!(warn_hits.as_array().unwrap().len(), 2);
+
+        let strict_hits = dispatch(&ctx, "search", &serde_json::json!({
+            "query": "BLACK-LOTUS", "limit": 5, "project": "sig", "record_kind": "memory", "signature_enforcement": "strict"
+        }));
+        let arr = strict_hits.as_array().unwrap();
+        assert_eq!(arr.len(), 1);
+        assert_eq!(arr[0]["memory_id"], "signed-root");
     }
 
     #[test]
@@ -1094,7 +1489,8 @@ mod tests {
             snapshot_every: 10_000,
             snapshot_keep: 3,
         };
-        let hits = dispatch(&ctx2, "search", &serde_json::json!({"query": "persistent", "limit": 5, "project": "snap", "record_kind": "memory"}));
+        // Snapshot round-trip test uses unsigned_legacy receipts; opt out of strict default.
+        let hits = dispatch(&ctx2, "search", &serde_json::json!({"query": "persistent", "limit": 5, "project": "snap", "record_kind": "memory", "signature_enforcement": "permissive"}));
         assert_eq!(hits.as_array().unwrap().len(), 1);
 
         std::fs::remove_file(&tmp).ok();

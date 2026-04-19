@@ -159,6 +159,8 @@ def test_openai_chat_completion_wraps_generate_text(monkeypatch, tmp_path: Path)
 
 
 def test_openai_chat_completion_injects_memory_context_when_requested(monkeypatch, tmp_path: Path) -> None:
+    # Unsigned memories; opt out of the strict retrieval default for this path.
+    monkeypatch.setenv("HELIX_RETRIEVAL_SIGNATURE_ENFORCEMENT", "permissive")
     catalog = MemoryCatalog.open(tmp_path / "session-os" / "memory.sqlite")
     try:
         memory = catalog.remember(
@@ -210,7 +212,8 @@ def test_openai_chat_completion_injects_memory_context_when_requested(monkeypatc
     assert response["helix"]["memory_context_tokens"] > 0
 
 
-def test_runtime_memory_endpoints_surface_catalog_search_context_and_graph(tmp_path: Path) -> None:
+def test_runtime_memory_endpoints_surface_catalog_search_context_and_graph(monkeypatch, tmp_path: Path) -> None:
+    monkeypatch.setenv("HELIX_RETRIEVAL_SIGNATURE_ENFORCEMENT", "permissive")
     runtime = HelixRuntime(root=tmp_path)
 
     observed = runtime.memory_observe(

@@ -69,6 +69,7 @@ async def _client_worker(
             agent_id=f"worker-{worker_id}",
             query=f"w{worker_id}-item-0",
             limit=3,
+            signature_enforcement="permissive",
         )
         search_ms = (time.perf_counter() - t0) * 1000
 
@@ -225,6 +226,7 @@ class TestStateServerConcurrency:
                             agent_id=None,
                             query="baseline topic",
                             limit=5,
+                            signature_enforcement="permissive",
                         )
                         read_results.append(len(hits))
                     finally:

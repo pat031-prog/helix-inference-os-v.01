@@ -1,9 +1,18 @@
 import json
 from pathlib import Path
 
+import pytest
+
 from helix_kv.memory_catalog import MemoryCatalog
 from helix_proto.agent import AgentRunner
 from helix_proto.memory import add_knowledge_text, search_knowledge
+
+
+@pytest.fixture
+def permissive_retrieval(monkeypatch: pytest.MonkeyPatch) -> None:
+    # These tests exercise agent-runner memory injection with unsigned_legacy receipts;
+    # opt out of the strict default so search returns the unsigned memories.
+    monkeypatch.setenv("HELIX_RETRIEVAL_SIGNATURE_ENFORCEMENT", "permissive")
 
 
 def test_knowledge_search_returns_relevant_chunk(tmp_path: Path) -> None:
@@ -78,7 +87,7 @@ def test_agent_runner_uses_rag_then_worker_model(tmp_path: Path) -> None:
     assert stats["memory_count"] >= 2
 
 
-def test_agent_runner_injects_hmem_context_into_planner(tmp_path: Path) -> None:
+def test_agent_runner_injects_hmem_context_into_planner(tmp_path: Path, permissive_retrieval: None) -> None:
     catalog = MemoryCatalog.open(tmp_path / "session-os" / "memory.sqlite")
     try:
         memory = catalog.remember(
@@ -117,7 +126,7 @@ def test_agent_runner_injects_hmem_context_into_planner(tmp_path: Path) -> None:
     assert result["final_answer"] == "Use pending vs verified carefully."
 
 
-def test_agent_runner_injects_active_memory_into_worker_prompt(tmp_path: Path) -> None:
+def test_agent_runner_injects_active_memory_into_worker_prompt(tmp_path: Path, permissive_retrieval: None) -> None:
     catalog = MemoryCatalog.open(tmp_path / "session-os" / "memory.sqlite")
     try:
         memory = catalog.remember(
@@ -231,7 +240,7 @@ def test_agent_runner_memory_mode_off_does_not_inject_worker_prompt(tmp_path: Pa
     assert worker_event["mode"] == "off"
 
 
-def test_agent_runner_refreshes_planner_context_after_tool_observation(tmp_path: Path) -> None:
+def test_agent_runner_refreshes_planner_context_after_tool_observation(tmp_path: Path, permissive_retrieval: None) -> None:
     class FakeRuntime:
         def __init__(self) -> None:
             self.planner_prompts = []
@@ -459,7 +468,7 @@ def test_agent_runner_uses_tool_phase_mode_band_for_local_text_tool(tmp_path: Pa
     assert runtime.engines["tiny-agent"].policy_calls[0]["phase"] == "tool_call"
 
 
-def test_agent_runner_stream_emits_active_memory_context_before_tool_call(tmp_path: Path) -> None:
+def test_agent_runner_stream_emits_active_memory_context_before_tool_call(tmp_path: Path, permissive_retrieval: None) -> None:
     catalog = MemoryCatalog.open(tmp_path / "session-os" / "memory.sqlite")
     try:
         memory = catalog.remember(

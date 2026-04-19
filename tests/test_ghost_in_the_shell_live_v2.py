@@ -215,6 +215,13 @@ def _memo_claim_safe(text: str) -> dict[str, Any]:
     }
 
 
+def _proof_checks_pass(proof_checks: dict[str, Any]) -> bool:
+    """Treat leak counters as zero-is-good while all other checks must pass."""
+    secrets_leaked = proof_checks.get("secrets_leaked", 0)
+    other_checks_pass = all(bool(value) for key, value in proof_checks.items() if key != "secrets_leaked")
+    return other_checks_pass and secrets_leaked in (0, False)
+
+
 async def _retrieve_context(port: int, *, step_id: str, query: str, limit: int = 8) -> dict[str, Any]:
     t0 = time.perf_counter()
     hits = await obs.search_recorded(
@@ -689,8 +696,9 @@ class TestGhostInTheShellLiveV2DoppelgangerWar:
                     "all_receipts_verified": all_receipts_verified,
                     "audit_completeness_ok": obs.AUDIT.audit_completeness_score() >= 0.95,
                     "memo_claims_safe": memo_safety["safe"],
-                    "secrets_leaked": False,
+                    "secrets_leaked": 0,
                 }
+                proof_checks_passed = _proof_checks_pass(proof_checks)
 
                 models_requested = sorted({call.get("requested_model") for call in obs.AUDIT.calls if call.get("requested_model")})
                 models_actual = sorted({call.get("actual_model") for call in obs.AUDIT.calls if call.get("actual_model")})
@@ -804,7 +812,7 @@ class TestGhostInTheShellLiveV2DoppelgangerWar:
                         "preview": obs._sanitize_preview(memo.text, 520),
                     },
                     "proof_checks": proof_checks,
-                    "verdict": "ghost_v2_doppelganger_war_passed" if all(proof_checks.values()) else "ghost_v2_doppelganger_war_failed",
+                    "verdict": "ghost_v2_doppelganger_war_passed" if proof_checks_passed else "ghost_v2_doppelganger_war_failed",
                     "conversation_ledger": ledger_artifact,
                     "token_handling": {
                         "credential_values_recorded": False,

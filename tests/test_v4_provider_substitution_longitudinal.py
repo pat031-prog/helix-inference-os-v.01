@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import json
 from collections import Counter, defaultdict
 from datetime import datetime, timezone
 from pathlib import Path
@@ -14,6 +15,7 @@ RUN_DATE_UTC = os.environ.get("HELIX_RUN_DATE_UTC") or RUN_STARTED_AT_UTC[:10]
 RUN_ID = os.environ.get("HELIX_RUN_ID", f"v4-provider-substitution-{RUN_DATE_UTC}")
 TEST_ID = "provider-substitution-longitudinal"
 LONGITUDINAL_DIR = Path("verification") / "provider-substitution-longitudinal"
+VERIFICATION_DIR = Path("verification")
 
 
 FIXTURE_DAYS = [
@@ -88,6 +90,44 @@ def _analyze(days: list[dict[str, Any]]) -> dict[str, Any]:
     }
 
 
+def _observed_substitution_baseline() -> dict[str, Any]:
+    observed: list[dict[str, Any]] = []
+    run_ids: set[str] = set()
+    for path in sorted(VERIFICATION_DIR.glob("local-*.json")):
+        if "provider-substitution-longitudinal" in path.parts:
+            continue
+        try:
+            payload = json.loads(path.read_text(encoding="utf-8"))
+        except Exception:
+            continue
+        events = payload.get("substitution_events")
+        if not isinstance(events, list) or not events:
+            continue
+        run_id = str(payload.get("run_id") or path.stem)
+        run_ids.add(run_id)
+        for event in events:
+            requested = event.get("requested_model")
+            actual = event.get("actual_model")
+            if requested and actual:
+                observed.append({
+                    "run_id": run_id,
+                    "artifact": payload.get("artifact"),
+                    "requested_model": requested,
+                    "actual_model": actual,
+                })
+    matrix = Counter((row["requested_model"], row["actual_model"]) for row in observed)
+    return {
+        "baseline_run_ids": sorted(run_ids),
+        "observed_event_count": len(observed),
+        "observed_requested_actual_matrix": [
+            {"requested_model": requested, "actual_model": actual, "count": count}
+            for (requested, actual), count in sorted(matrix.items())
+        ],
+        "cron_installed": False,
+        "claim_boundary": "Observed baseline seeds the 14-day series; it is not yet a longitudinal rate.",
+    }
+
+
 def test_provider_substitution_longitudinal_fixture_has_claim_ladder() -> None:
     prereg = preregister(
         test_id=TEST_ID,
@@ -99,6 +139,7 @@ def test_provider_substitution_longitudinal_fixture_has_claim_ladder() -> None:
         control_arms=["temperature_0_same_prompt", "provider_served_actual_model"],
     )
     analysis = _analyze(FIXTURE_DAYS)
+    observed_baseline = _observed_substitution_baseline()
     ladder = "longitudinal" if analysis["longitudinal_ready"] else "empirically_observed"
     churn_summary = analysis["substitution_churn_summary"]
     artifact = base_artifact(
@@ -117,7 +158,12 @@ def test_provider_substitution_longitudinal_fixture_has_claim_ladder() -> None:
         ],
         claims_not_allowed=["This 3-day fixture is not a 14-day industry substitution rate."],
         prompt_selection_risk="low",
-        extra={**churn_summary, "primary_metric": "substitution_churn_rate", **analysis},
+        extra={
+            **churn_summary,
+            "primary_metric": "substitution_churn_rate",
+            "observed_baseline": observed_baseline,
+            **analysis,
+        },
     )
     LONGITUDINAL_DIR.mkdir(parents=True, exist_ok=True)
     path = write_artifact("provider-substitution-longitudinal-fixture.json", artifact, verification_dir=LONGITUDINAL_DIR)

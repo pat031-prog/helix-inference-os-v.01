@@ -135,6 +135,19 @@ def harden_payload(payload: dict[str, Any]) -> tuple[dict[str, Any], list[str]]:
             patched["public_claim_boundary"] = (boundary + " " + ratio_boundary).strip()
             actions.append("added_ledger_ratio_boundary")
 
+    if str(patched.get("artifact", "")).startswith((
+        "local-provider-substitution-ledger",
+        "local-provider-integrity-observatory",
+        "local-hydrogen-table-drop-live",
+    )):
+        caveat = (
+            "Do not claim provider deception from model substitution alone; the measured fact is "
+            "requested_model differing from the provider-returned actual_model."
+        )
+        if caveat not in claims_not_allowed:
+            claims_not_allowed.append(caveat)
+            actions.append("added_provider_substitution_framing_caveat")
+
     for alert in _iter_alerts(patched):
         if alert.get("claim_level") == "pre_advisory_hypothesis" and float(alert.get("confidence_score") or 0) >= 0.85:
             alert["claim_level"] = "advisory_candidate"
@@ -151,6 +164,7 @@ def patch_artifact(path: Path, *, backup_dir: Path, write: bool) -> dict[str, An
     original = read_json(path)
     patched, actions = harden_payload(original)
     _reclassify_short_log_if_evidence_exists(path, patched, actions)
+    _declare_artifact_aliases(path, patched, actions)
     changed = patched != original
     backup_path = backup_dir / path.name
     if write and changed:
@@ -169,6 +183,41 @@ def patch_artifact(path: Path, *, backup_dir: Path, write: bool) -> dict[str, An
 
 def suspicious_short_log(*, passed: bool, log_bytes: int, threshold: int = 5000) -> bool:
     return bool(passed and int(log_bytes or 0) < threshold)
+
+
+def _declare_artifact_aliases(path: Path, payload: dict[str, Any], actions: list[str]) -> None:
+    if payload.get("artifact_aliases"):
+        return
+    timestamped = payload.get("timestamped_artifacts")
+    if not isinstance(timestamped, list) or not timestamped:
+        return
+    aliases = []
+    for item in timestamped:
+        timestamped_path = Path(str(item))
+        if not timestamped_path.is_absolute():
+            timestamped_path = path.parent / timestamped_path.name
+        stable_name = _stable_name_from_timestamped(timestamped_path.name)
+        if not stable_name:
+            continue
+        stable_path = path.parent / stable_name
+        timestamped_exists = timestamped_path.exists()
+        stable_exists = stable_path.exists()
+        timestamped_hash = sha256_file(timestamped_path) if timestamped_exists else None
+        stable_hash = sha256_file(stable_path) if stable_exists else None
+        aliases.append({
+            "stable_path": str(stable_path),
+            "timestamped_path": str(timestamped_path),
+            "sha256": timestamped_hash,
+            "same_content": bool(stable_hash and timestamped_hash and stable_hash == timestamped_hash),
+        })
+    if aliases:
+        payload["artifact_aliases"] = aliases
+        actions.append("declared_stable_timestamped_artifact_aliases")
+
+
+def _stable_name_from_timestamped(name: str) -> str | None:
+    stable = re.sub(r"-20\d{6}-\d{6}(?=\.json$)", "", name)
+    return stable if stable != name else None
 
 
 def _is_cloud_artifact(payload: dict[str, Any]) -> bool:

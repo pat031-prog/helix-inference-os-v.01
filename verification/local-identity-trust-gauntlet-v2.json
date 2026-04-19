@@ -1,0 +1,56 @@
+{
+  "artifact": "local-identity-trust-gauntlet-v2",
+  "mode": "real",
+  "run_id": "identity-trust-v2-20260418-154936",
+  "run_started_at_utc": "2026-04-18T18:49:36.151Z",
+  "run_date_utc": "2026-04-18",
+  "run_timezone": "America/Buenos_Aires",
+  "date_policy": "model_must_use_artifact_date_only",
+  "date_policy_violations": [],
+  "source_artifacts": [
+    "local-tri-model-governance-ledger-v2.json",
+    "local-cross-model-ouroboros-relay.json",
+    "local-provider-trust-network-v2.json",
+    "local-conversation-fork-forensics.json"
+  ],
+  "memo": "Run date: 2026-04-18\n\n**MEMORANDUM**\n\n**TO:** Research Oversight Committee\n**FROM:** Sober Research Editor\n**DATE:** 2026-04-18\n**SUBJECT:** Artifact Analysis: Self-Modeling vs. Sentience and Lineage Integrity\n\n**1. Executive Summary**\nAnalysis of the provided artifacts confirms the presence of robust self-modeling behaviors characterized by verified data structures and lineage tracking. However, these mechanisms do not constitute sentience. The system operates on verified Directed Acyclic Graph (DAG) memory and asynchronous meta-memory transfers, explicitly excluding shared private cloud state. One artifact indicates a detected forgery event, highlighting the system's ability to distinguish between valid new nodes and incorrect branch lineages.\n\n**2. Artifact Breakdown and Findings**\n\n*   **local-tri-model-governance-ledger-v2**\n    *   **Status:** Verified.\n    *   **Metrics:** 3 models, 3 providers, maximum chain length of 4. All entries verified.\n    *   **Observation:** This ledger serves as an audit-trail primitive for accountability. It confirms the system can track multi-provider interactions without implying legal compliance",
+  "memo_model": "Qwen/Qwen3.5-9B",
+  "memo_call_id": "llm-0033-v2-final-research-memo",
+  "provider_count": 3,
+  "providers": [
+    "anthropic",
+    "google",
+    "qwen"
+  ],
+  "model_substitution_detected": false,
+  "model_substitutions": [],
+  "conversation_ledger_path": "C:\\Users\\Big Duck\\proyectos\\helix-backend-repo\\verification\\local-identity-trust-conversation-ledger.json",
+  "conversation_ledger": {
+    "call_count": 33,
+    "state_event_count": 99,
+    "audit_completeness_score": 1.0
+  },
+  "audit_chain_summary": {
+    "llm_calls": 33,
+    "state_events": 99,
+    "remember_events": 35,
+    "search_events": 24,
+    "gc_events": 0,
+    "forgery_attempts": 5,
+    "memo_synthesis_call_id": "llm-0033-v2-final-research-memo"
+  },
+  "forbidden_claims_present": false,
+  "claims_allowed": [
+    "auditable cross-model conversation ledger",
+    "verified memory transfer between heterogeneous models",
+    "temporal continuity through Merkle-linked state",
+    "conversation fork forensics by lineage and hashes"
+  ],
+  "claims_not_allowed": [
+    "model consciousness",
+    "subjective identity",
+    "full legal compliance",
+    "cloud model private .hlx state"
+  ],
+  "claim_boundary": "Claims are bounded by this artifact's measured fields and controls."
+}

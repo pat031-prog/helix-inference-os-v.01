@@ -17,6 +17,19 @@
       "enum": ["mechanics_verified", "empirically_observed", "replicated", "longitudinal", "external_replication"]
     },
     "model_substitution_detected": { "type": "boolean" },
+    "artifact_aliases": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "stable_path": { "type": "string" },
+          "timestamped_path": { "type": "string" },
+          "sha256": { "type": ["string", "null"] },
+          "same_content": { "type": "boolean" }
+        },
+        "additionalProperties": true
+      }
+    },
     "requested_model": { "type": "string" },
     "actual_model": { "type": "string" },
     "models_requested": { "type": "array", "items": { "type": "string" } },

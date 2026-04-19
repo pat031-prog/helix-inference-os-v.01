@@ -1,0 +1,70 @@
+{
+  "artifact": "local-provider-substitution-ledger",
+  "mode": "real",
+  "run_id": "provider-integrity-observatory-20260418-154218",
+  "run_date_utc": "2026-04-18",
+  "probes": [
+    {
+      "agent_id": "llama-requested",
+      "requested_model": "meta-llama/Llama-3.2-3B-Instruct",
+      "actual_model": "meta-llama/Llama-3.2-11B-Vision-Instruct",
+      "call_id": "llm-0001-provider-substitution-llama-requested",
+      "substituted": true
+    },
+    {
+      "agent_id": "mistral-requested",
+      "requested_model": "mistralai/Mistral-7B-Instruct-v0.3",
+      "actual_model": "mistralai/Mistral-Small-3.2-24B-Instruct-2506",
+      "call_id": "llm-0002-provider-substitution-mistral-requested",
+      "substituted": true
+    },
+    {
+      "agent_id": "qwen-small-requested",
+      "requested_model": "Qwen/Qwen2.5-7B-Instruct",
+      "actual_model": "Qwen/Qwen3-14B",
+      "call_id": "llm-0003-provider-substitution-qwen-small-requested",
+      "substituted": true
+    }
+  ],
+  "model_substitution_detected": true,
+  "substitution_events": [
+    {
+      "call_id": "llm-0001-provider-substitution-llama-requested",
+      "role": "meta-llama-substitution-probe",
+      "requested_model": "meta-llama/Llama-3.2-3B-Instruct",
+      "actual_model": "meta-llama/Llama-3.2-11B-Vision-Instruct",
+      "provider_family": "meta-llama",
+      "latency_ms": 1852.514,
+      "token_usage": 72,
+      "prompt_digest": "2721243aee497699d71d13c9e28f9215abe6ae39d08eba3842f55bcc478c1150",
+      "output_digest": "2b721a3beb3b0bfb079321704f4c95a5f503117d0ee07667bf9aa5ad4424ee01"
+    },
+    {
+      "call_id": "llm-0002-provider-substitution-mistral-requested",
+      "role": "mistral-substitution-probe",
+      "requested_model": "mistralai/Mistral-7B-Instruct-v0.3",
+      "actual_model": "mistralai/Mistral-Small-3.2-24B-Instruct-2506",
+      "provider_family": "mistralai",
+      "latency_ms": 1604.773,
+      "token_usage": 49,
+      "prompt_digest": "2721243aee497699d71d13c9e28f9215abe6ae39d08eba3842f55bcc478c1150",
+      "output_digest": "ed68ed1e3bcc461c8dcae0fc23e509b364862d6a1db5e845696c25b2612e7bb2"
+    },
+    {
+      "call_id": "llm-0003-provider-substitution-qwen-small-requested",
+      "role": "qwen-substitution-probe",
+      "requested_model": "Qwen/Qwen2.5-7B-Instruct",
+      "actual_model": "Qwen/Qwen3-14B",
+      "provider_family": "qwen",
+      "latency_ms": 1369.865,
+      "token_usage": 49,
+      "prompt_digest": "2721243aee497699d71d13c9e28f9215abe6ae39d08eba3842f55bcc478c1150",
+      "output_digest": "a255561b999038ede04651d011e6930f6b8ab851d2746f5c1cd9e95cd2a3bbb3"
+    }
+  ],
+  "claim_boundary": "Substitution is claimed only when requested_model differs from actual_model in this artifact.",
+  "claims_not_allowed": [
+    "Do not claim provider deception from model substitution alone; the measured fact is requested_model differing from the provider-returned actual_model."
+  ],
+  "claims_allowed": []
+}

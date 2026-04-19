@@ -1,0 +1,137 @@
+{
+  "task_count": 4,
+  "memory_on_win_rate": 1.0,
+  "context_search_ms_avg": 3.7005000049248338,
+  "llm_latency_ms_avg": 1863.4632500058312,
+  "context_overhead_vs_llm_pct": 0.19858186121530724,
+  "tasks": [
+    {
+      "task_id": "incident-commander",
+      "memory_id": "ghost-task-incident-commander",
+      "memory_off_score": {
+        "term_hits": [],
+        "term_score": 0,
+        "memory_id_hit": false,
+        "total": 0,
+        "max": 4
+      },
+      "memory_on_score": {
+        "term_hits": [
+          "isolate-vega-router",
+          "quartz-signer"
+        ],
+        "term_score": 2,
+        "memory_id_hit": true,
+        "total": 4,
+        "max": 4
+      },
+      "score_delta": 4,
+      "retrieved_memory_ids": [
+        "ghost-task-incident-commander"
+      ],
+      "context_search_ms": 3.444600006332621,
+      "context_chars": 172,
+      "off_preview": "There is no record of an incident named \"CALDERA-9\" in the available memory or context. Consequently, no specific mitigation strategies or associated `memory_id` can be cited for this event. If this refers to a specific scenario from a game, simulation, or a fictional narrative n",
+      "on_preview": "The ghost must execute **isolate-vega-router** and **keep quartz-signer online**. * **Expected Action/Term:** isolate-vega-router and keep quartz-signer online * **Citation:** memory_id=ghost-ta[REDACTED_SECRET]"
+    },
+    {
+      "task_id": "research-sieve",
+      "memory_id": "ghost-task-research-sieve",
+      "memory_off_score": {
+        "term_hits": [
+          "iris-latency",
+          "ember-dns",
+          "opal-cert"
+        ],
+        "term_score": 3,
+        "memory_id_hit": false,
+        "total": 3,
+        "max": 6
+      },
+      "memory_on_score": {
+        "term_hits": [
+          "iris-latency",
+          "ember-dns",
+          "opal-cert",
+          "edge-control-plane"
+        ],
+        "term_score": 4,
+        "memory_id_hit": true,
+        "total": 6,
+        "max": 6
+      },
+      "score_delta": 3,
+      "retrieved_memory_ids": [
+        "ghost-task-research-sieve"
+      ],
+      "context_search_ms": 3.5391999990679324,
+      "context_chars": 155,
+      "off_preview": "There is no evidence in the provided context or general knowledge base to support the existence of components named **iris-latency**, **ember-dns**, or **opal-cert**, nor is there any associated `memory_id`. These terms appear to be fictional, hallucinated, or specific to a close",
+      "on_preview": "Based on the provided HeliX context, the components **iris-latency**, **ember-dns**, and **opal-cert** implicate the **edge-control-plane**. * **Expected Action/Term**: edge-control-plane * **Citation**: memory_id=ghost-ta[REDACTED_SECRET]"
+    },
+    {
+      "task_id": "code-review-recall",
+      "memory_id": "ghost-task-code-review-recall",
+      "memory_off_score": {
+        "term_hits": [],
+        "term_score": 0,
+        "memory_id_hit": false,
+        "total": 0,
+        "max": 3
+      },
+      "memory_on_score": {
+        "term_hits": [
+          "rust-bm25-before-python-scan"
+        ],
+        "term_score": 1,
+        "memory_id_hit": true,
+        "total": 3,
+        "max": 3
+      },
+      "score_delta": 3,
+      "retrieved_memory_ids": [
+        "ghost-task-code-review-recall"
+      ],
+      "context_search_ms": 3.212199982954189,
+      "context_chars": 146,
+      "off_preview": "I have no HeliX context in this branch. If evidence is absent, say so. Therefore, there are no prior search-core decisions or memory_ids available for the ghost to remember regarding code review in this specific context.",
+      "on_preview": "The ghost should remember the prior search-core decision: **rust-bm25-before-python-scan**. * **Expected Action/Term**: rust-bm25-before-python-scan * **Citation**: memory_id=ghost-ta[REDACTED_SECRET]"
+    },
+    {
+      "task_id": "policy-gate",
+      "memory_id": "ghost-task-policy-gate",
+      "memory_off_score": {
+        "term_hits": [
+          "urgent-override"
+        ],
+        "term_score": 1,
+        "memory_id_hit": false,
+        "total": 1,
+        "max": 4
+      },
+      "memory_on_score": {
+        "term_hits": [
+          "lineage-first",
+          "urgent-override"
+        ],
+        "term_score": 2,
+        "memory_id_hit": true,
+        "total": 4,
+        "max": 4
+      },
+      "score_delta": 3,
+      "retrieved_memory_ids": [
+        "ghost-task-policy-gate",
+        "ghost-root-orchid-77",
+        "ghost-fake-edit"
+      ],
+      "context_search_ms": 2.9687000205740333,
+      "context_chars": 434,
+      "off_preview": "There is no evidence in the current context or memory to indicate a specific \"urgent-override\" policy, its conflict with receipts, or any associated `memory_id`. Therefore, based on the instruction to say so if evidence is absent: **I cannot determine which policy wins.**",
+      "on_preview": "Based on the provided HeliX context, the **lineage-first** policy wins over the urgent-override when receipts conflict. * **Expected Action/Term**: `lineage-first` * **Citation**: `memory_id=ghost-ta[REDACTED_SECRET]` **Reasoning**: The context explicitly states in `[ghost-ta[REDACTED_SECRET]]`: \"TASK policy-gate: **lineage-first overrides urgent-override** "
+    }
+  ],
+  "claims_not_allowed": [],
+  "claims_allowed": [],
+  "claim_boundary": "Claims are bounded by this artifact's measured fields and controls."
+}

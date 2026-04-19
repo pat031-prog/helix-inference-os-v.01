@@ -74,6 +74,7 @@ $exitCode = 1
 $buildRan = $false
 $timestampedArtifacts = @()
 $artifactHashes = [ordered]@{}
+$artifactAliases = @()
 
 try {
     if (-not $SkipBuild) {
@@ -137,10 +138,19 @@ try {
         "local-ghost-v2-conversation-ledger.json"
     )
     foreach ($name in $stableArtifacts) {
+        $source = Join-Path $verificationDir $name
         $copied = Copy-ArtifactWithStamp -Name $name -Stamp $stamp
         if ($null -ne $copied) {
             $timestampedArtifacts += $copied
-            $artifactHashes[[System.IO.Path]::GetFileName($copied)] = (Get-FileHash -Algorithm SHA256 -LiteralPath $copied).Hash.ToLowerInvariant()
+            $copiedHash = (Get-FileHash -Algorithm SHA256 -LiteralPath $copied).Hash.ToLowerInvariant()
+            $sourceHash = (Get-FileHash -Algorithm SHA256 -LiteralPath $source).Hash.ToLowerInvariant()
+            $artifactHashes[[System.IO.Path]::GetFileName($copied)] = $copiedHash
+            $artifactAliases += [ordered]@{
+                stable_path = $source
+                timestamped_path = $copied
+                sha256 = $copiedHash
+                same_content = ($sourceHash -eq $copiedHash)
+            }
         }
     }
     $artifactBytes = 0
@@ -180,6 +190,7 @@ try {
         timestamped_artifact_bytes = $artifactBytes
         timestamped_artifacts = $timestampedArtifacts
         timestamped_artifact_sha256 = $artifactHashes
+        artifact_aliases = $artifactAliases
         token_handling = [ordered]@{
             token_prompt_hidden = $true
             token_written_to_disk = $false

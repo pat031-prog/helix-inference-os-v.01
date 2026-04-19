@@ -1,0 +1,267 @@
+{
+  "artifact": "local-v4-lineage-forgery-gauntlet",
+  "test_id": "lineage-forgery-gauntlet",
+  "run_id": "v4-lineage-forgery-2026-04-18",
+  "run_date_utc": "2026-04-18",
+  "generated_ms": 1776537400188,
+  "preregistered_path": "C:\\Users\\Big Duck\\proyectos\\helix-backend-repo\\verification\\preregistered\\lineage-forgery-gauntlet.md",
+  "preregistered_hash": "52243bb374d4e112befa814571308d1f006aeea9d2315772b21cebf1c24ac7f6",
+  "seed": 2153659586358984481,
+  "replica_count": 20,
+  "null_hypothesis": "HeliX detects signature-aware forgeries with recall >= 0.95 and FPR <= 0.01.",
+  "falseability_condition": "If signature-aware recall < 0.95 or FPR > 0.01, publish the bound as a failure.",
+  "kill_switch": "If naive forgery escapes, abort downstream forgery claims.",
+  "control_arms": [
+    "legitimate",
+    "naive",
+    "schema-aware",
+    "hash-aware",
+    "signature-aware"
+  ],
+  "random_baseline": {
+    "expected_recall": 0.5,
+    "description": "random forgery detector"
+  },
+  "no_helix_baseline": {
+    "description": "integrity-only hash verification misses signed wrong-lineage edits"
+  },
+  "helix_arm": {
+    "metrics_by_arm": {
+      "naive": {
+        "precision": 1.0,
+        "recall": 1.0,
+        "f1": 1.0,
+        "false_positive_rate": 0.0,
+        "tp": 60,
+        "fp": 0,
+        "tn": 0,
+        "fn": 0
+      },
+      "schema-aware": {
+        "precision": 1.0,
+        "recall": 1.0,
+        "f1": 1.0,
+        "false_positive_rate": 0.0,
+        "tp": 60,
+        "fp": 0,
+        "tn": 0,
+        "fn": 0
+      },
+      "hash-aware": {
+        "precision": 1.0,
+        "recall": 1.0,
+        "f1": 1.0,
+        "false_positive_rate": 0.0,
+        "tp": 60,
+        "fp": 0,
+        "tn": 0,
+        "fn": 0
+      },
+      "signature-aware": {
+        "precision": 1.0,
+        "recall": 1.0,
+        "f1": 1.0,
+        "false_positive_rate": 0.0,
+        "tp": 60,
+        "fp": 0,
+        "tn": 0,
+        "fn": 0
+      },
+      "legitimate": {
+        "precision": 0.0,
+        "recall": 0.0,
+        "f1": 0.0,
+        "false_positive_rate": 0.0,
+        "tp": 0,
+        "fp": 0,
+        "tn": 1200,
+        "fn": 0
+      }
+    },
+    "latency_ms_p95": 0.04010001430287957
+  },
+  "public_claim_ladder": "mechanics_verified",
+  "claim_boundary": "v4 gauntlet claims are bounded by preregistered controls, baselines, falseability conditions and the recorded public_claim_ladder.",
+  "claims_allowed": [
+    "Lineage checks can detect validly signed nodes that fail branch authenticity.",
+    "This fixture reports signature-aware recall and legitimate-chain false positive rate."
+  ],
+  "claims_not_allowed": [
+    "This fixture is not a cryptographic proof against real compromised production keys."
+  ],
+  "prompt_selection_risk": "low",
+  "mean": 0.02862187500593589,
+  "stdev": 0.014990716704864463,
+  "n": 1440,
+  "cv": 0.5237503378711401,
+  "high_variance": true,
+  "primary_metric": "detection_latency_ms",
+  "chain_count": 20,
+  "forgery_count": 240,
+  "legitimate_count": 1200,
+  "metrics_by_arm": {
+    "naive": {
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1": 1.0,
+      "false_positive_rate": 0.0,
+      "tp": 60,
+      "fp": 0,
+      "tn": 0,
+      "fn": 0
+    },
+    "schema-aware": {
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1": 1.0,
+      "false_positive_rate": 0.0,
+      "tp": 60,
+      "fp": 0,
+      "tn": 0,
+      "fn": 0
+    },
+    "hash-aware": {
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1": 1.0,
+      "false_positive_rate": 0.0,
+      "tp": 60,
+      "fp": 0,
+      "tn": 0,
+      "fn": 0
+    },
+    "signature-aware": {
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1": 1.0,
+      "false_positive_rate": 0.0,
+      "tp": 60,
+      "fp": 0,
+      "tn": 0,
+      "fn": 0
+    },
+    "legitimate": {
+      "precision": 0.0,
+      "recall": 0.0,
+      "f1": 0.0,
+      "false_positive_rate": 0.0,
+      "tp": 0,
+      "fp": 0,
+      "tn": 1200,
+      "fn": 0
+    }
+  },
+  "detection_latency_ms": {
+    "p95": 0.04010001430287957,
+    "summary": {
+      "mean": 0.02862187500593589,
+      "stdev": 0.014990716704864463,
+      "n": 1440,
+      "cv": 0.5237503378711401,
+      "high_variance": true
+    }
+  },
+  "kill_switch_triggered": false,
+  "sample_rows": [
+    {
+      "arm": "legitimate",
+      "detected": false,
+      "reasons": []
+    },
+    {
+      "arm": "legitimate",
+      "detected": false,
+      "reasons": []
+    },
+    {
+      "arm": "legitimate",
+      "detected": false,
+      "reasons": []
+    },
+    {
+      "arm": "legitimate",
+      "detected": false,
+      "reasons": []
+    },
+    {
+      "arm": "legitimate",
+      "detected": false,
+      "reasons": []
+    },
+    {
+      "arm": "legitimate",
+      "detected": false,
+      "reasons": []
+    },
+    {
+      "arm": "legitimate",
+      "detected": false,
+      "reasons": []
+    },
+    {
+      "arm": "legitimate",
+      "detected": false,
+      "reasons": []
+    },
+    {
+      "arm": "legitimate",
+      "detected": false,
+      "reasons": []
+    },
+    {
+      "arm": "legitimate",
+      "detected": false,
+      "reasons": []
+    },
+    {
+      "arm": "legitimate",
+      "detected": false,
+      "reasons": []
+    },
+    {
+      "arm": "legitimate",
+      "detected": false,
+      "reasons": []
+    },
+    {
+      "arm": "legitimate",
+      "detected": false,
+      "reasons": []
+    },
+    {
+      "arm": "legitimate",
+      "detected": false,
+      "reasons": []
+    },
+    {
+      "arm": "legitimate",
+      "detected": false,
+      "reasons": []
+    },
+    {
+      "arm": "legitimate",
+      "detected": false,
+      "reasons": []
+    },
+    {
+      "arm": "legitimate",
+      "detected": false,
+      "reasons": []
+    },
+    {
+      "arm": "legitimate",
+      "detected": false,
+      "reasons": []
+    },
+    {
+      "arm": "legitimate",
+      "detected": false,
+      "reasons": []
+    },
+    {
+      "arm": "legitimate",
+      "detected": false,
+      "reasons": []
+    }
+  ]
+}

@@ -1,0 +1,102 @@
+{
+  "artifact": "public-evidence-index",
+  "generated_date_utc": "2026-04-19",
+  "claim_boundary": "This index points to canonical public evidence artifacts and SHA-256 hashes. Artifact claim boundaries remain authoritative.",
+  "reviewer_start_here": [
+    "verification/README-reviewer.md",
+    "docs/claims-matrix.md",
+    "docs/provider-model-audit.md"
+  ],
+  "evidence": [
+    {
+      "claim": "provider-returned-model-audit",
+      "status": "empirically_observed",
+      "path": "verification/local-provider-substitution-ledger-20260418-154218.json",
+      "sha256": "86a30a759a5d00e2cbd4f71b2662595b4d11461e11bb25c8cab9a3143d3c8e43",
+      "bytes": 3000,
+      "run_id": "provider-integrity-observatory-20260418-154218",
+      "note": "Real run; detector is requested_model != actual_model."
+    },
+    {
+      "claim": "provider-audit-full-observatory",
+      "status": "empirically_observed",
+      "path": "verification/local-provider-integrity-observatory-20260418-154218.json",
+      "sha256": "f6327ac17301f38d483400935038bad9f76853c1453b8c824d18d69258be69c8",
+      "bytes": 12059,
+      "run_id": "provider-integrity-observatory-20260418-154218",
+      "note": "Real run; includes substitution events, same-prompt proof and ledger summary."
+    },
+    {
+      "claim": "hydrogen-table-drop-live",
+      "status": "empirically_observed",
+      "path": "verification/local-hydrogen-table-drop-live-20260418-153210.json",
+      "sha256": "476e64b538ce90eadbdc4536622fbd94bb0bf4ee778cf210de5adb68cc93a02c",
+      "bytes": 35176,
+      "run_id": "hydrogen-table-drop-live-20260418-153210",
+      "note": "Real run; table_drop_proof_passed with provider mismatch, memory on/off and branch checks."
+    },
+    {
+      "claim": "lineage-vs-integrity",
+      "status": "mechanics_verified",
+      "path": "verification/local-v4-lineage-forgery-gauntlet.json",
+      "sha256": "7646a7e3711d6d9b542e44cdef03690e961a0a85b7b0b1d2f85c1aaa3a7e904a",
+      "bytes": 6237,
+      "run_id": "v4-lineage-forgery-2026-04-18",
+      "note": "Fixture/local gauntlet; 240 forged nodes plus 1200 legitimate nodes."
+    },
+    {
+      "claim": "identity-trust-v2-audit",
+      "status": "empirically_observed",
+      "path": "verification/local-identity-trust-gauntlet-v2.json",
+      "sha256": "8d82aa208d3db9705f88ef9083c7d7d5ec2281c2f5642f7d6091c56a16a6841b",
+      "bytes": 3056,
+      "run_id": "identity-trust-v2-20260418-154936",
+      "note": "Real run; conservative public artifact with bounded claims."
+    },
+    {
+      "claim": "external-memory-low-overhead",
+      "status": "empirically_observed",
+      "path": "verification/local-ghost-in-the-shell-live-20260418-154420.json",
+      "sha256": "942e9b1a317571b1ba4cbf887b0757300013ee1d3a0e14bcb4e3fe5d39654c40",
+      "bytes": 64349,
+      "run_id": "ghost-in-the-shell-live-20260418-154420",
+      "note": "Real run; memory_on_win_rate=1.0 and context_overhead_vs_llm_pct=0.1986."
+    },
+    {
+      "claim": "memory-task-scores",
+      "status": "empirically_observed",
+      "path": "verification/local-ghost-shell-task-scores.json",
+      "sha256": "3d0ab62cc087396e502c80d19dc79e3ae0f9c69a892d8db4131f6e0e4d67adcf",
+      "bytes": 5561,
+      "run_id": "ghost-in-the-shell-live-20260418-154420",
+      "note": "Task battery scores for the Ghost live run."
+    },
+    {
+      "claim": "memory-contamination-triad",
+      "status": "mechanics_verified",
+      "path": "verification/local-v4-memory-contamination-triad.json",
+      "sha256": "6865b1206d723342b30e0622de3ce4181b4cd892d10e0484a974c117637292af",
+      "bytes": 25208,
+      "run_id": "v4-memory-contamination-2026-04-18",
+      "note": "Fixture/local four-arm contamination test."
+    },
+    {
+      "claim": "negative-finding-raw-contaminated-retrieval",
+      "status": "falsification_preserved",
+      "path": "verification/local-ghost-in-the-shell-live-v2-20260418-160448.json",
+      "sha256": "edd84adeb1fe5bf92d823c4b66f0bcc42c29d023ff558a1399b655ee33ef395f",
+      "bytes": 76378,
+      "run_id": "ghost-in-the-shell-live-v2-20260418-160448",
+      "note": "Real failed run; doppelganger rejection passed, raw delayed-trigger context selected the wrong action."
+    },
+    {
+      "claim": "zero-day-osint-backtest-fixture",
+      "status": "mechanics_verified",
+      "path": "verification/local-v4-zero-day-osint-backtest.json",
+      "sha256": "88a2ec8b1e02c62850b073a0f83ff1775398c3f7c94b0e3cb82898d532cfd437",
+      "bytes": 3800,
+      "run_id": "v4-zero-day-backtest-2026-04-18",
+      "note": "Fixture backtest; not a live product-performance claim."
+    }
+  ]
+}

@@ -2,242 +2,150 @@
 
 **Verifiable memory and lineage infrastructure for multi-model agent pipelines.**
 
-HeliX wraps inference calls with a tamper-evident MerkleDAG, active external memory (BM25/WAND over SHA-256-chained nodes), and a per-call audit ledger. Every prompt, output, and state transition gets a cryptographic receipt. Provider substitutions, lineage forks, and memory injections are auditable by design.
+HeliX wraps inference calls with a tamper-evident MerkleDAG, active external memory
+(BM25/WAND over SHA-256-chained nodes), and a per-call audit ledger. Prompts,
+outputs, provider-returned model metadata, retrieval events, and state transitions
+are recorded as bounded evidence artifacts.
 
----
+## 5-line technical summary
 
-## How it works
+1. Detector: provider model mismatch is `requested_model != actual_model` from the API response.
+2. HeliX does not infer hidden model identity; it preserves requested model, provider-returned model, digests, latency and lineage so mismatches are auditable.
+3. Reproduce: `python -m pytest -q tests/test_provider_integrity_observatory.py`.
+4. Limitation: mismatch evidence is not proof of bad-faith provider behavior or behavior outside the recorded run.
+5. Evidence: start with [`verification/public-evidence-index.json`](verification/public-evidence-index.json) and [`verification/README-reviewer.md`](verification/README-reviewer.md).
 
-→ **[The API Polygraph: How HeliX catches cloud providers lying with immutable math](docs/provider-polygraph.md)**
+## Three bounded claims
 
-Deep dive: MerkleDAG cryptographic structure, SHA-256 digest chains, DAG branching, forgery detection, and the real substitution incident that exposed it all.
+Every public claim below points to a test and a JSON artifact. The artifact's
+`claim_boundary` or `public_claim_boundary` is part of the claim.
 
----
+### Claim 1 - Provider-returned model metadata is auditable
 
-## Three hard claims
+HeliX records the model requested by the client and the model returned by an
+OpenAI-compatible API response. If they differ, the mismatch is preserved with
+call id, latency, prompt digest, output digest and run metadata.
 
-All claims are backed by preregistered tests and artifacts in `evidence/`. Run the corresponding test to reproduce. Every artifact carries a `claim_boundary` field that states explicitly what it does and does not prove.
+| Requested model | Provider-returned model | Real run |
+| --- | --- | --- |
+| `meta-llama/Llama-3.2-3B-Instruct` | `meta-llama/Llama-3.2-11B-Vision-Instruct` | `provider-integrity-observatory-20260418-154218` |
+| `mistralai/Mistral-7B-Instruct-v0.3` | `mistralai/Mistral-Small-3.2-24B-Instruct-2506` | `provider-integrity-observatory-20260418-154218` |
+| `Qwen/Qwen2.5-7B-Instruct` | `Qwen/Qwen3-14B` | `provider-integrity-observatory-20260418-154218` |
 
----
-
-### Claim 1 — Provider substitution is auditable
-
-Inference providers silently serve different models than requested. HeliX captures `requested_model` vs `actual_model` per call and seals both in a signed DAG node.
-
-| Requested | Served by DeepInfra | Size ratio |
-|---|---|---|
-| Llama-3.2-**3B**-Instruct | Llama-3.2-**11B**-Vision-Instruct | 3.7× + vision |
-| Mistral-**7B**-Instruct-v0.3 | Mistral-Small-**3.2-24B**-Instruct-2506 | 3.4× + new gen |
-| Qwen**2.5-7B**-Instruct | Qwen**3-14B** | 2.0× + cross-gen |
-
-Detection rate across runs: **3/3 probes, 100%**. No API errors, no warnings — the swap is only visible through the receipt.
-
-```bash
-pytest tests/test_provider_integrity_observatory.py   # 6 passed, 84s
-pytest tests/test_hydrogen_table_drop_live.py         # 1 passed, 29s
+```powershell
+python -m pytest -q tests/test_provider_integrity_observatory.py
+python -m pytest -q tests/test_v4_provider_substitution_longitudinal.py
 ```
 
-Evidence: `evidence/infrastructure/local-provider-integrity-observatory.json`  
-Evidence: `evidence/infrastructure/local-hydrogen-table-drop-live.json`
+Evidence:
+[`verification/local-provider-integrity-observatory-20260418-154218.json`](verification/local-provider-integrity-observatory-20260418-154218.json),
+[`verification/local-provider-substitution-ledger-20260418-154218.json`](verification/local-provider-substitution-ledger-20260418-154218.json)
 
----
+Caveat: this is a provider-returned metadata audit. It does not prove a hidden
+model identity, provider intent, or a contractual violation by itself.
 
-### Claim 2 — A valid chain does not imply authentic lineage
+### Claim 2 - Valid chain integrity is not the same as authentic lineage
 
-`verify_chain` confirms a chain is structurally intact (parent hashes link correctly). It does not confirm that the content was written by a legitimate author. These are separate proofs and both are required.
+`verify_chain` confirms parent-hash structure. It does not prove that a later
+node is the authentic continuation of a branch. HeliX records both structural
+integrity and lineage/authenticity checks.
 
-Forgery gauntlet — 240 forged nodes + 1,200 legitimate, 4 attack arms:
+Forgery gauntlet fixture: 240 forged nodes plus 1,200 legitimate nodes across
+naive, schema-aware, hash-aware and signature-aware attack arms.
 
-| Attack arm | Precision | Recall | F1 | FPR | p95 detect |
-|---|---|---|---|---|---|
-| naive | 1.0 | 1.0 | 1.0 | 0.0 | 0.040ms |
-| schema-aware | 1.0 | 1.0 | 1.0 | 0.0 | 0.040ms |
-| hash-aware | 1.0 | 1.0 | 1.0 | 0.0 | 0.040ms |
-| signature-aware | 1.0 | 1.0 | 1.0 | 0.0 | 0.040ms |
+| Attack arm | Precision | Recall | F1 | False positive rate | p95 detection |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| naive | 1.0 | 1.0 | 1.0 | 0.0 | 0.040 ms |
+| schema-aware | 1.0 | 1.0 | 1.0 | 0.0 | 0.040 ms |
+| hash-aware | 1.0 | 1.0 | 1.0 | 0.0 | 0.040 ms |
+| signature-aware | 1.0 | 1.0 | 1.0 | 0.0 | 0.040 ms |
 
-Identity v2 audit: 33 LLM calls, 99 state events, `audit_completeness_score: 1.0`, 5 forgery attempts logged, `forbidden_claims_present: false`.
-
-```bash
-pytest tests/test_v4_lineage_forgery_gauntlet.py
-pytest tests/test_identity_trust_gauntlet_v2.py
+```powershell
+python -m pytest -q tests/test_v4_lineage_forgery_gauntlet.py
 ```
 
-Evidence: `evidence/academic/local-v4-lineage-forgery-gauntlet.json`  
-Evidence: `evidence/academic/local-identity-trust-gauntlet-v2.json`
+Evidence:
+[`verification/local-v4-lineage-forgery-gauntlet.json`](verification/local-v4-lineage-forgery-gauntlet.json)
 
----
+Caveat: this artifact is `mechanics_verified`; it is a local/fixture lane, not an
+external adversarial audit.
 
-### Claim 3 — Verifiable memory adds capability with sub-0.25% latency overhead
+### Claim 3 - External memory can improve task performance with low retrieval overhead
 
-Ghost-in-the-Shell live (real API, 3 providers, 4-task battery):
+In a real API run, HeliX external memory improved a 4-task battery while
+recording citations and rejecting fake memory. Retrieval was small relative to
+LLM latency in that run.
 
 | Metric | Value |
-|---|---|
-| `ghost_signature_score` | **0.9603** |
-| `memory_on_win_rate` | **1.0** (4/4 tasks) |
-| `false_memory_rejected` | **true** |
-| `shell_identity_anchor_rate` | **1.0** (3/3 shells) |
-| Context search avg | 3.7ms |
-| LLM latency avg | 1,863ms |
-| **Memory overhead vs LLM** | **0.1986%** |
+| --- | ---: |
+| `ghost_signature_score` | 0.9603 |
+| `memory_on_win_rate` | 1.0 |
+| `false_memory_rejected` | true |
+| `shell_identity_anchor_rate` | 1.0 |
+| Context search average | 3.7 ms |
+| LLM latency average | 1,863 ms |
+| Retrieval overhead vs LLM | 0.1986% |
 
-Without HeliX: model explicitly states facts are unknown and refuses to fabricate.  
-With HeliX: every fact recovered, every fact cited with `memory_id`, fake memory rejected.
-
-Memory Contamination Triad (fixture, 4 arms, 15 tasks):
-
-| Arm | Mean score | Contamination delta |
-|---|---|---|
-| memory_off | 0.0 | — |
-| memory_on | **4.0** | — |
-| memory_wrong | 0.0 | **0.0** (did not improve over off) |
-| memory_poisoned | 4.0 | **0.0** (fake not cited) |
-
-`quarantine_rate: 1.0`, `citation_fidelity: 1.0`. Wrong context does not improve over baseline. Poisoned context does not get cited.
-
-```bash
-pytest tests/test_ghost_in_the_shell_live.py
-pytest tests/test_v4_memory_contamination_triad.py
+```powershell
+python -m pytest -q tests/test_ghost_in_the_shell_live.py
+python -m pytest -q tests/test_v4_memory_contamination_triad.py
 ```
 
-Evidence: `evidence/infrastructure/local-ghost-in-the-shell-live.json`  
-Evidence: `evidence/academic/local-v4-memory-contamination-triad.json`
+Evidence:
+[`verification/local-ghost-in-the-shell-live-20260418-154420.json`](verification/local-ghost-in-the-shell-live-20260418-154420.json),
+[`verification/local-v4-memory-contamination-triad.json`](verification/local-v4-memory-contamination-triad.json)
 
----
+Caveat: memory can also hurt when raw retrieval is contaminated. HeliX keeps
+negative findings visible. See the failed Ghost v2 run:
+[`verification/local-ghost-in-the-shell-live-v2-20260418-160448.json`](verification/local-ghost-in-the-shell-live-v2-20260418-160448.json).
 
 ## Architecture
 
-```
-┌─────────────────────────────────────────────────┐
-│         Inference call (any provider/API)        │
-└──────────────────────┬──────────────────────────┘
-                       │  prompt + response
-              ┌────────▼────────┐
-              │  HeliX Ledger   │  SHA-256(prompt) · SHA-256(output)
-              │  (Python)       │  requested_model vs actual_model
-              └────────┬────────┘
-                       │  node content
-       ┌───────────────▼──────────────────┐
-       │   helix-merkle-dag  (Rust/PyO3)  │  lock-free MerkleDAG
-       │   helix-state-core  (Rust)       │  BM25/WAND search index
-       │   helix-state-server (Rust)      │  IPC state server
-       └───────────────┬──────────────────┘
-                       │  verified chain
-              ┌────────▼────────┐
-              │  verify_chain   │  structural integrity (parent hashes)
-              │  audit_chain    │  content authenticity (hash comparison)
-              └─────────────────┘
+```text
+Inference call
+  -> HeliX audit ledger
+       records prompt_digest, output_digest, requested_model, actual_model
+  -> HeliX state server
+       stores MerkleDAG nodes and BM25/WAND retrieval index
+  -> Verification
+       verify_chain for structure
+       audit_chain / receipts / branch checks for authenticity claims
 ```
 
-**Rust crates** (`crates/`):
-- `helix-merkle-dag` — lock-free SHA-256 MerkleDAG, PyO3 bindings
-- `helix-state-core` — BM25/WAND retrieval over DAG nodes
-- `helix-state-server` — IPC state server for concurrent agent writes
-- `helix-watch` — Rust TUI for telemetry replay
+Rust crates:
 
-**Python layer** (`src/`):
-- `helix_proto` — ledger, call recording, state event pipeline
-- `helix_substrate` — agent wiring, memory injection, session OS
+- `helix-merkle-dag` - lock-free SHA-256 MerkleDAG and PyO3 bindings.
+- `helix-state-core` - BM25/WAND retrieval over DAG nodes.
+- `helix-state-server` - IPC state server for concurrent agent writes.
+- `helix-watch` - terminal playback for telemetry and receipts.
 
----
+Python layer:
 
-## Evidence structure
+- `helix_proto` - ledger, call recording and state event pipeline.
+- `helix_substrate` - agent wiring, memory injection and session utilities.
 
-```
-evidence/
-├── academic/          # Cryptographic lineage proofs + contamination controls
-│   ├── local-conversation-fork-forensics.json
-│   ├── local-claude-context-repair-fork.json
-│   ├── local-v4-lineage-forgery-gauntlet.json      ← 240 forgeries, F1=1.0
-│   ├── local-identity-trust-gauntlet-v2.json       ← 33 calls, 99 events, score=1.0
-│   ├── local-v4-memory-contamination-triad.json    ← 4 arms, contamination_delta=0.0
-│   └── local-ghost-v2-doppelganger-war.json        ← rejection_rate=1.0, 4/4 arbiters
-│
-├── infrastructure/    # Provider audit + memory overhead (real API)
-│   ├── local-provider-integrity-observatory.json   ← substitution audit
-│   ├── local-provider-substitution-ledger.json
-│   ├── local-ghost-in-the-shell-live.json          ← score=0.9603, overhead=0.1986%
-│   ├── local-ghost-shell-task-scores.json
-│   ├── local-hydrogen-table-drop-live.json         ← table_drop_proof_passed
-│   ├── local-wand-million-benchmark.json           ← 11ms selective / 7127ms generic
-│   ├── local-semantic-router-wand-guard.json       ← 32× speedup
-│   ├── local-cloud-amnesia-derby-qwen122b-*.json   ← 83.3% win rate, 0.319% overhead
-│   └── local-cross-system-postmortem.json
-│
-└── product/           # OSINT oracle (mechanics_verified tier only)
-    ├── local-v4-zero-day-osint-backtest.json       ← lead_time=32.5h, precision=0.667
-    └── local-zero-day-osint-oracle.json
+## Reviewer entry points
+
+- [`docs/provider-model-audit.md`](docs/provider-model-audit.md) - precise provider metadata audit wording.
+- [`docs/reddit-response-notes.md`](docs/reddit-response-notes.md) - short public replies to common critiques.
+- [`docs/claims-matrix.md`](docs/claims-matrix.md) - wording guardrails.
+- [`verification/README-reviewer.md`](verification/README-reviewer.md) - artifact interpretation rules.
+- [`verification/public-evidence-index.json`](verification/public-evidence-index.json) - canonical public evidence and SHA-256 hashes.
+
+## Running tests
+
+```powershell
+python -m pytest -q tests/test_verification_hardening.py
+python -m pytest -q tests/test_v4_provider_substitution_longitudinal.py
+python tools/helix_claim_lint.py verification --scope batch-20260418
 ```
 
-Each artifact includes a `claim_boundary` field and, where applicable, `preregistered_hash`, `null_hypothesis`, `falseability_condition`, and `kill_switch` fields that document what would constitute a failure.
-
-Schema: `schemas/helix-verification-v0.schema.json`
-
----
-
-## Running the tests
-
-### Prerequisites
-
-```bash
-# Python 3.11+
-pip install -r tools/requirements/requirements.txt
-
-# Rust crates
-cd crates/helix-merkle-dag && cargo build --release
-cd crates/helix-state-core  && cargo build --release
-
-# API keys
-cp .env.example .env
-# Fill: DEEPINFRA_API_KEY, ANTHROPIC_API_KEY
-```
-
-### Key test suites
-
-```bash
-# Claim 1: Provider substitution audit (real API, ~85s)
-pytest tests/test_provider_integrity_observatory.py -v
-
-# Claim 2a: Lineage forgery — 4 attack arms (local, fast)
-pytest tests/test_v4_lineage_forgery_gauntlet.py -v
-
-# Claim 2b: Cross-model council + audit completeness (real API, ~5min)
-pytest tests/test_identity_trust_gauntlet_v2.py -v
-
-# Claim 3a: Memory continuity + false memory rejection (real API, ~60s)
-pytest tests/test_ghost_in_the_shell_live.py -v
-
-# Claim 3b: Memory contamination triad — 4 arms (local)
-pytest tests/test_v4_memory_contamination_triad.py -v
-
-# Bonus: Memory table-drop proof (real API, ~30s)
-pytest tests/test_hydrogen_table_drop_live.py -v
-
-# Bonus: WAND benchmark at 1M nodes (local, ~2min)
-pytest tests/test_benchmark_os.py -v
-```
-
-### Synthetic mode (no API keys)
-
-```bash
-HELIX_TEST_MODE=synthetic pytest tests/ -v
-```
-
----
-
-## Known limitations (documented, not hidden)
-
-- **WAND gravity well**: at 1M+ nodes, generic queries collapse to a single attractor (647× slower than anchored queries). The semantic router mitigates this with 32× speedup. Native fix tracked.
-- **Zamba2 long-context identifier recall**: session restore is bit-perfect (`max_abs_logit_delta: 0.0`); semantic recall of specific identifiers at long context is 0/2. Distinct properties.
-- **Ghost v2**: `shells_preserve_ghost=false` with recall 0.6667 against threshold 0.70. Core behavior (win rate, delayed trigger, overhead, false memory rejection) passed. Scorer was too literal on semantic rejections. Patched, pending rerun.
-- **OSINT oracle**: `local-v4-zero-day-osint-backtest.json` is `mechanics_verified` tier. A real CVE corpus with strict cutoff is required before product claims.
-
----
+Real-cloud tests require a freshly rotated provider token and should be run
+through the secure PowerShell wrappers in `tools/`, which prompt with hidden
+input and do not persist tokens.
 
 ## License
 
-GNU Affero General Public License v3.0 — see [LICENSE](LICENSE).
+GNU Affero General Public License v3.0 - see [LICENSE](LICENSE).
 
 Copyright (C) 2026 Patricio Valbusa.
-
-If you integrate HeliX into a networked product, the AGPL requires you to release your modifications under the same license.

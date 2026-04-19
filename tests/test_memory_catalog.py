@@ -37,8 +37,9 @@ def test_memory_catalog_observe_remember_search_and_context(tmp_path: Path) -> N
         tags=["auth", "jwt"],
     )
     link = catalog.link_session_memory(session_id="s1", memory_id=memory.memory_id)
-    hits = catalog.search(project="helix", agent_id="agent-a", query="jose token", limit=3)
-    context = catalog.build_context(project="helix", agent_id="agent-a", query="auth", budget_tokens=80, mode="search")
+    # This suite exercises BM25/privacy, not signatures. Opt out of the strict default.
+    hits = catalog.search(project="helix", agent_id="agent-a", query="jose token", limit=3, signature_enforcement="permissive")
+    context = catalog.build_context(project="helix", agent_id="agent-a", query="auth", budget_tokens=80, mode="search", signature_enforcement="permissive")
 
     assert "[REDACTED_SECRET]" in observation["content"]
     assert link["memory_id"] == memory.memory_id
@@ -114,7 +115,7 @@ def test_memory_catalog_uses_rust_bm25_when_extension_is_available(tmp_path: Pat
         )
 
         stats = catalog.stats()
-        hits = catalog.search(project="helix", agent_id="agent-a", query="merkle tombstone", limit=2)
+        hits = catalog.search(project="helix", agent_id="agent-a", query="merkle tombstone", limit=2, signature_enforcement="permissive")
 
         assert stats["search_backend"] == "rust_bm25"
         assert stats["rust_index_stats"]["node_count"] >= 2
@@ -186,7 +187,7 @@ def test_memory_catalog_bulk_remember_indexes_and_searches(tmp_path: Path) -> No
                 },
             ]
         )
-        hits = catalog.search(project="helix", agent_id="agent-a", query="beta", limit=3)
+        hits = catalog.search(project="helix", agent_id="agent-a", query="beta", limit=3, signature_enforcement="permissive")
 
         assert len(items) == 2
         assert catalog.stats()["memory_count"] == 2
@@ -219,7 +220,7 @@ def test_semantic_query_router_rewrites_generic_queries(tmp_path: Path) -> None:
             tags=["background"],
         )
 
-        hits = catalog.search(project="helix", agent_id="agent-a", query="agent release memory", limit=2)
+        hits = catalog.search(project="helix", agent_id="agent-a", query="agent release memory", limit=2, signature_enforcement="permissive")
 
         assert hits
         assert hits[0]["memory_id"] == target.memory_id
@@ -246,7 +247,7 @@ def test_semantic_query_router_leaves_specific_queries_alone(tmp_path: Path) -> 
             tags=["rare_4242"],
         )
 
-        hits = catalog.search(project="helix", agent_id="agent-a", query="rare_4242 qwen", limit=1)
+        hits = catalog.search(project="helix", agent_id="agent-a", query="rare_4242 qwen", limit=1, signature_enforcement="permissive")
 
         assert hits[0]["memory_id"] == item.memory_id
         assert "semantic_router" not in hits[0]
@@ -277,7 +278,7 @@ def test_semantic_query_router_recent_fallback_when_no_anchors(tmp_path: Path) -
             importance=3,
         )
 
-        hits = catalog.search(project="helix", agent_id="agent-a", query="agent memory", limit=1)
+        hits = catalog.search(project="helix", agent_id="agent-a", query="agent memory", limit=1, signature_enforcement="permissive")
 
         assert hits[0]["memory_id"] == important.memory_id
         assert hits[0]["search_backend"] == "semantic_router_recent_fallback"

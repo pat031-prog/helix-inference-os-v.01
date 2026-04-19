@@ -38,7 +38,7 @@ async def _run_tcp_bulk_remember_smoke() -> dict[str, Any]:
                     },
                 ]
             )
-            hits = await client.search(project="ipc", agent_id="agent-a", query="beta", limit=3)
+            hits = await client.search(project="ipc", agent_id="agent-a", query="beta", limit=3, signature_enforcement="permissive")
             stats = await client.stats()
         finally:
             await client.close()

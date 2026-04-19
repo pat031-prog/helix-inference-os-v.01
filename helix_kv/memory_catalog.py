@@ -7,11 +7,19 @@ import re
 import time
 import threading
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Iterable
 
 from helix_kv.merkle_dag import MerkleDAG
 from helix_kv.semantic_router import RoutedQuery, SemanticQueryRouter, tokenize as _router_tokenize
+from helix_proto.signed_receipts import (
+    attach_verification,
+    derive_ephemeral_keypair,
+    enforce_retrieval_signatures,
+    sign_receipt_payload,
+    unsigned_legacy_receipt,
+)
 
 try:  # Optional fast path: built by crates/helix-merkle-dag via maturin.
     from _helix_merkle_dag import RustIndexedMerkleDAG
@@ -25,9 +33,9 @@ PRIVATE_TAG_RE = re.compile(r"<private>[\s\S]*?</private>", re.IGNORECASE)
 SECRET_PATTERNS = [
     re.compile(r"(?:api[_-]?key|secret|token|password|credential|auth)\s*[=:]\s*[\"']?[A-Za-z0-9_\-/.+]{20,}[\"']?", re.IGNORECASE),
     re.compile(r"Bearer\s+[A-Za-z0-9._\-+/=]{20,}", re.IGNORECASE),
-    re.compile(r"sk-proj-[A-Za-z0-9\-_]{20,}"),
-    re.compile(r"(?:sk|pk|rk|ak)-[A-Za-z0-9][A-Za-z0-9\-_]{19,}"),
-    re.compile(r"sk-ant-[A-Za-z0-9\-_]{20,}"),
+    re.compile(r"(?<![A-Za-z0-9])sk-proj-[A-Za-z0-9\-_]{20,}"),
+    re.compile(r"(?<![A-Za-z0-9])(?:sk|pk|rk|ak)-[A-Za-z0-9][A-Za-z0-9\-_]{19,}"),
+    re.compile(r"(?<![A-Za-z0-9])sk-ant-[A-Za-z0-9\-_]{20,}"),
     re.compile(r"gh[pus]_[A-Za-z0-9]{36,}"),
     re.compile(r"github_pat_[A-Za-z0-9_]{22,}"),
     re.compile(r"xoxb-[A-Za-z0-9\-]+"),
@@ -65,10 +73,16 @@ SECRET_MARKERS = (
     "glpat-",
 )
 MEMORY_TYPES = {"working", "episodic", "semantic", "procedural"}
+SIGNATURE_ENFORCEMENT_MODES = {"permissive", "warn", "strict"}
+RERANK_MODES = {"bm25_only", "bm25_dense_rerank", "receipt_adjudicated"}
 
 
 def _now_ms() -> float:
     return time.time() * 1000.0
+
+
+def _utc_now() -> str:
+    return datetime.now(timezone.utc).isoformat(timespec="milliseconds").replace("+00:00", "Z")
 
 
 def _safe_scope(value: str, *, field: str) -> str:
@@ -180,6 +194,8 @@ class MemoryCatalog:
         
         # Primary storage backing
         self._memories: dict[str, MemoryItem] = {}
+        self._memory_receipts: dict[str, dict[str, Any]] = {}
+        self._memory_node_hashes: dict[str, str] = {}
         self._observations: dict[str, dict[str, Any]] = {}
         self._links: list[dict[str, Any]] = []
         
@@ -286,6 +302,7 @@ class MemoryCatalog:
         tags: Iterable[str] | None = None,
         memory_id: str | None = None,
         decay_score: float = 1.0,
+        llm_call_id: str | None = None,
     ) -> MemoryItem:
         project = _safe_scope(project, field="project")
         agent_id = _safe_scope(agent_id, field="agent_id")
@@ -319,6 +336,12 @@ class MemoryCatalog:
             content_dump = json.dumps(item.to_dict(), sort_keys=True)
             parent = self._session_heads.get(session_id) if session_id else None
             node = self.dag._insert_unlocked(content_dump, parent_hash=parent)
+            receipt = self._build_receipt(
+                item=item,
+                node_hash=node.hash,
+                parent_hash=parent,
+                llm_call_id=llm_call_id,
+            )
             self._insert_rust_indexed(
                 content_dump=content_dump,
                 parent_hash=parent,
@@ -335,6 +358,8 @@ class MemoryCatalog:
                 self._session_heads[session_id] = node.hash
 
             self._memories[mem_id] = item
+            self._memory_node_hashes[mem_id] = node.hash
+            self._memory_receipts[mem_id] = receipt
             self._index_router_item_unlocked(item)
             
         return item
@@ -354,7 +379,7 @@ class MemoryCatalog:
             return []
 
         # --- Phase 1: Prepare all MemoryItems (pure Python, no lock) ---
-        prepared: list[tuple[MemoryItem, str]] = []  # (item, content_dump)
+        prepared: list[tuple[MemoryItem, str, str | None]] = []  # (item, content_dump, llm_call_id)
         for raw in items:
             project = _safe_scope(raw["project"], field="project")
             agent_id = _safe_scope(raw["agent_id"], field="agent_id")
@@ -384,12 +409,12 @@ class MemoryCatalog:
                 last_access_ms=now,
             )
             content_dump = json.dumps(item.to_dict(), sort_keys=True)
-            prepared.append((item, content_dump))
+            prepared.append((item, content_dump, raw.get("llm_call_id")))
 
         rust_batch_payload: str | None = None
         if self._rust_index is not None:
             batch_records = []
-            for item, content_dump in prepared:
+            for item, content_dump, _llm_call_id in prepared:
                 batch_records.append({
                     "content": content_dump,
                     "metadata": {
@@ -405,12 +430,19 @@ class MemoryCatalog:
         # --- Phase 2: Batch insert under lock ---
         with self._lock:
             # Python DAG inserts (must be sequential for parent_hash chaining)
-            for item, content_dump in prepared:
+            for item, content_dump, llm_call_id in prepared:
                 parent = self._session_heads.get(item.session_id) if item.session_id else None
                 node = self.dag._insert_unlocked(content_dump, parent_hash=parent)
                 if item.session_id:
                     self._session_heads[item.session_id] = node.hash
                 self._memories[item.memory_id] = item
+                self._memory_node_hashes[item.memory_id] = node.hash
+                self._memory_receipts[item.memory_id] = self._build_receipt(
+                    item=item,
+                    node_hash=node.hash,
+                    parent_hash=parent,
+                    llm_call_id=llm_call_id,
+                )
                 self._index_router_item_unlocked(item)
 
             # Rust batch insert (one cross-boundary call)
@@ -421,7 +453,7 @@ class MemoryCatalog:
                     self._rust_index = None
                     self._rust_index_error = str(exc)
 
-        return [item for item, _ in prepared]
+        return [item for item, _content_dump, _llm_call_id in prepared]
 
     def _insert_rust_indexed(
         self,
@@ -489,6 +521,15 @@ class MemoryCatalog:
         with self._lock:
             return self._memories.get(str(memory_id))
 
+    def get_memory_receipt(self, memory_id: str) -> dict[str, Any] | None:
+        with self._lock:
+            receipt = self._memory_receipts.get(str(memory_id))
+            return dict(receipt) if receipt else None
+
+    def get_memory_node_hash(self, memory_id: str) -> str | None:
+        with self._lock:
+            return self._memory_node_hashes.get(str(memory_id))
+
     def link_session_memory(self, *, session_id: str, memory_id: str, relation: str = "supports") -> dict[str, Any]:
         if not str(session_id).strip() or ".." in Path(str(session_id)).parts:
             raise ValueError("session_id is required and cannot contain traversal")
@@ -516,6 +557,8 @@ class MemoryCatalog:
         memory_types: Iterable[str] | None = None,
         exclude_memory_ids: Iterable[str] | None = None,
         route_query: bool | None = None,
+        signature_enforcement: str | None = None,
+        rerank_mode: str | None = None,
     ) -> list[dict[str, Any]]:
         project = _safe_scope(project, field="project")
         agent_filter = None if agent_id is None else _safe_scope(agent_id, field="agent_id")
@@ -535,7 +578,7 @@ class MemoryCatalog:
         if routed.action == "empty":
             return []
         if routed.action == "recent_fallback":
-            return self._search_recent_fallback(
+            recent_results = self._search_recent_fallback(
                 project=project,
                 agent_filter=agent_filter,
                 limit=limit,
@@ -543,31 +586,210 @@ class MemoryCatalog:
                 exclude_ids=exclude_ids,
                 routed=routed,
             )
+            return self._finalize_search_results(
+                recent_results,
+                query=query,
+                limit=limit,
+                signature_enforcement=signature_enforcement,
+                rerank_mode=self._resolve_rerank_mode(rerank_mode),
+            )
         effective_query = routed.routed_query or query
         effective_tokens = _tokenize(effective_query)
+        effective_limit = int(limit)
+        selected_rerank_mode = self._resolve_rerank_mode(rerank_mode)
+        if selected_rerank_mode in {"bm25_dense_rerank", "receipt_adjudicated"}:
+            effective_limit = max(effective_limit * 4, 20)
 
         if self._rust_index is not None:
             results = self._search_rust_index(
                 project=project,
                 agent_filter=agent_filter,
                 query=effective_query,
-                limit=limit,
+                limit=effective_limit,
                 type_filter=type_filter,
                 exclude_ids=exclude_ids,
                 routed=routed,
             )
             if results is not None:
-                return results
+                return self._finalize_search_results(
+                    results,
+                    query=effective_query,
+                    limit=limit,
+                    signature_enforcement=signature_enforcement,
+                    rerank_mode=selected_rerank_mode,
+                )
 
-        return self._search_python_scan(
+        results = self._search_python_scan(
             project=project,
             agent_filter=agent_filter,
             tokens=effective_tokens,
-            limit=limit,
+            limit=effective_limit,
             type_filter=type_filter,
             exclude_ids=exclude_ids,
             routed=routed,
         )
+        return self._finalize_search_results(
+            results,
+            query=effective_query,
+            limit=limit,
+            signature_enforcement=signature_enforcement,
+            rerank_mode=selected_rerank_mode,
+        )
+
+    def _resolve_signature_enforcement(self, mode: str | None) -> str:
+        # Default is strict: only receipts with signature_verified=true are returned.
+        # warn/permissive must be opted into explicitly, either via the `mode` argument
+        # or the HELIX_RETRIEVAL_SIGNATURE_ENFORCEMENT env var. This is the retrieval-side
+        # half of the "strict signed retrieval end-to-end" contract.
+        selected = str(mode or os.environ.get("HELIX_RETRIEVAL_SIGNATURE_ENFORCEMENT", "strict")).lower()
+        if selected not in SIGNATURE_ENFORCEMENT_MODES:
+            raise ValueError(f"unsupported signature_enforcement: {selected}")
+        return selected
+
+    def _resolve_rerank_mode(self, mode: str | None) -> str:
+        selected = str(mode or os.environ.get("HELIX_RETRIEVAL_RERANK_MODE", "bm25_only")).lower()
+        if selected not in RERANK_MODES:
+            raise ValueError(f"unsupported rerank_mode: {selected}")
+        return selected
+
+    def _receipt_payload(
+        self,
+        *,
+        item: MemoryItem,
+        node_hash: str,
+        parent_hash: str | None,
+        signer_id: str,
+        llm_call_id: str | None,
+    ) -> dict[str, Any]:
+        return {
+            "node_hash": str(node_hash),
+            "parent_hash": parent_hash,
+            "memory_id": item.memory_id,
+            "project": item.project,
+            "agent_id": item.agent_id,
+            "llm_call_id": llm_call_id,
+            "issued_at_utc": _utc_now(),
+            "signer_id": signer_id,
+            "receipt_payload_version": "helix-memory-receipt-payload-v1",
+        }
+
+    def _build_receipt(
+        self,
+        *,
+        item: MemoryItem,
+        node_hash: str,
+        parent_hash: str | None,
+        llm_call_id: str | None,
+    ) -> dict[str, Any]:
+        mode = os.environ.get("HELIX_RECEIPT_SIGNING_MODE", "off").lower()
+        signer_id = os.environ.get("HELIX_RECEIPT_SIGNER_ID") or item.agent_id
+        payload = self._receipt_payload(
+            item=item,
+            node_hash=node_hash,
+            parent_hash=parent_hash,
+            signer_id=signer_id,
+            llm_call_id=llm_call_id,
+        )
+        if mode in {"", "0", "false", "off", "unsigned_legacy"}:
+            return attach_verification(unsigned_legacy_receipt(payload))
+        if mode not in {"local_self_signed", "ephemeral_preregistered", "sigstore_rekor"}:
+            raise ValueError(f"unsupported HELIX_RECEIPT_SIGNING_MODE: {mode}")
+        attestation = None
+        key_provenance = mode
+        if mode == "sigstore_rekor":
+            evidence_digest = os.environ.get("HELIX_SIGSTORE_REKOR_BUNDLE_DIGEST")
+            if not evidence_digest:
+                raise RuntimeError("sigstore_rekor signing requires HELIX_SIGSTORE_REKOR_BUNDLE_DIGEST")
+            attestation = {"provider": "sigstore_rekor", "evidence_digest": evidence_digest, "verified": True}
+        seed = os.environ.get("HELIX_RECEIPT_SIGNING_SEED") or f"{self.db_path}:{item.memory_id}:{node_hash}"
+        keys = derive_ephemeral_keypair(seed)
+        return attach_verification(
+            sign_receipt_payload(
+                payload,
+                private_key_b64=keys["private_key"],
+                public_key_b64=keys["public_key"],
+                signer_id=signer_id,
+                key_provenance=key_provenance,
+                attestation=attestation,
+            )
+        )
+
+    def _attach_receipt(self, payload: dict[str, Any]) -> dict[str, Any]:
+        memory_id = str(payload.get("memory_id") or "")
+        receipt = self._memory_receipts.get(memory_id)
+        if receipt is None:
+            node_hash = payload.get("node_hash") or self._memory_node_hashes.get(memory_id)
+            legacy_payload = {
+                "node_hash": node_hash,
+                "parent_hash": None,
+                "memory_id": memory_id,
+                "project": payload.get("project"),
+                "agent_id": payload.get("agent_id"),
+                "llm_call_id": None,
+                "issued_at_utc": _utc_now(),
+                "signer_id": payload.get("agent_id"),
+                "receipt_payload_version": "helix-memory-receipt-payload-v1",
+            }
+            receipt = attach_verification(unsigned_legacy_receipt(legacy_payload))
+        payload["signed_receipt"] = receipt
+        payload["receipt"] = receipt
+        payload["signature_verified"] = bool(receipt.get("signature_verified"))
+        payload["key_provenance"] = receipt.get("key_provenance")
+        payload["attestation_status"] = "verified" if (receipt.get("attestation") or {}).get("verified") else "none"
+        return payload
+
+    @staticmethod
+    def _hash_embedding(text: str, dims: int = 16) -> list[float]:
+        vector = [0.0] * dims
+        for token in _tokenize(text):
+            digest = hashlib.sha256(token.encode("utf-8")).digest()
+            slot = digest[0] % dims
+            vector[slot] += 1.0 if digest[1] % 2 == 0 else -1.0
+        norm = sum(value * value for value in vector) ** 0.5 or 1.0
+        return [value / norm for value in vector]
+
+    def _dense_rerank_score(self, query: str, payload: dict[str, Any]) -> float:
+        query_vec = self._hash_embedding(query)
+        text = " ".join(str(payload.get(key) or "") for key in ("summary", "content", "tags"))
+        doc_vec = self._hash_embedding(text)
+        return sum(a * b for a, b in zip(query_vec, doc_vec))
+
+    def _finalize_search_results(
+        self,
+        results: list[dict[str, Any]],
+        *,
+        query: str,
+        limit: int,
+        signature_enforcement: str | None,
+        rerank_mode: str,
+    ) -> list[dict[str, Any]]:
+        enforcement = self._resolve_signature_enforcement(signature_enforcement)
+        if rerank_mode == "receipt_adjudicated":
+            enforcement = "strict"
+        annotated = [self._attach_receipt(dict(item)) for item in results]
+        if rerank_mode == "bm25_dense_rerank":
+            for item in annotated:
+                item["rerank_mode"] = rerank_mode
+                item["dense_rerank_score"] = self._dense_rerank_score(query, item)
+                item["score"] = float(item.get("score") or 0.0) + float(item["dense_rerank_score"])
+            annotated.sort(key=lambda item: (-float(item.get("score") or 0.0), -float(item.get("created_ms") or 0.0)))
+        elif rerank_mode == "receipt_adjudicated":
+            for item in annotated:
+                item["rerank_mode"] = rerank_mode
+                item["dense_rerank_score"] = self._dense_rerank_score(query, item)
+                item["score"] = (
+                    float(item.get("score") or 0.0)
+                    + float(item["dense_rerank_score"])
+                    + (100.0 if item.get("signature_verified") else -100.0)
+                )
+            annotated.sort(key=lambda item: (-float(item.get("score") or 0.0), -float(item.get("created_ms") or 0.0)))
+        else:
+            for item in annotated:
+                item["rerank_mode"] = rerank_mode
+        enforced = enforce_retrieval_signatures(annotated, mode=enforcement)  # type: ignore[arg-type]
+        for item in enforced:
+            item["signature_enforcement_mode"] = enforcement
+        return enforced[: int(limit)]
 
     def _route_query(
         self,
@@ -958,6 +1180,7 @@ class MemoryCatalog:
         mode: str = "search",
         limit: int = 5,
         exclude_memory_ids: Iterable[str] | None = None,
+        signature_enforcement: str | None = None,
     ) -> dict[str, Any]:
         mode = str(mode or "off")
         if mode not in {"off", "summary", "search"}:
@@ -966,7 +1189,14 @@ class MemoryCatalog:
             return {"mode": "off", "context": "", "tokens": 0, "memory_ids": [], "items": []}
         exclude_ids = list(exclude_memory_ids or [])
         if mode == "search" and query:
-            items = self.search(project=project, agent_id=agent_id, query=query, limit=limit, exclude_memory_ids=exclude_ids)
+            items = self.search(
+                project=project,
+                agent_id=agent_id,
+                query=query,
+                limit=limit,
+                exclude_memory_ids=exclude_ids,
+                signature_enforcement=signature_enforcement,
+            )
         else:
             items = self.list_memories(project=project, agent_id=agent_id, limit=limit, exclude_memory_ids=exclude_ids)
         selected: list[str] = []

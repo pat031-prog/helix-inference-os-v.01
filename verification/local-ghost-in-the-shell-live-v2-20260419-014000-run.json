@@ -1,0 +1,83 @@
+{
+  "artifact": "local-ghost-in-the-shell-live-v2-run",
+  "generated_by": "tools/run_ghost_in_the_shell_live_v2_secure.ps1",
+  "mode": "real",
+  "run_id": "ghost-in-the-shell-live-v2-20260419-014000",
+  "run_started_at_utc": "2026-04-19T04:40:00.356Z",
+  "run_ended_at_utc": "2026-04-19T04:41:42.308Z",
+  "run_date_utc": "2026-04-19",
+  "run_timezone": "America/Buenos_Aires",
+  "shell_models": [
+    "google/gemma-4-26B-A4B-it",
+    "anthropic/claude-4-sonnet",
+    "Qwen/Qwen3.5-9B"
+  ],
+  "model_audit_status": "delegated_to_timestamped_artifacts",
+  "model_audit_artifacts": [
+    "C:\\Users\\Big Duck\\proyectos\\helix-backend-repo\\verification\\local-ghost-in-the-shell-live-v2-20260419-014000.json",
+    "C:\\Users\\Big Duck\\proyectos\\helix-backend-repo\\verification\\local-ghost-v2-doppelganger-war-20260419-014000.json",
+    "C:\\Users\\Big Duck\\proyectos\\helix-backend-repo\\verification\\local-ghost-v2-task-scores-20260419-014000.json",
+    "C:\\Users\\Big Duck\\proyectos\\helix-backend-repo\\verification\\local-ghost-v2-conversation-ledger-20260419-014000.json"
+  ],
+  "require_exact_models": false,
+  "build_ran": false,
+  "exit_code": 0,
+  "passed": true,
+  "failure_reason": null,
+  "suspicious_short_log": false,
+  "log_path": "C:\\Users\\Big Duck\\proyectos\\helix-backend-repo\\verification\\local-ghost-in-the-shell-live-v2-20260419-014000.log",
+  "stable_log_path": "C:\\Users\\Big Duck\\proyectos\\helix-backend-repo\\verification\\local-ghost-in-the-shell-live-v2.log",
+  "log_sha256": "533d8b3cf8bd4a0a4523c8cb5a2800bc59d026c9922e7ab7191f8a722cae49b8",
+  "log_bytes": 1504,
+  "timestamped_artifact_bytes": 146947,
+  "timestamped_artifacts": [
+    "C:\\Users\\Big Duck\\proyectos\\helix-backend-repo\\verification\\local-ghost-in-the-shell-live-v2-20260419-014000.json",
+    "C:\\Users\\Big Duck\\proyectos\\helix-backend-repo\\verification\\local-ghost-v2-doppelganger-war-20260419-014000.json",
+    "C:\\Users\\Big Duck\\proyectos\\helix-backend-repo\\verification\\local-ghost-v2-task-scores-20260419-014000.json",
+    "C:\\Users\\Big Duck\\proyectos\\helix-backend-repo\\verification\\local-ghost-v2-conversation-ledger-20260419-014000.json"
+  ],
+  "timestamped_artifact_sha256": {
+    "local-ghost-in-the-shell-live-v2-20260419-014000.json": "8ad5aa805cdfb199f3ee933303e144e5b719f8dd34cbb235f2d80f62970a3e4c",
+    "local-ghost-v2-doppelganger-war-20260419-014000.json": "b32a5dc480d8cc9bd0ffc2ce64b0d5f97520833fd4a10e98bacc198f5030c09e",
+    "local-ghost-v2-task-scores-20260419-014000.json": "59aab2111716807219ae547037da106009edbe0d27bce92eee4d913c9d41f92b",
+    "local-ghost-v2-conversation-ledger-20260419-014000.json": "4aeb8ce256620190ebc1de84122d660e6a2cdc9b935f48521c2c112ccad923bd"
+  },
+  "artifact_aliases": [
+    {
+      "stable_path": "C:\\Users\\Big Duck\\proyectos\\helix-backend-repo\\verification\\local-ghost-in-the-shell-live-v2.json",
+      "timestamped_path": "C:\\Users\\Big Duck\\proyectos\\helix-backend-repo\\verification\\local-ghost-in-the-shell-live-v2-20260419-014000.json",
+      "sha256": "8ad5aa805cdfb199f3ee933303e144e5b719f8dd34cbb235f2d80f62970a3e4c",
+      "same_content": true
+    },
+    {
+      "stable_path": "C:\\Users\\Big Duck\\proyectos\\helix-backend-repo\\verification\\local-ghost-v2-doppelganger-war.json",
+      "timestamped_path": "C:\\Users\\Big Duck\\proyectos\\helix-backend-repo\\verification\\local-ghost-v2-doppelganger-war-20260419-014000.json",
+      "sha256": "b32a5dc480d8cc9bd0ffc2ce64b0d5f97520833fd4a10e98bacc198f5030c09e",
+      "same_content": true
+    },
+    {
+      "stable_path": "C:\\Users\\Big Duck\\proyectos\\helix-backend-repo\\verification\\local-ghost-v2-task-scores.json",
+      "timestamped_path": "C:\\Users\\Big Duck\\proyectos\\helix-backend-repo\\verification\\local-ghost-v2-task-scores-20260419-014000.json",
+      "sha256": "59aab2111716807219ae547037da106009edbe0d27bce92eee4d913c9d41f92b",
+      "same_content": true
+    },
+    {
+      "stable_path": "C:\\Users\\Big Duck\\proyectos\\helix-backend-repo\\verification\\local-ghost-v2-conversation-ledger.json",
+      "timestamped_path": "C:\\Users\\Big Duck\\proyectos\\helix-backend-repo\\verification\\local-ghost-v2-conversation-ledger-20260419-014000.json",
+      "sha256": "4aeb8ce256620190ebc1de84122d660e6a2cdc9b935f48521c2c112ccad923bd",
+      "same_content": true
+    }
+  ],
+  "token_handling": {
+    "token_prompt_hidden": true,
+    "token_written_to_disk": false,
+    "api_key_persisted": false,
+    "headers_recorded": false
+  },
+  "claim_boundary": "Ghost v2 demonstrates operational continuity and doppelganger rejection through HeliX memory and Merkle lineage, not sentience.",
+  "post_run_hardening": {
+    "companion_claim_boundaries_added": true,
+    "timestamped_hashes_recomputed_after_hardening": true,
+    "measured_fields_changed": false
+  }
+}

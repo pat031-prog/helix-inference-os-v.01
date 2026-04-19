@@ -62,6 +62,7 @@ class FakeStateClient:
         return rows
 
     async def search(self, **kwargs: Any) -> list[dict[str, Any]]:
+        kwargs.setdefault("signature_enforcement", "permissive")
         hits = self.catalog.search(**kwargs)
         for hit in hits:
             hit.setdefault("node_hash", self.node_by_memory_id.get(hit.get("memory_id", ""), ""))

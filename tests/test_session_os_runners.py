@@ -116,7 +116,9 @@ def test_hybrid_prefix_checkpoint_parser_defaults_to_zamba() -> None:
     assert args.followup_tokens == 8
 
 
-def test_hmem_wiring_smoke_records_agent_memory_and_hybrid_search(tmp_path) -> None:  # noqa: ANN001
+def test_hmem_wiring_smoke_records_agent_memory_and_hybrid_search(tmp_path, monkeypatch) -> None:  # noqa: ANN001
+    # hmem smoke inserts unsigned_legacy memories; opt out of strict default.
+    monkeypatch.setenv("HELIX_RETRIEVAL_SIGNATURE_ENFORCEMENT", "permissive")
     payload = run_local_hmem_wiring_smoke.run_hmem_wiring_smoke(
         run_local_hmem_wiring_smoke.build_parser().parse_args(["--output-dir", str(tmp_path)])
     )

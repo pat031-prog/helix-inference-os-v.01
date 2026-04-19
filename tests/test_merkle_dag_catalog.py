@@ -74,7 +74,7 @@ def test_fallback_search_works(tmp_path):
     catalog.remember(project="proj1", agent_id="a1", content="The rabbit jumped over the fence", importance=5)
     catalog.remember(project="proj1", agent_id="a1", content="A quick brown fox", importance=8)
     
-    res = catalog.search(project="proj1", agent_id="a1", query="fox fence")
+    res = catalog.search(project="proj1", agent_id="a1", query="fox fence", signature_enforcement="permissive")
     assert len(res) == 2
     # Fox should score higher due to higher importance
     assert "fox" in res[0]["content"].lower()

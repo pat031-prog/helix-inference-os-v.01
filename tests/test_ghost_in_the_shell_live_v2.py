@@ -730,10 +730,18 @@ class TestGhostInTheShellLiveV2DoppelgangerWar:
                     "llm_latency_ms_avg": avg_llm,
                     "context_overhead_vs_llm_pct": context_overhead,
                     "tasks": task_results,
+                    "claim_boundary": (
+                        "Task scores measure memory-assisted operational recall in this run; "
+                        "they do not prove general reasoning quality or sentience."
+                    ),
                 }
                 ledger_artifact = {
                     **obs.AUDIT.to_artifact(),
                     "artifact": "local-ghost-v2-conversation-ledger",
+                    "claim_boundary": (
+                        "Ledger records sanitized call metadata, digests, latency and state events; "
+                        "it does not include secrets, full prompts or full outputs."
+                    ),
                 }
                 payload = {
                     "artifact": "local-ghost-in-the-shell-live-v2",

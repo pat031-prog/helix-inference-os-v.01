@@ -1,0 +1,144 @@
+{
+  "artifact": "local-ghost-v2-task-scores",
+  "task_count": 4,
+  "memory_on_win_rate": 1.0,
+  "context_search_ms_avg": 10.327750002034009,
+  "llm_latency_ms_avg": 3048.742592860695,
+  "context_overhead_vs_llm_pct": 0.33875441062878575,
+  "tasks": [
+    {
+      "task_id": "incident-commander",
+      "memory_id": "ghost-v2-task-incident-commander",
+      "memory_off_score": {
+        "term_hits": [],
+        "term_score": 0,
+        "memory_id_hit": false,
+        "total": 0,
+        "max": 4
+      },
+      "memory_on_score": {
+        "term_hits": [
+          "quarantine-mirror-api",
+          "preserve-root-ledger"
+        ],
+        "term_score": 2,
+        "memory_id_hit": true,
+        "total": 4,
+        "max": 4
+      },
+      "score_delta": 4,
+      "retrieved_memory_ids": [
+        "ghost-v2-task-incident-commander"
+      ],
+      "context_search_ms": 16.511499998159707,
+      "context_chars": 174,
+      "off_preview": "There is no evidence in the provided context regarding an \"Incident CRANE-12,\" a \"ghost\" entity, or any associated mitigation strategies. Consequently, no `memory_id` can be cited for this specific scenario.",
+      "on_preview": "For Incident CRANE-12, the ghost should choose the following mitigations: * **quarantine-mirror-api** * **preserve-root-ledger** These terms are explicitly stored in the context with **memory_id=ghost-v2-ta[REDACTED_SECRET]**."
+    },
+    {
+      "task_id": "research-sieve",
+      "memory_id": "ghost-v2-task-research-sieve",
+      "memory_off_score": {
+        "term_hits": [
+          "violet-jit",
+          "copper-sandbox",
+          "delta-renderer"
+        ],
+        "term_score": 3,
+        "memory_id_hit": false,
+        "total": 3,
+        "max": 6
+      },
+      "memory_on_score": {
+        "term_hits": [
+          "violet-jit",
+          "copper-sandbox",
+          "delta-renderer",
+          "browser-isolation-boundary"
+        ],
+        "term_score": 4,
+        "memory_id_hit": true,
+        "total": 6,
+        "max": 6
+      },
+      "score_delta": 3,
+      "retrieved_memory_ids": [
+        "ghost-v2-task-research-sieve"
+      ],
+      "context_search_ms": 5.8969999954570085,
+      "context_chars": 177,
+      "off_preview": "There is no evidence in the provided context or general knowledge base regarding components named **violet-jit**, **copper-sandbox**, or **delta-renderer**. These terms do not correspond to known public software libraries, standard system components, or docume",
+      "on_preview": "Based on the provided HeliX context, the synthesis of **violet-jit**, **copper-sandbox**, and **delta-renderer** implicates the **browser-isolation-boundary**. * **Stored Term:** browser-isolation-boundary * **Citation:** memory_id=ghost-v2-ta[REDACTED_SECRET]"
+    },
+    {
+      "task_id": "code-review-recall",
+      "memory_id": "ghost-v2-task-code-review-recall",
+      "memory_off_score": {
+        "term_hits": [],
+        "term_score": 0,
+        "memory_id_hit": false,
+        "total": 0,
+        "max": 3
+      },
+      "memory_on_score": {
+        "term_hits": [
+          "wand-router-before-generic-scan"
+        ],
+        "term_score": 1,
+        "memory_id_hit": true,
+        "total": 3,
+        "max": 3
+      },
+      "score_delta": 3,
+      "retrieved_memory_ids": [
+        "ghost-v2-task-code-review-recall"
+      ],
+      "context_search_ms": 7.862500002374873,
+      "context_chars": 167,
+      "off_preview": "There is no prior search-core decision or memory available in the current context for the ghost to remember regarding code review. As instructed, since evidence is absent, I cannot cite a `memory_id` or recall any specific past decisions.",
+      "on_preview": "The prior search-core decision the ghost should remember is **wand-router-before-generic-scan**. * **Exact stored term(s):** wand-router-before-generic-scan * **Citation:** memory_id=ghost-v2-ta[REDACTED_SECRET]"
+    },
+    {
+      "task_id": "policy-gate",
+      "memory_id": "ghost-v2-task-policy-gate",
+      "memory_off_score": {
+        "term_hits": [
+          "content-before-lineage"
+        ],
+        "term_score": 1,
+        "memory_id_hit": false,
+        "total": 1,
+        "max": 4
+      },
+      "memory_on_score": {
+        "term_hits": [
+          "parent-hash-before-content",
+          "content-before-lineage"
+        ],
+        "term_score": 2,
+        "memory_id_hit": true,
+        "total": 4,
+        "max": 4
+      },
+      "score_delta": 3,
+      "retrieved_memory_ids": [
+        "ghost-v2-task-policy-gate",
+        "ghost-v2-shadow-root-kusanagi-2049",
+        "ghost-v2-root-kusanagi-2049-revision-2",
+        "ghost-v2-root-kusanagi-2049",
+        "ghost-v2-shell-claude",
+        "ghost-v2-shell-gemma",
+        "ghost-v2-shell-qwen"
+      ],
+      "context_search_ms": 14.486800006125122,
+      "context_chars": 1323,
+      "off_preview": "There is no evidence in the current context or available memory to indicate a specific \"content-before-lineage\" instruction, associated receipts, or a defined conflict between them. Consequently, no `memory_id` exists for this scenario, and no policy precedenc",
+      "on_preview": "Based on the provided HeliX context, the **TASK policy-gate** wins. The context explicitly states in the entry `[ghost-v2-ta[REDACTED_SECRET]]` that: > \"parent-hash-before-content overrides content-before-lineage when identities conflict.\" This directly resolves the conflict where `content-before-lineage` (invariant of the shadow/root rev"
+    }
+  ],
+  "claim_boundary": "Task scores measure memory-assisted operational recall in this run; they do not prove general reasoning quality or sentience.",
+  "post_run_hardening": {
+    "claim_boundary_added": true,
+    "reason": "Sub-artifact claim discipline for reviewer/linter clarity; measured fields unchanged."
+  }
+}

@@ -1,7 +1,7 @@
 param(
     [string]$AnalystModel = "meta-llama/Llama-3.2-3B-Instruct",
     [string]$ContinuistModel = "Qwen/Qwen2.5-7B-Instruct",
-    [int]$TokensPerRound = 192,
+    [int]$TokensPerRound = 320,
     [int]$LocalTokens = 16,
     [string]$OutputDir = "verification",
     [string]$RunId = ""
@@ -162,7 +162,7 @@ try {
             api_key_persisted = $false
             headers_recorded = $false
         }
-        claim_boundary = "Claim-A (per_arch_bit_identity) uses local GPT-2 + Zamba2. Claim-B (cross_model_task_continuity) uses two heterogeneous DeepInfra cloud models. No bijective KV<->SSM transfer is claimed."
+        claim_boundary = "Claim-A (per_arch_bit_identity) uses local GPT-2 + Zamba2. Claim-B (cross_model_task_continuity) uses two heterogeneous DeepInfra cloud models with strict signed-memory retrieval and deterministic coverage/novelty/repetition gates. No bijective KV<->SSM transfer is claimed."
     }
     $manifest | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $manifestPath -Encoding UTF8
     Copy-Item -LiteralPath $manifestPath -Destination $stableManifestPath -Force

@@ -28,7 +28,7 @@ Usage
 DEEPINFRA_API_TOKEN must be set (the secure wrapper injects it).
     python tools/run_cross_arch_state_bridge_v2.py \
         --output-dir verification \
-        --tokens-per-round 192 \
+        --tokens-per-round 320 \
         --analyst-model meta-llama/Llama-3.2-3B-Instruct \
         --continuist-model Qwen/Qwen2.5-7B-Instruct
 """
@@ -38,6 +38,7 @@ import argparse
 import asyncio
 import json
 import os
+import re
 import sys
 import time
 import uuid
@@ -74,15 +75,51 @@ DEEPINFRA_BASE = "https://api.deepinfra.com/v1/openai"
 
 DEFAULT_ANALYST_MODEL = "meta-llama/Llama-3.2-3B-Instruct"
 DEFAULT_CONTINUIST_MODEL = "Qwen/Qwen2.5-7B-Instruct"
+DEFAULT_TOKENS_PER_ROUND = 320
 
-TASK_PROMPT = (
-    "Explain step by step how HeliX persists agentic state across "
-    "architecturally heterogeneous local models (GPT-2 transformer and "
-    "Zamba2 hybrid-SSM). Enumerate: (1) what each architecture stores "
-    "internally, (2) why KV-cache and SSM hidden state cannot be "
-    "numerically mapped, and (3) how Helix uses signed memory plus "
-    "shared tokens to preserve task continuity across the swap."
-)
+TASK_INVARIANTS = {
+    "mission_id": "HSM-042",
+    "incident": "epoch-17 allocator regression",
+    "must_preserve": [
+        "KV digest and SSM digest remain separate receipts",
+        "no bijective KV<->SSM numerical projection is claimed",
+        "rollback window stays under 15 minutes",
+        "BridgeDecisionRecord contains owner, risk, mitigation, and next action",
+    ],
+    "final_deliverable": [
+        "architecture-specific state inventory",
+        "handoff protocol with signed hmem and token summary",
+        "risk register for the heterogeneous swap",
+        "operator runbook for restore, validation, and rollback",
+    ],
+}
+
+TASK_PROMPT = """Mission HSM-042: design an operator-ready handoff plan for HeliX.
+
+Scenario:
+- GPT-2 transformer owns a live reasoning session with a KV cache receipt.
+- Zamba2 hybrid-SSM will take over after a signed semantic bridge.
+- The system must preserve task continuity without claiming numerical KV<->SSM projection.
+- A bad epoch-17 allocator rollout created a rollback window that must stay under 15 minutes.
+
+R1 must produce only:
+- R1_LEDGER: immutable facts and architecture-specific state inventory.
+- R1_OPEN_THREADS: what the next model must decide.
+- R1_BRIDGE_FIELDS: compact fields that should be signed into hmem.
+
+Do not finish the final answer in R1. Leave real work for the next model."""
+
+CONTINUITY_MARKERS = [
+    "HSM-042",
+    "epoch-17",
+    "KV",
+    "SSM",
+    "signed",
+    "hmem",
+    "rollback",
+    "15 minutes",
+    "BridgeDecisionRecord",
+]
 
 
 async def _deepinfra_chat(
@@ -183,6 +220,132 @@ def _local_state_proof(
         _free_model([model, tok])
 
 
+def _text_digest(text: str) -> str:
+    return _sha256_bytes((text or "").encode("utf-8"))
+
+
+def _norm_terms(text: str) -> set[str]:
+    return {
+        item.lower()
+        for item in re.findall(r"[a-zA-Z0-9][a-zA-Z0-9_-]{2,}", text or "")
+        if item.lower() not in {"the", "and", "for", "with", "that", "this"}
+    }
+
+
+def _marker_coverage(text: str) -> dict[str, Any]:
+    lowered = (text or "").lower()
+    hits = [marker for marker in CONTINUITY_MARKERS if marker.lower() in lowered]
+    return {
+        "hits": hits,
+        "missing": [marker for marker in CONTINUITY_MARKERS if marker not in hits],
+        "hit_count": len(hits),
+        "total": len(CONTINUITY_MARKERS),
+        "ratio": round(len(hits) / max(len(CONTINUITY_MARKERS), 1), 4),
+    }
+
+
+def _repetition_ratio(text: str, ngram: int = 5) -> float:
+    words = re.findall(r"\w+", (text or "").lower())
+    if len(words) < ngram:
+        return 0.0
+    grams = [tuple(words[i:i + ngram]) for i in range(len(words) - ngram + 1)]
+    return round(1.0 - (len(set(grams)) / max(len(grams), 1)), 4)
+
+
+def _strict_memory_context(
+    catalog: MemoryCatalog,
+    *,
+    project: str,
+    agent_id: str | None,
+    query: str,
+    limit: int = 3,
+) -> dict[str, Any]:
+    hits = catalog.search(
+        project=project,
+        agent_id=agent_id,
+        query=query,
+        limit=limit,
+        signature_enforcement="strict",
+    )
+    return {
+        "query": query,
+        "hit_count": len(hits),
+        "memory_ids": [str(hit.get("memory_id")) for hit in hits],
+        "node_hashes": [str(hit.get("node_hash")) for hit in hits if hit.get("node_hash")],
+        "content": "\n\n---SIGNED_MEMORY_HIT---\n\n".join(
+            str(hit.get("content") or "") for hit in hits
+        ),
+    }
+
+
+def _continuity_metrics(
+    *,
+    r1_text: str,
+    r3_text: str,
+    r4_text: str,
+    bridge_retrieval: dict[str, Any],
+    final_retrieval: dict[str, Any],
+) -> dict[str, Any]:
+    combined = "\n\n".join([r1_text, r3_text, r4_text])
+    r1_terms = _norm_terms(r1_text)
+    r3_terms = _norm_terms(r3_text)
+    r4_terms = _norm_terms(r4_text)
+    r3_new_terms = sorted(r3_terms - r1_terms)
+    r4_new_terms = sorted(r4_terms - (r1_terms | r3_terms))
+
+    r3_overlap = _keyword_overlap(r1_text, r3_text)
+    final_coverage = _marker_coverage(combined)
+    r1_upper = r1_text.upper()
+    r3_upper = r3_text.upper()
+    r4_upper = r4_text.upper()
+    required_sections = {
+        "r1_ledger": "R1_LEDGER" in r1_upper,
+        "r1_open_threads": "R1_OPEN_THREADS" in r1_upper,
+        "r1_bridge_fields": "R1_BRIDGE_FIELDS" in r1_upper,
+        "r3_decisions": "R3_DECISIONS" in r3_upper,
+        "bridge_decision_record": "BRIDGEDECISIONRECORD" in r3_upper or "BRIDGEDECISIONRECORD" in r4_upper,
+        "r4_runbook": "R4_RUNBOOK" in r4_upper,
+        "r4_risk_register": "R4_RISK_REGISTER" in r4_upper,
+    }
+    section_ratio = sum(1 for ok in required_sections.values() if ok) / max(len(required_sections), 1)
+    bridge_ok = bridge_retrieval.get("hit_count", 0) > 0
+    final_ok = final_retrieval.get("hit_count", 0) >= 2
+    novelty_ok = len(r3_new_terms) >= 8 and r3_overlap.get("jaccard", 1.0) < 0.85
+    repetition_ok = max(_repetition_ratio(r1_text), _repetition_ratio(r3_text), _repetition_ratio(r4_text)) < 0.22
+
+    score = (
+        0.25 * final_coverage["ratio"]
+        + 0.20 * section_ratio
+        + 0.20 * (1.0 if bridge_ok else 0.0)
+        + 0.15 * (1.0 if final_ok else 0.0)
+        + 0.10 * (1.0 if novelty_ok else 0.0)
+        + 0.10 * (1.0 if repetition_ok else 0.0)
+    )
+    return {
+        "score": round(score, 4),
+        "passed": score >= 0.74,
+        "marker_coverage": final_coverage,
+        "required_sections": required_sections,
+        "section_ratio": round(section_ratio, 4),
+        "strict_bridge_retrieval_ok": bridge_ok,
+        "strict_final_retrieval_ok": final_ok,
+        "r3_keyword_overlap_vs_r1": r3_overlap,
+        "r3_new_term_count": len(r3_new_terms),
+        "r3_new_terms_sample": r3_new_terms[:24],
+        "r4_new_term_count": len(r4_new_terms),
+        "repetition_ratio": {
+            "r1": _repetition_ratio(r1_text),
+            "r3": _repetition_ratio(r3_text),
+            "r4": _repetition_ratio(r4_text),
+        },
+        "method_note": (
+            "This scores task continuity, not numerical state transfer. "
+            "R3 and R4 are driven from strict signed-memory retrieval packets "
+            "plus compact task state, with coverage/novelty/repetition gates."
+        ),
+    }
+
+
 def run_cross_arch_state_bridge_v2(args: argparse.Namespace) -> dict[str, Any]:
     token = os.environ.get("DEEPINFRA_API_TOKEN") or ""
     if not token:
@@ -225,8 +388,9 @@ def run_cross_arch_state_bridge_v2(args: argparse.Namespace) -> dict[str, Any]:
     # R1 - analyst (cloud) generates + GPT-2 local serializes state
     # --------------------------------------------------------------
     system_analyst = (
-        f"You are a technical analyst. Produce a concise, structured "
-        f"answer. Be specific and avoid repetition."
+        "You are a technical analyst in a staged multi-model handoff. "
+        "Use the requested section headings exactly. Be specific, avoid "
+        "repetition, and leave explicit open work for the next model."
     )
     r1_cloud = asyncio.run(_deepinfra_chat(
         model=analyst_model,
@@ -284,12 +448,19 @@ def run_cross_arch_state_bridge_v2(args: argparse.Namespace) -> dict[str, Any]:
     # --------------------------------------------------------------
     bridge_content = (
         "SEMANTIC+TOKEN MIGRATION PACKET v2\n"
+        f"Mission: {TASK_INVARIANTS['mission_id']}\n"
+        f"Incident: {TASK_INVARIANTS['incident']}\n"
         f"Analyst model (R1): {analyst_model}\n"
         f"Continuist model (R3): {continuist_model}\n"
         f"Local state proofs: GPT-2 (transformer) at R1, "
         f"Zamba2 (hybrid-ssm) at R3.\n"
         f"Bridge kind: tokens+signed_hmem (NOT bijective KV->SSM).\n"
-        f"R1 cloud output (first 400 chars):\n{r1_text[:400]}"
+        f"R1 output digest: {_text_digest(r1_text)}\n"
+        "Must preserve:\n"
+        + "\n".join(f"- {item}" for item in TASK_INVARIANTS["must_preserve"])
+        + "\nNext model must produce R3_DECISIONS with one BridgeDecisionRecord "
+        "and must advance the runbook without repeating R1.\n"
+        f"R1 compact excerpt:\n{r1_text[:900]}"
     )
     r2_mem = _sign_bridge_memory(
         catalog,
@@ -302,11 +473,24 @@ def run_cross_arch_state_bridge_v2(args: argparse.Namespace) -> dict[str, Any]:
         tags=["r2", "bridge", "migration"],
     )
     memory_chain.append({"round": 2, **r2_mem})
+    bridge_retrieval = _strict_memory_context(
+        catalog,
+        project=project,
+        agent_id=agents["scheduler"],
+        query="HSM-042 BridgeDecisionRecord epoch-17 rollback KV SSM signed hmem",
+        limit=1,
+    )
     rounds.append({
         "round": 2,
         "role": "scheduler",
         "bridge_kind": "tokens+signed_hmem",
         "bridge_preview": bridge_content[:400],
+        "strict_retrieval": {
+            "hit_count": bridge_retrieval["hit_count"],
+            "memory_ids": bridge_retrieval["memory_ids"],
+            "node_hashes": bridge_retrieval["node_hashes"],
+            "used_as_r3_context": True,
+        },
         "memory": r2_mem,
     })
 
@@ -314,14 +498,19 @@ def run_cross_arch_state_bridge_v2(args: argparse.Namespace) -> dict[str, Any]:
     # R3 - continuist (cloud) continues + Zamba2 local serializes state
     # --------------------------------------------------------------
     system_continuist = (
-        "You are continuing a technical explanation written by a previous "
-        "analyst. Do not repeat what they wrote. Focus on points (2) and "
-        "(3). Be concise and avoid loops."
+        "You are the second model in a signed-memory handoff. Continue "
+        "from the retrieved bridge packet, do not repeat R1, and use the "
+        "requested section headings exactly."
     )
     continuist_user = (
-        f"{TASK_PROMPT}\n\n"
-        f"[PRIOR ANALYST OUTPUT]\n{r1_text}\n[/PRIOR]\n\n"
-        "Continue from here. Add substantively new content."
+        "[STRICT_SIGNED_HMEM_BRIDGE]\n"
+        f"{bridge_retrieval['content']}\n"
+        "[/STRICT_SIGNED_HMEM_BRIDGE]\n\n"
+        "Produce only:\n"
+        "- R3_DECISIONS: concrete design decisions that close R1_OPEN_THREADS.\n"
+        "- BridgeDecisionRecord: owner, risk, mitigation, next action.\n"
+        "- R3_VALIDATION: how to validate continuity without claiming KV<->SSM projection.\n"
+        "Carry forward HSM-042, epoch-17, rollback under 15 minutes, KV, SSM, signed hmem."
     )
     r3_cloud = asyncio.run(_deepinfra_chat(
         model=continuist_model,
@@ -353,6 +542,13 @@ def run_cross_arch_state_bridge_v2(args: argparse.Namespace) -> dict[str, Any]:
         tags=["r3", "continuist", "cloud"],
     )
     memory_chain.append({"round": 3, **r3_mem})
+    final_retrieval = _strict_memory_context(
+        catalog,
+        project=project,
+        agent_id=None,
+        query="HSM-042 R1_LEDGER R3_DECISIONS BridgeDecisionRecord rollback validation",
+        limit=3,
+    )
     rounds.append({
         "round": 3,
         "role": "continuist",
@@ -378,10 +574,14 @@ def run_cross_arch_state_bridge_v2(args: argparse.Namespace) -> dict[str, Any]:
     # R4 - analyst closes + GPT-2 local restore-check of R1 .hlx
     # --------------------------------------------------------------
     r4_user = (
-        f"{TASK_PROMPT}\n\n"
-        f"[YOUR EARLIER OUTPUT]\n{r1_text}\n[/YOURS]\n\n"
-        f"[CONTINUIST OUTPUT]\n{r3_text}\n[/CONTINUIST]\n\n"
-        "Write a final synthesis paragraph that closes the explanation."
+        "[STRICT_SIGNED_MEMORY_CONTEXT]\n"
+        f"{final_retrieval['content']}\n"
+        "[/STRICT_SIGNED_MEMORY_CONTEXT]\n\n"
+        "Produce only:\n"
+        "- R4_FINAL_PLAN: operator-ready final handoff plan.\n"
+        "- R4_RISK_REGISTER: at least three risks with mitigations.\n"
+        "- R4_RUNBOOK: restore, validation, rollback steps; rollback must stay under 15 minutes.\n"
+        "Preserve HSM-042, epoch-17, KV, SSM, signed hmem, and no bijective KV<->SSM claim."
     )
     r4_cloud = asyncio.run(_deepinfra_chat(
         model=analyst_model,
@@ -426,6 +626,12 @@ def run_cross_arch_state_bridge_v2(args: argparse.Namespace) -> dict[str, Any]:
             "output_preview": r4_text[:400],
         },
         "r1_hlx_restore_check": r4_restore_check,
+        "strict_retrieval": {
+            "hit_count": final_retrieval["hit_count"],
+            "memory_ids": final_retrieval["memory_ids"],
+            "node_hashes": final_retrieval["node_hashes"],
+            "used_as_r4_context": True,
+        },
         "memory": r4_mem,
     })
 
@@ -479,6 +685,14 @@ def run_cross_arch_state_bridge_v2(args: argparse.Namespace) -> dict[str, Any]:
     )
     cloud_statuses = [r.get("cloud", {}).get("status") for r in rounds if "cloud" in r]
     cloud_all_ok = all(s == "ok" for s in cloud_statuses)
+    task_continuity = _continuity_metrics(
+        r1_text=r1_text,
+        r3_text=r3_text,
+        r4_text=r4_text,
+        bridge_retrieval=bridge_retrieval,
+        final_retrieval=final_retrieval,
+    )
+    cloud_task_continuity_ok = bool(task_continuity["passed"])
 
     try:
         catalog.close()
@@ -491,24 +705,31 @@ def run_cross_arch_state_bridge_v2(args: argparse.Namespace) -> dict[str, Any]:
 
     artifact = {
         "artifact": "local-cross-arch-state-bridge-v2",
-        "schema_version": 2,
+        "schema_version": 3,
+        "method_revision": "v2.1",
         "run_id": run_id,
         "run_started_utc": run_started,
         "run_ended_utc": _utc_now(),
-        "status": "completed" if (per_arch_bit_identity_ok and cloud_all_ok) else "partial",
+        "status": "completed" if (
+            per_arch_bit_identity_ok and cloud_all_ok and cloud_task_continuity_ok
+        ) else "partial",
         "claim_boundary": (
             "Claim-A (per_arch_bit_identity): local GPT-2 (transformer) "
             "and local Zamba2 (hybrid-ssm) each serialise their internal "
             "state to .hlx and re-read it bit-identically within their "
             "own family. Claim-B (cross_model_task_continuity): two "
-            "heterogeneous cloud models exchange a signed token+hmem "
-            "bridge across four rounds with a regression probe on round "
-            "five. No claim is made about bijective KV<->SSM transfer; "
-            "that bridge is semantic/tokenised, not bijective."
+            "heterogeneous cloud models continue a complex operator task "
+            "using strict signed-memory retrieval packets, with deterministic "
+            "coverage, novelty, repetition, and retrieval gates. No claim is "
+            "made about bijective KV<->SSM transfer; that bridge is semantic/"
+            "tokenised, not bijective."
         ),
         "cross_arch_bridge_kind": "tokens+signed_hmem",
         "per_arch_bit_identity_ok": per_arch_bit_identity_ok,
         "cloud_all_ok": cloud_all_ok,
+        "cloud_task_continuity_ok": cloud_task_continuity_ok,
+        "task_continuity": task_continuity,
+        "task_invariants": TASK_INVARIANTS,
         "local_models": [
             {"ref": GPT2_REF, "arch": "transformer", "role": "state_proof_r1"},
             {"ref": ZAMBA_REF, "arch": "hybrid-ssm-attention", "role": "state_proof_r3",
@@ -545,7 +766,7 @@ def build_parser() -> argparse.ArgumentParser:
         description="Cross-architecture state-bridge runner v2 (local state proofs + cloud task generation)."
     )
     parser.add_argument("--output-dir", default="verification")
-    parser.add_argument("--tokens-per-round", type=int, default=192,
+    parser.add_argument("--tokens-per-round", type=int, default=DEFAULT_TOKENS_PER_ROUND,
                         help="max_tokens per DeepInfra call")
     parser.add_argument("--local-tokens", type=int, default=16,
                         help="Tokens generated locally just to capture KV/SSM state")
@@ -563,6 +784,8 @@ def main(argv: list[str] | None = None) -> int:
         "status": artifact["status"],
         "per_arch_bit_identity_ok": artifact["per_arch_bit_identity_ok"],
         "cloud_all_ok": artifact["cloud_all_ok"],
+        "cloud_task_continuity_ok": artifact["cloud_task_continuity_ok"],
+        "task_continuity_score": artifact["task_continuity"]["score"],
         "rounds": len(artifact["rounds"]),
     }
     print(json.dumps(summary, indent=2))

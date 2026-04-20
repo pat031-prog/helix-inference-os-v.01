@@ -323,12 +323,12 @@ def _measure_compression(
         report = run_transformers_kv_benchmark(
             model_ref,
             prompt_text=prompt_text,
-            prompt_length_tokens=None,
             max_new_tokens=max_new_tokens,
             warmup_max_new_tokens=0,
             kv_variants=variants,
             device="cpu",
             local_files_only=True,
+            trust_remote_code=trust_remote_code,
         )
     except Exception as exc:  # noqa: BLE001
         return {

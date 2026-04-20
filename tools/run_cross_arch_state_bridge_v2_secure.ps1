@@ -36,6 +36,19 @@ function Convert-SecureStringToPlainText {
     }
 }
 
+function Assert-DeepInfraModelRef {
+    param(
+        [Parameter(Mandatory = $true)][string]$Name,
+        [Parameter(Mandatory = $true)][string]$Value
+    )
+    if ([string]::IsNullOrWhiteSpace($Value) -or $Value -notmatch "^[^/\s]+/[^/\s]+$") {
+        throw "$Name must be a full DeepInfra model ref like 'owner/model'. Got: '$Value'"
+    }
+}
+
+Assert-DeepInfraModelRef -Name "AnalystModel" -Value $AnalystModel
+Assert-DeepInfraModelRef -Name "ContinuistModel" -Value $ContinuistModel
+
 $previous = @{
     DEEPINFRA_API_TOKEN = $env:DEEPINFRA_API_TOKEN
     HELIX_RECEIPT_SIGNING_MODE = $env:HELIX_RECEIPT_SIGNING_MODE
@@ -86,8 +99,14 @@ try {
         "--run-id", $RunId
     )
 
-    python @pyArgs 2>&1 | Tee-Object -FilePath $logPath
-    $exitCode = $LASTEXITCODE
+    $previousErrorActionPreference = $ErrorActionPreference
+    $ErrorActionPreference = "Continue"
+    try {
+        & python @pyArgs 2>&1 | Tee-Object -FilePath $logPath
+        $exitCode = $LASTEXITCODE
+    } finally {
+        $ErrorActionPreference = $previousErrorActionPreference
+    }
 } finally {
     $endedAtUtc = ([DateTimeOffset]::UtcNow).ToString("yyyy-MM-ddTHH:mm:ss.fffZ")
     $logHash = $null

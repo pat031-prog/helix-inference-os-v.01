@@ -464,6 +464,19 @@ def test_identity_question_is_detected_for_certified_evidence_injection() -> Non
     assert not helix_cli._is_identity_question("hola")
 
 
+def test_helix_explanation_request_is_detected_from_context() -> None:
+    history = [{"role": "user", "content": "estaba pensando en helix"}]
+    assert helix_cli._is_helix_explanation_request("me gustaria que me ayudes a entenderlo", history) is True
+    assert helix_cli._needs_certified_evidence("me gustaria que me ayudes a entenderlo", history=history) is True
+
+
+def test_helix_auditability_request_is_detected_from_context() -> None:
+    history = [{"role": "assistant", "content": "Si queres, seguimos hablando de HeliX."}]
+    assert helix_cli._is_helix_auditability_request("que onda la auditabilidad y los hashes?", history) is True
+    assert helix_cli._is_helix_explanation_request("que onda la auditabilidad y los hashes?", history) is True
+    assert helix_cli._needs_certified_evidence("que onda la auditabilidad y los hashes?", history=history) is True
+
+
 def test_interactive_record_writes_signed_memory_receipt() -> None:
     workspace = Path.cwd() / "verification" / "cli-sessions" / "_test" / uuid.uuid4().hex
     session = helix_cli.InteractiveSession(
@@ -523,6 +536,41 @@ def test_identity_question_injects_certified_evidence_pack(monkeypatch) -> None:
     assert '"signature_verified": true' in system
     assert '"key_provenance": "ephemeral_preregistered"' in system
     assert '"tombstone_boundary"' in system
+
+
+def test_contextual_helix_followup_injects_certified_evidence_pack(monkeypatch) -> None:
+    workspace = _test_root() / "workspace"
+    captured = {}
+
+    def fake_run_chat(provider_name, model, prompt, system, **kwargs):
+        captured["system"] = system
+        return {
+            "text": "HeliX firma memoria y receipts verificables.",
+            "actual_model": model,
+            "latency_ms": 1.0,
+            "finish_reason": "stop",
+            "usage": {"total_tokens": 10},
+        }
+
+    monkeypatch.setattr(helix_cli, "run_chat", fake_run_chat)
+    session = helix_cli.InteractiveSession(
+        provider_name="deepinfra",
+        model="auto",
+        workspace_root=workspace,
+        project="test-project",
+        agent_id="tester",
+        max_tokens=64,
+        temperature=0.0,
+        transcript_dir=workspace / "transcripts",
+    )
+    session.record(role="user", content="estaba pensando en helix", event_type="user_turn")
+    session.record(role="assistant", content="Dale, contame qué querés entender.", event_type="assistant_turn")
+
+    session.chat("me gustaria que me ayudes a entenderlo")
+    system = captured["system"]
+    assert "Certified HeliX evidence pack" in system
+    assert '"claim": "This HeliX CLI session is backed by HeliX memory and evidence exports."' in system
+    assert "Do not claim that HeliX captures 'trajectories of thought'" in system
 
 
 def test_openai_compatible_chat_uses_mocked_transport(monkeypatch) -> None:
@@ -915,6 +963,152 @@ def test_chat_runner_excludes_current_user_turn_from_initial_memory_context(monk
     initial_ids = set(result["trace"]["initial_memory_context"].get("memory_ids") or [])
     assert latest_user_memory_id
     assert latest_user_memory_id not in initial_ids
+
+
+def test_chat_forces_helix_search_for_contextual_explanation_requests(monkeypatch) -> None:
+    workspace = _test_root() / "workspace"
+    helix_cli.hmem.observe_event(
+        root=workspace,
+        project="test-project",
+        agent_id="tester",
+        session_id="older-thread",
+        event_type="note",
+        content=(
+            "HeliX permite memoria firmada, receipts verificables, búsqueda unificada, "
+            "threads persistentes y evidencia certificada."
+        ),
+        summary="Capacidades verificadas de HeliX",
+        tags=["note"],
+        promote=True,
+    )
+    calls = {"count": 0}
+
+    def fake_run_chat(provider_name, model, prompt, system, history=None, **kwargs):
+        calls["count"] += 1
+        assert history
+        assert "HeliX read-only tool results" in history[-1]["content"]
+        assert "helix" in history[-1]["content"].lower()
+        assert "memoria" in history[-1]["content"].lower() or "memory" in history[-1]["content"].lower()
+        return {
+            "text": (
+                "<helix_output>HeliX te permite persistir hilos, buscar memoria del workspace, "
+                "verificar evidencia y dejar receipts firmados por turno.</helix_output>"
+            ),
+            "actual_model": model,
+            "latency_ms": 1.0,
+            "finish_reason": "stop",
+            "usage": {"total_tokens": 18},
+        }
+
+    monkeypatch.setattr(helix_cli, "run_chat", fake_run_chat)
+    session = helix_cli.InteractiveSession(
+        provider_name="deepinfra",
+        model="auto",
+        workspace_root=workspace,
+        project="test-project",
+        agent_id="tester",
+        max_tokens=64,
+        temperature=0.0,
+        transcript_dir=workspace / "transcripts",
+    )
+    session.record(role="user", content="estaba pensando en helix", event_type="user_turn")
+    session.record(role="assistant", content="Decime qué querés entender.", event_type="assistant_turn")
+    result = session.chat("me gustaría que me ayudes a entenderlo")
+    assert calls["count"] == 1
+    observations = list(result["trace"].get("observations") or [])
+    assert observations
+    assert observations[0]["tool_name"] == "helix.search"
+    assert "receipts firmados" in result["text"].lower()
+
+
+def test_chat_promotes_contextual_helix_explanations_to_reasoning_profile(monkeypatch) -> None:
+    workspace = _test_root() / "workspace"
+    captured = {}
+
+    def fake_run_chat(provider_name, model, prompt, system, history=None, **kwargs):
+        captured["model"] = model
+        captured["system"] = system
+        return {
+            "text": "<helix_output>HeliX organiza memoria firmada, evidencia y tools sobre un thread persistente.</helix_output>",
+            "actual_model": model,
+            "latency_ms": 1.0,
+            "finish_reason": "stop",
+            "usage": {"total_tokens": 16},
+        }
+
+    monkeypatch.setattr(helix_cli, "run_chat", fake_run_chat)
+    session = helix_cli.InteractiveSession(
+        provider_name="deepinfra",
+        model="auto",
+        workspace_root=workspace,
+        project="test-project",
+        agent_id="tester",
+        max_tokens=64,
+        temperature=0.0,
+        transcript_dir=workspace / "transcripts",
+        router_policy="premium",
+    )
+    session.record(role="user", content="estaba pensando en helix", event_type="user_turn")
+    session.record(role="assistant", content="Dale, exploremos eso.", event_type="assistant_turn")
+    result = session.chat("me gustaria que me ayudes a entenderlo")
+    assert captured["model"] == helix_cli.DEEPINFRA_MODEL_PROFILES["deep-reasoning"].model_id
+    assert result["route"]["profile"] == "deep-reasoning"
+    assert "Do not pad HeliX explanations with generic industry examples" in captured["system"]
+
+
+def test_chat_helix_auditability_requests_use_evidence_latest_and_audit_profile(monkeypatch) -> None:
+    workspace = _test_root() / "workspace"
+    helix_cli.hmem.observe_event(
+        root=workspace,
+        project="test-project",
+        agent_id="tester",
+        session_id="verification-thread",
+        event_type="evidence_ingest",
+        content="Evidence artifact showing signature verification and chain status for a HeliX memory node.",
+        summary="HeliX evidence with signature and chain verification",
+        tags=["evidence", "verification"],
+        promote=True,
+    )
+    captured = {}
+
+    def fake_run_chat(provider_name, model, prompt, system, history=None, **kwargs):
+        captured["model"] = model
+        captured["prompt"] = prompt
+        captured["history"] = history
+        return {
+            "text": (
+                "<helix_output>En HeliX la auditabilidad sale de receipts firmados, node hashes y verificaciones de firma/cadena "
+                "sobre memorias y evidencia ingerida.</helix_output>"
+            ),
+            "actual_model": model,
+            "latency_ms": 1.0,
+            "finish_reason": "stop",
+            "usage": {"total_tokens": 20},
+        }
+
+    monkeypatch.setattr(helix_cli, "run_chat", fake_run_chat)
+    session = helix_cli.InteractiveSession(
+        provider_name="deepinfra",
+        model="auto",
+        workspace_root=workspace,
+        project="test-project",
+        agent_id="tester",
+        max_tokens=64,
+        temperature=0.0,
+        transcript_dir=workspace / "transcripts",
+        router_policy="premium",
+    )
+    session.record(role="user", content="quiero que exploremos helix", event_type="user_turn")
+    session.record(role="assistant", content="Dale, sigamos por ahi.", event_type="assistant_turn")
+    result = session.chat("que onda la auditabilidad? los hashes y eso?")
+    observations = list(result["trace"].get("observations") or [])
+    assert observations
+    assert observations[0]["tool_name"] == "evidence.latest"
+    assert captured["model"] == helix_cli.DEEPINFRA_MODEL_PROFILES["sonnet"].model_id
+    assert "Do not narrate retrieval mechanics" in str(captured["prompt"])
+    assert "HeliX read-only tool results" in captured["history"][-1]["content"]
+    assert result["route"]["profile"] == "sonnet"
+    assert "node hashes" in result["text"].lower()
 
 
 def test_interactive_session_reopens_last_active_thread(monkeypatch) -> None:

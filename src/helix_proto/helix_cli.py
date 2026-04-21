@@ -1783,14 +1783,41 @@ def _agent_system_prompt(*, task_root: Path, tool_manifest: list[dict[str, Any]]
     )
 
 
-def _agent_observation_prompt(goal: str, observations: list[dict[str, Any]], *, max_chars: int = 18000) -> str:
+def _agent_observation_prompt(
+    goal: str,
+    observations: list[dict[str, Any]],
+    *,
+    mode: str = "task",
+    helix_focus: bool = False,
+    helix_auditability: bool = False,
+    max_chars: int = 18000,
+) -> str:
+    instructions = [
+        "Continue the task.",
+        "The user does not see the raw tool observations, result counts, or similarity scores.",
+        "Do not narrate retrieval mechanics, rankings, or say 'the search found' unless the user explicitly asked for the search report itself.",
+        "Extract the facts you need from the observations and answer directly in natural language.",
+        "Request another tool with <tool_call> JSON only if a concrete factual gap remains.",
+        "If enough evidence is available, return only <helix_output>final answer</helix_output>.",
+    ]
+    if mode == "chat":
+        instructions.append("Prefer a direct, user-facing answer over a process recap.")
+    if helix_focus:
+        instructions.extend(
+            [
+                "For questions about HeliX, describe only verified capabilities from the certified evidence pack or tool outputs.",
+                "Prefer concrete terms such as signed memories, receipts, signature verification, node hashes, chain status, Merkle-DAG links, thread persistence, memory search, evidence refresh, and tool registry behavior.",
+                "Do not drift into generic industry examples, abstract AI philosophy, or claims about hidden reasoning unless the evidence explicitly supports them.",
+            ]
+        )
+    if helix_auditability:
+        instructions.append(
+            "The user is asking specifically about HeliX auditability and hashes; explain what gets signed, what node hashes identify, what signature or chain verification means, and mention any current boundaries if they appear in the evidence."
+        )
     payload = {
         "goal": goal,
+        "instruction": " ".join(instructions),
         "observations": observations[-12:],
-        "instruction": (
-            "Continue the task. Request another tool with <tool_call> JSON if more facts are needed. "
-            "If enough evidence is available, return only <helix_output>final answer</helix_output>."
-        ),
     }
     text = json.dumps(payload, ensure_ascii=False, indent=2)
     return _truncate_text(text, max_chars)["text"]
@@ -2377,7 +2404,19 @@ class InteractiveSession:
         identity_evidence: dict[str, Any] | None,
         repository_evidence_pack: dict[str, Any] | None,
         tool_manifest: list[dict[str, Any]],
+        helix_focus: bool = False,
+        helix_auditability: bool = False,
     ) -> str:
+        helix_focus_instruction = (
+            "The user is explicitly asking to understand HeliX. Give a grounded explanation first, then list 3-6 concrete things it enables in practice. "
+            if helix_focus
+            else ""
+        )
+        helix_auditability_instruction = (
+            "The user is asking about HeliX auditability, hashes, receipts, or signatures. Explain concrete semantics such as signed memories, node hashes, signature verification, chain status, and current scope limits. "
+            if helix_auditability
+            else ""
+        )
         return (
             "You are HeliX interactive, a practical coding and research shell running through the unified HeliX runtime. "
             "HeliX is the deterministic orchestration, memory, routing, and evidence layer around local or cloud models; "
@@ -2388,7 +2427,14 @@ class InteractiveSession:
             "If no tool is needed, return only the visible answer, optionally wrapped in <helix_output>...</helix_output>. "
             "Do not invent dates, run IDs, hashes, memory IDs, node hashes, or file paths. "
             "Do not reveal chain-of-thought, scratchpads, plans, hidden reasoning, or fake tool calls. "
-            f"{_preferred_language_instruction(user_text)} "
+            "When explaining HeliX itself, describe only concrete, observable capabilities grounded in the current memory, evidence pack, runtime state, or tool registry. "
+            "Do not claim that HeliX captures 'trajectories of thought', preserves hidden reasoning, or records private chain-of-thought unless that exact capability is explicitly present in the evidence provided here. "
+            "Prefer plain statements about what HeliX stores, signs, searches, routes, verifies, exposes, or automates in this session. "
+            "If the evidence is partial, say what is verified and what remains unverified instead of filling gaps with theory. "
+            "Do not pad HeliX explanations with generic industry examples such as healthcare, finance, education, or security unless the evidence pack actually mentions them. "
+            + helix_focus_instruction
+            + helix_auditability_instruction
+            + f"{_preferred_language_instruction(user_text)} "
             "Certified HeliX evidence pack:\n"
             f"{json.dumps(identity_evidence or {}, ensure_ascii=False, indent=2)}\n\n"
             "Certified repository evidence pack:\n"
@@ -2436,6 +2482,8 @@ class InteractiveSession:
         memory_context: dict[str, Any],
         identity_evidence: dict[str, Any] | None,
         repository_evidence_pack: dict[str, Any] | None,
+        helix_focus: bool = False,
+        helix_auditability: bool = False,
         timeout: float | None,
     ) -> tuple[Any, list[dict[str, Any]]]:
         model_turns: list[dict[str, Any]] = []
@@ -2449,6 +2497,24 @@ class InteractiveSession:
                 }
                 for item in state.get("observations", [])
             ]
+            if mode == "chat" and helix_focus and not observations:
+                if helix_auditability:
+                    return PlannerDecision(
+                        kind="tool",
+                        thought="ground HeliX auditability questions in certified evidence metadata before answering",
+                        tool_name="evidence.latest",
+                        arguments={"limit": 6},
+                        planner="helix-grounding",
+                        raw_text="",
+                    )
+                return PlannerDecision(
+                    kind="tool",
+                    thought="ground HeliX explanation requests in actual workspace memory before answering",
+                    tool_name="helix.search",
+                    arguments={"query": _helix_grounding_query(goal), "top_k": 6},
+                    planner="helix-grounding",
+                    raw_text="",
+                )
             history = self.recent_history(limit=6, exclude_latest_user=True)
             if observations:
                 history.append(
@@ -2458,7 +2524,17 @@ class InteractiveSession:
                         + _truncate_text(json.dumps(observations[-8:], ensure_ascii=False, indent=2), 12000)["text"],
                     }
                 )
-            prompt = _agent_observation_prompt(goal, observations) if observations else goal
+            prompt = (
+                _agent_observation_prompt(
+                    goal,
+                    observations,
+                    mode=mode,
+                    helix_focus=helix_focus,
+                    helix_auditability=helix_auditability,
+                )
+                if observations
+                else goal
+            )
             system = (
                 self._task_system(
                     tool_manifest=tool_manifest,
@@ -2472,6 +2548,8 @@ class InteractiveSession:
                     identity_evidence=identity_evidence,
                     repository_evidence_pack=repository_evidence_pack,
                     tool_manifest=tool_manifest,
+                    helix_focus=helix_focus,
+                    helix_auditability=helix_auditability,
                 )
             )
             result = run_chat(
@@ -2543,6 +2621,9 @@ class InteractiveSession:
         return _callback, model_turns
 
     def chat(self, user_text: str) -> dict[str, Any]:
+        recent_history = self.recent_history(limit=4, exclude_latest_user=False)
+        helix_focus = _is_helix_explanation_request(user_text, recent_history)
+        helix_auditability = _is_helix_auditability_request(user_text, recent_history)
         route = None
         selected_model = self.model
         if self.model.lower() in {"auto", "router:auto"}:
@@ -2551,6 +2632,12 @@ class InteractiveSession:
                 provider_name=self.provider_name,
                 policy=self.router_policy,
             )
+            if self.provider_name == "deepinfra" and helix_focus and isinstance(route, dict) and route.get("intent") == "chat":
+                route = _override_route_for_helix_focus(
+                    route,
+                    policy=self.router_policy,
+                    auditability=helix_auditability,
+                )
             selected_model = route.get("model") or PROVIDERS[self.provider_name].default_model
 
         repository_evidence_pack = None
@@ -2568,7 +2655,7 @@ class InteractiveSession:
         excluded_memory_ids = [str((user_event.get("helix_memory") or {}).get("memory_id") or "")]
         excluded_memory_ids = [item for item in excluded_memory_ids if item]
         identity_evidence = None
-        if _needs_certified_evidence(user_text, route):
+        if _needs_certified_evidence(user_text, route, recent_history):
             identity_evidence = self.certified_identity_evidence(
                 latest_user_receipt=user_event.get("helix_memory"),
             )
@@ -2586,6 +2673,8 @@ class InteractiveSession:
             memory_context=context,
             identity_evidence=identity_evidence,
             repository_evidence_pack=repository_evidence_pack,
+            helix_focus=helix_focus,
+            helix_auditability=helix_auditability,
             timeout=None,
         )
         trace = self.runtime.agent_runner().run(
@@ -2951,9 +3040,151 @@ def _is_identity_question(text: str) -> bool:
     )
 
 
-def _needs_certified_evidence(text: str, route: dict[str, Any] | None = None) -> bool:
+def _recent_history_mentions_helix(history: list[dict[str, str]] | None = None) -> bool:
+    for item in history or []:
+        if "helix" in str(item.get("content") or "").lower():
+            return True
+    return False
+
+
+def _is_helix_auditability_request(text: str, history: list[dict[str, str]] | None = None) -> bool:
+    lowered = str(text or "").lower()
+    helix_in_scope = "helix" in lowered or _recent_history_mentions_helix(history)
+    if not helix_in_scope:
+        return False
+    auditability_terms = (
+        "auditabilidad",
+        "auditible",
+        "auditibilidad",
+        "audtibilidad",
+        "auditable",
+        "auditoria",
+        "auditoría",
+        "receipt",
+        "receipts",
+        "firma",
+        "firmas",
+        "firmado",
+        "firmada",
+        "signature",
+        "signatures",
+        "hash",
+        "hashes",
+        "node_hash",
+        "node hash",
+        "merkle",
+        "dag",
+        "chain",
+        "cadena",
+        "integridad",
+        "trazabilidad",
+        "verificado",
+        "verificable",
+        "verificación",
+        "verificacion",
+    )
+    return any(term in lowered for term in auditability_terms)
+
+
+def _is_helix_explanation_request(text: str, history: list[dict[str, str]] | None = None) -> bool:
+    lowered = str(text or "").lower()
+    helix_in_scope = "helix" in lowered or _recent_history_mentions_helix(history)
+    if not helix_in_scope:
+        return False
+    explanation_terms = (
+        "entender",
+        "entenderlo",
+        "entenderla",
+        "explica",
+        "explicame",
+        "explicámelo",
+        "explicamelo",
+        "como funciona",
+        "cómo funciona",
+        "que hace",
+        "qué hace",
+        "que permite",
+        "qué permite",
+        "para que sirve",
+        "para qué sirve",
+        "como trabaja",
+        "cómo trabaja",
+        "ayudes a entender",
+        "ayudar a entender",
+    )
+    capability_terms = (
+        "eso",
+        "esto",
+        "sistema",
+        "runtime",
+        "memoria",
+        "evidencia",
+        "threads",
+        "thread",
+        "receipts",
+        "hash",
+        "verificacion",
+        "verificación",
+    )
+    return (
+        any(term in lowered for term in explanation_terms)
+        or any(term in lowered for term in capability_terms)
+        or _is_helix_auditability_request(lowered, history)
+    )
+
+
+def _helix_grounding_query(text: str) -> str:
+    lowered = str(text or "").lower()
+    if _is_helix_auditability_request(lowered):
+        return (
+            "HeliX auditabilidad receipts firmas signature_verified node_hash Merkle DAG chain status "
+            "memoria firmada evidencia verificable hashes integridad trazabilidad"
+        )
+    return (
+        "HeliX capacidades memoria firmada evidencia certificada threads persistentes "
+        "busqueda unificada receipts hashes tool registry runtime"
+    )
+
+
+def _override_route_for_helix_focus(route: dict[str, Any], *, policy: str, auditability: bool) -> dict[str, Any]:
+    blueprint = _resolve_router_blueprint(policy)
+    alias = blueprint.audit_alias if auditability else blueprint.reasoning_alias
+    profile = DEEPINFRA_MODEL_PROFILES[alias]
+    signals = list(route.get("signals") or [])
+    signals.append("helix_focus")
+    if auditability:
+        signals.append("helix_auditability")
+    return {
+        **route,
+        "provider": "deepinfra",
+        "model": profile.model_id,
+        "profile": alias,
+        "role": profile.role,
+        "intent": "audit" if auditability else "reasoning",
+        "confidence": max(float(route.get("confidence") or 0.0), 0.88),
+        "signals": sorted(set(signals)),
+        "policy": blueprint.name,
+        "blueprint": blueprint.name,
+        "blueprint_description": blueprint.description,
+        "reason": (
+            "Contextual HeliX auditability question promoted to the blueprint audit profile for grounded answers."
+            if auditability
+            else "Contextual HeliX explanation request promoted to the blueprint reasoning profile for grounded answers."
+        ),
+    }
+
+
+def _needs_certified_evidence(
+    text: str,
+    route: dict[str, Any] | None = None,
+    history: list[dict[str, str]] | None = None,
+) -> bool:
     lowered = str(text or "").lower()
     if _is_identity_question(lowered):
+        return True
+    if _is_helix_auditability_request(lowered, history):
+        return True
+    if _is_helix_explanation_request(lowered, history):
         return True
     evidence_terms = (
         "helix",

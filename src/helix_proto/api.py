@@ -1243,19 +1243,39 @@ class HelixRuntime:
         query = str(body["query"])
         top_k = int(body.get("top_k", body.get("limit", 5)))
         project = str(body.get("project") or hmem.DEFAULT_PROJECT)
+        session_id = None if body.get("session_id") is None else str(body.get("session_id"))
+        retrieval_scope = str(body.get("retrieval_scope") or "workspace")
         if bool(body.get("hybrid", False)) or str(body.get("mode", "")).lower() == "hybrid":
-            return hmem.hybrid_search(root=self.root, project=project, agent_id=agent_id, query=query, top_k=top_k)
-        return hmem.search(root=self.root, project=project, agent_id=agent_id, query=query, top_k=top_k)
+            return hmem.hybrid_search(
+                root=self.root,
+                project=project,
+                agent_id=agent_id,
+                session_id=session_id,
+                query=query,
+                top_k=top_k,
+                retrieval_scope=retrieval_scope,
+            )
+        return hmem.search(
+            root=self.root,
+            project=project,
+            agent_id=agent_id,
+            session_id=session_id,
+            query=query,
+            top_k=top_k,
+            retrieval_scope=retrieval_scope,
+        )
 
     def memory_context(self, body: dict[str, Any]) -> dict[str, Any]:
         return hmem.build_context(
             root=self.root,
             project=str(body.get("project") or hmem.DEFAULT_PROJECT),
             agent_id=str(body.get("agent_id") or body.get("agent_name") or "default-agent"),
+            session_id=None if body.get("session_id") is None else str(body.get("session_id")),
             query=None if body.get("query") is None else str(body.get("query")),
             budget_tokens=int(body.get("budget_tokens", body.get("helix_memory_budget_tokens", 800))),
             mode=str(body.get("mode") or body.get("helix_memory_mode") or "search"),
             limit=int(body.get("limit", body.get("top_k", 5))),
+            retrieval_scope=str(body.get("retrieval_scope") or "workspace"),
         )
 
     def memory_graph(self, body: dict[str, Any] | None = None) -> dict[str, Any]:

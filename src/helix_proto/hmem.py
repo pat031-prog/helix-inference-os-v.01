@@ -78,11 +78,13 @@ def build_context(
     root: str | Path | None,
     project: str = DEFAULT_PROJECT,
     agent_id: str,
+    session_id: str | None = None,
     query: str | None,
     budget_tokens: int = 800,
     mode: str = "search",
     limit: int = 5,
     exclude_memory_ids: list[str] | None = None,
+    retrieval_scope: str = "workspace",
 ) -> dict[str, Any]:
     """Build a context string for the agent from stored memories.
 
@@ -97,11 +99,13 @@ def build_context(
         return catalog.build_context(
             project=project,
             agent_id=agent_id,
+            session_id=session_id,
             query=query,
             budget_tokens=budget_tokens,
             mode=mode,
             limit=limit,
             exclude_memory_ids=exclude_memory_ids,
+            retrieval_scope=retrieval_scope,
         )
     finally:
         catalog.close()
@@ -221,7 +225,8 @@ def observe_tool_call(
     root: str | Path | None,
     project: str = DEFAULT_PROJECT,
     agent_id: str,
-    run_id: str,
+    run_id: str | None = None,
+    session_id: str | None = None,
     step_index: int,
     tool_name: str,
     arguments: dict[str, Any],
@@ -229,9 +234,10 @@ def observe_tool_call(
     planner: str | None = None,
     compress_fn: CompressFn | None = None,
 ) -> dict[str, Any]:
+    active_session_id = str(session_id or run_id or "")
     preview = _json_preview(result, limit=1800)
     content = (
-        f"Run: {run_id}\n"
+        f"Run: {active_session_id or 'unknown'}\n"
         f"Step: {step_index}\n"
         f"Tool: {tool_name}\n"
         f"Planner: {planner or 'unknown'}\n"
@@ -243,11 +249,11 @@ def observe_tool_call(
         root=root,
         project=project,
         agent_id=agent_id,
-        session_id=run_id,
+        session_id=active_session_id or None,
         event_type="tool_call",
         content=content,
         summary=summary,
-        tags=["tool_call", tool_name, f"run:{run_id}"],
+        tags=["tool_call", tool_name, f"run:{active_session_id or 'unknown'}"],
         importance=6 if "error" not in str(result).lower() else 8,
         promote=True,
         memory_type="episodic",
@@ -259,12 +265,23 @@ def search(
     root: str | Path | None,
     project: str = DEFAULT_PROJECT,
     agent_id: str | None,
+    session_id: str | None = None,
     query: str,
     top_k: int = 5,
+    retrieval_scope: str = "workspace",
+    exclude_memory_ids: list[str] | None = None,
 ) -> dict[str, Any]:
     catalog = open_catalog(root)
     try:
-        hits = catalog.search(project=project, agent_id=agent_id, query=query, limit=top_k)
+        hits = catalog.search(
+            project=project,
+            agent_id=agent_id,
+            session_id=session_id,
+            query=query,
+            limit=top_k,
+            retrieval_scope=retrieval_scope,
+            exclude_memory_ids=exclude_memory_ids,
+        )
     finally:
         catalog.close()
     results = [
@@ -273,11 +290,19 @@ def search(
             "kind": "memory",
             "source": f"hmem:{item.get('memory_id')}",
             "text": str(item.get("content") or item.get("summary") or ""),
+            "thread_id": item.get("thread_id") or item.get("session_id"),
         }
         for item in hits
     ]
     if results:
-        return {"query": query, "top_k": top_k, "results": results, "source": "hmem"}
+        return {
+            "query": query,
+            "top_k": top_k,
+            "results": results,
+            "source": "hmem",
+            "session_id": session_id,
+            "retrieval_scope": retrieval_scope,
+        }
     legacy = search_legacy_memory(agent_id or "default-agent", query, top_k=top_k, root=root)
     legacy_results = [
         {
@@ -285,10 +310,18 @@ def search(
             "kind": "legacy-memory",
             "source": f"legacy:{item.get('id')}",
             "text": str(item.get("text") or ""),
+            "thread_id": None,
         }
         for item in legacy.get("results", [])
     ]
-    return {"query": query, "top_k": top_k, "results": legacy_results, "source": "legacy-memory"}
+    return {
+        "query": query,
+        "top_k": top_k,
+        "results": legacy_results,
+        "source": "legacy-memory",
+        "session_id": session_id,
+        "retrieval_scope": retrieval_scope,
+    }
 
 
 def hybrid_search(
@@ -296,10 +329,22 @@ def hybrid_search(
     root: str | Path | None,
     project: str = DEFAULT_PROJECT,
     agent_id: str,
+    session_id: str | None = None,
     query: str,
     top_k: int = 5,
+    retrieval_scope: str = "workspace",
+    exclude_memory_ids: list[str] | None = None,
 ) -> dict[str, Any]:
-    memory_hits = search(root=root, project=project, agent_id=agent_id, query=query, top_k=top_k).get("results", [])
+    memory_hits = search(
+        root=root,
+        project=project,
+        agent_id=agent_id,
+        session_id=session_id,
+        query=query,
+        top_k=top_k,
+        retrieval_scope=retrieval_scope,
+        exclude_memory_ids=exclude_memory_ids,
+    ).get("results", [])
     knowledge = search_knowledge(agent_id, query, top_k=top_k, root=root).get("results", [])
     knowledge_hits = [
         {
@@ -307,11 +352,17 @@ def hybrid_search(
             "kind": "knowledge",
             "source": item.get("source", "knowledge"),
             "text": str(item.get("text") or ""),
+            "thread_id": None,
         }
         for item in knowledge
     ]
     combined = [*memory_hits, *knowledge_hits]
-    combined.sort(key=lambda item: float(item.get("score", 0.0)), reverse=True)
+    combined.sort(
+        key=lambda item: (
+            -(1 if session_id and item.get("thread_id") == session_id else 0),
+            -float(item.get("score", 0.0)),
+        )
+    )
     return {
         "query": query,
         "top_k": top_k,
@@ -320,6 +371,8 @@ def hybrid_search(
             "memory": len(memory_hits),
             "knowledge": len(knowledge_hits),
         },
+        "session_id": session_id,
+        "retrieval_scope": retrieval_scope,
     }
 
 
@@ -328,11 +381,33 @@ def graph(
     root: str | Path | None,
     project: str | None = DEFAULT_PROJECT,
     agent_id: str | None = None,
+    session_id: str | None = None,
     limit: int = 50,
+    retrieval_scope: str = "workspace",
 ) -> dict[str, Any]:
     catalog = open_catalog(root)
     try:
-        return catalog.graph(project=project, agent_id=agent_id, limit=limit)
+        return catalog.graph(
+            project=project,
+            agent_id=agent_id,
+            session_id=session_id,
+            limit=limit,
+            retrieval_scope=retrieval_scope,
+        )
+    finally:
+        catalog.close()
+
+
+def list_sessions(
+    *,
+    root: str | Path | None,
+    project: str | None = DEFAULT_PROJECT,
+    agent_id: str | None = None,
+    limit: int = 50,
+) -> list[dict[str, Any]]:
+    catalog = open_catalog(root)
+    try:
+        return catalog.list_sessions(project=project, agent_id=agent_id, limit=limit)
     finally:
         catalog.close()
 
@@ -343,4 +418,3 @@ def stats(*, root: str | Path | None) -> dict[str, Any]:
         return catalog.stats()
     finally:
         catalog.close()
-

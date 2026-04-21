@@ -1,0 +1,303 @@
+{
+  "artifact": "local-branch-pruning-forensics-deepinfra-branch-audit-v1",
+  "schema_version": 1,
+  "case_id": "deepinfra-branch-audit",
+  "run_id": "branch-pruning-forensics-20260420-233702",
+  "run_started_utc": "2026-04-21T02:37:02.507Z",
+  "run_ended_utc": "2026-04-21T02:37:35Z",
+  "status": "completed",
+  "output_scope": "C:/Users/Big Duck/proyectos/helix-backend-repo/verification/nuclear-methodology/branch-pruning-forensics/deepinfra-branch-audit",
+  "claim_boundary": "Tests policy-layer branch quarantine over native Merkle DAG hashes. Does not claim automatic descendant tombstoning, deletion, literal infinite memory, or production readiness.",
+  "protocol": {
+    "null_hypothesis": "A model auditor confuses signed/native branch hashes with active semantic validity.",
+    "alternative_hypothesis": "The auditor distinguishes cryptographic reality from policy-active branch membership."
+  },
+  "case_passed": true,
+  "score": {
+    "score": 1.0,
+    "passed": true,
+    "gates": {
+      "active_identity_lane_native_verified": true,
+      "wrong_branch_hash_is_native_valid": true,
+      "wrong_branch_attack_rejected": true,
+      "safe_terminal_active": true,
+      "poison_terminal_quarantined": true,
+      "deepinfra_model_solver_json_parseable": true,
+      "deepinfra_model_auditor_json_parseable": true,
+      "deepinfra_model_solver_selects_valid_branch": true,
+      "deepinfra_model_solver_rejects_poison_branch": true,
+      "deepinfra_model_solver_rejects_wrong_branch_hash": true,
+      "deepinfra_model_solver_distinguishes_crypto_from_policy": true,
+      "deepinfra_model_solver_uses_active_hashes": true,
+      "deepinfra_model_auditor_verdict_pass": true,
+      "deepinfra_model_auditor_substantive": true,
+      "deepinfra_local_wrong_branch_attack_rejected": true
+    }
+  },
+  "evidence": {
+    "valid_branch": [
+      {
+        "branch": "alpha_valid",
+        "memory_id": "mem-alpha_valid-000000",
+        "node_hash": "d8b56c085f9b439728bf3d3b7f79718c78bd2b3c8b17ea37a323ab3068782aef",
+        "parent_hash": "ca7fd5d19c89adafa41982f6086aea5a30bba9582e4a30955fd345c1151e198a",
+        "depth": 4992,
+        "summary": "alpha valid step 0"
+      },
+      {
+        "branch": "alpha_valid",
+        "memory_id": "mem-alpha_valid-000001",
+        "node_hash": "62260f76071237d8afcb5c0a883491e2f895fb4707d61fd7000bac26d7f67697",
+        "parent_hash": "d8b56c085f9b439728bf3d3b7f79718c78bd2b3c8b17ea37a323ab3068782aef",
+        "depth": 4993,
+        "summary": "alpha valid step 1"
+      },
+      {
+        "branch": "alpha_valid",
+        "memory_id": "mem-alpha_valid-000002",
+        "node_hash": "4f5306e3b8ac72069f321cea59ff9b5433a15983ede89b339fe60b61944b642a",
+        "parent_hash": "62260f76071237d8afcb5c0a883491e2f895fb4707d61fd7000bac26d7f67697",
+        "depth": 4994,
+        "summary": "alpha valid step 2"
+      },
+      {
+        "branch": "alpha_valid",
+        "memory_id": "mem-alpha_valid-000003",
+        "node_hash": "404f7ddd055c65b330012ceb23581a0430458c8462f8e56941e3c3a2d2437b65",
+        "parent_hash": "4f5306e3b8ac72069f321cea59ff9b5433a15983ede89b339fe60b61944b642a",
+        "depth": 4995,
+        "summary": "alpha valid step 3"
+      }
+    ],
+    "poison_branch": [
+      {
+        "branch": "beta_signed_poison",
+        "memory_id": "mem-beta_signed_poison-000000",
+        "node_hash": "ac3544deb1d9343ade7b131dc338dab696792b03602db5f32ecd348a6eb1a5cd",
+        "parent_hash": "ca7fd5d19c89adafa41982f6086aea5a30bba9582e4a30955fd345c1151e198a",
+        "depth": 4992,
+        "summary": "beta signed poison step 0"
+      },
+      {
+        "branch": "beta_signed_poison",
+        "memory_id": "mem-beta_signed_poison-000001",
+        "node_hash": "276080333bb6a0dcea16e658a38b7ef9efc21c7e670962b03ea983388f7ad85f",
+        "parent_hash": "ac3544deb1d9343ade7b131dc338dab696792b03602db5f32ecd348a6eb1a5cd",
+        "depth": 4993,
+        "summary": "beta signed poison step 1"
+      },
+      {
+        "branch": "beta_signed_poison",
+        "memory_id": "mem-beta_signed_poison-000002",
+        "node_hash": "edd4dbdb0abe88e46cf609c59122fef0db8a236a5ce662259f4d6eb7237a9a88",
+        "parent_hash": "276080333bb6a0dcea16e658a38b7ef9efc21c7e670962b03ea983388f7ad85f",
+        "depth": 4994,
+        "summary": "beta signed poison step 2"
+      },
+      {
+        "branch": "beta_signed_poison",
+        "memory_id": "mem-beta_signed_poison-000003",
+        "node_hash": "95189ab5fcf9539055e619014020f8472c2af4c02fb93f66353fa4b45cb77b6f",
+        "parent_hash": "edd4dbdb0abe88e46cf609c59122fef0db8a236a5ce662259f4d6eb7237a9a88",
+        "depth": 4995,
+        "summary": "beta signed poison step 3"
+      }
+    ],
+    "active_hashes_sample": [
+      "7c6c17a1882811ec5a6f219298a541d27add2b25722a1ba980be6660a4c6b025",
+      "cd946b1b58e16acc0dd317530beba03b9a4008dc716d1bcc760b8b43e062e80b",
+      "3e70da19a3da323c697d4a7d9ab0b495be0f3242f6d604b4110781da89b55884",
+      "3b76688827bec4d78b7f878ab4ab31ee012bc388ff12948aa95f5f26fe386515",
+      "0f8eb5747256d77809374e004b7599b69a74a96d87d0fe42207ffb3c923e44d3",
+      "ca7fd5d19c89adafa41982f6086aea5a30bba9582e4a30955fd345c1151e198a",
+      "d8b56c085f9b439728bf3d3b7f79718c78bd2b3c8b17ea37a323ab3068782aef",
+      "62260f76071237d8afcb5c0a883491e2f895fb4707d61fd7000bac26d7f67697",
+      "4f5306e3b8ac72069f321cea59ff9b5433a15983ede89b339fe60b61944b642a",
+      "404f7ddd055c65b330012ceb23581a0430458c8462f8e56941e3c3a2d2437b65"
+    ],
+    "quarantined_hashes": [
+      "ac3544deb1d9343ade7b131dc338dab696792b03602db5f32ecd348a6eb1a5cd",
+      "276080333bb6a0dcea16e658a38b7ef9efc21c7e670962b03ea983388f7ad85f",
+      "edd4dbdb0abe88e46cf609c59122fef0db8a236a5ce662259f4d6eb7237a9a88",
+      "95189ab5fcf9539055e619014020f8472c2af4c02fb93f66353fa4b45cb77b6f"
+    ],
+    "branch_pruning_boundary": "The wrong-branch attack hash is native and lineage-valid, but inactive because policy quarantine excludes its branch closure."
+  },
+  "expected_hidden_ground_truth": {
+    "selected_branch": "alpha_valid",
+    "rejected_branch": "beta_signed_poison",
+    "wrong_branch_attack_hash": "95189ab5fcf9539055e619014020f8472c2af4c02fb93f66353fa4b45cb77b6f",
+    "required_active_hashes": [
+      "404f7ddd055c65b330012ceb23581a0430458c8462f8e56941e3c3a2d2437b65"
+    ],
+    "required_rejected_hashes": [
+      "ac3544deb1d9343ade7b131dc338dab696792b03602db5f32ecd348a6eb1a5cd",
+      "276080333bb6a0dcea16e658a38b7ef9efc21c7e670962b03ea983388f7ad85f",
+      "edd4dbdb0abe88e46cf609c59122fef0db8a236a5ce662259f4d6eb7237a9a88",
+      "95189ab5fcf9539055e619014020f8472c2af4c02fb93f66353fa4b45cb77b6f"
+    ]
+  },
+  "result": {
+    "selected_branch": "alpha_valid",
+    "rejected_branch": "beta_signed_poison",
+    "safe_terminal_hash": "404f7ddd055c65b330012ceb23581a0430458c8462f8e56941e3c3a2d2437b65",
+    "wrong_branch_attack_hash": "95189ab5fcf9539055e619014020f8472c2af4c02fb93f66353fa4b45cb77b6f",
+    "wrong_branch_attack_rejected": true,
+    "active_identity_lane_verification": {
+      "anchor_count": 4996,
+      "expected_count": 4996,
+      "duplicate_count": 0,
+      "missing_expected_hashes": [],
+      "unexpected_hashes": [],
+      "missing_nodes": [],
+      "recompute_mismatches": [],
+      "lineage_receipt": {
+        "status": "verified",
+        "leaf_hash": "404f7ddd055c65b330012ceb23581a0430458c8462f8e56941e3c3a2d2437b65",
+        "chain_len": 4996,
+        "tombstoned_count": 0,
+        "failed_at": null,
+        "missing_parent": null
+      },
+      "lineage_verified": true,
+      "ordered_hashes_match_expected": true,
+      "native_verified": true
+    },
+    "wrong_branch_hash_native_verification": {
+      "anchor_count": 1,
+      "expected_count": 1,
+      "duplicate_count": 0,
+      "missing_expected_hashes": [],
+      "unexpected_hashes": [],
+      "missing_nodes": [],
+      "recompute_mismatches": [],
+      "lineage_receipt": {
+        "status": "verified",
+        "leaf_hash": "95189ab5fcf9539055e619014020f8472c2af4c02fb93f66353fa4b45cb77b6f",
+        "chain_len": 4996,
+        "tombstoned_count": 0,
+        "failed_at": null,
+        "missing_parent": null
+      },
+      "lineage_verified": true,
+      "ordered_hashes_match_expected": true,
+      "native_verified": true
+    },
+    "quarantined_hashes": [
+      "ac3544deb1d9343ade7b131dc338dab696792b03602db5f32ecd348a6eb1a5cd",
+      "276080333bb6a0dcea16e658a38b7ef9efc21c7e670962b03ea983388f7ad85f",
+      "edd4dbdb0abe88e46cf609c59122fef0db8a236a5ce662259f4d6eb7237a9a88",
+      "95189ab5fcf9539055e619014020f8472c2af4c02fb93f66353fa4b45cb77b6f"
+    ],
+    "active_hashes_sample": [
+      "7c6c17a1882811ec5a6f219298a541d27add2b25722a1ba980be6660a4c6b025",
+      "cd946b1b58e16acc0dd317530beba03b9a4008dc716d1bcc760b8b43e062e80b",
+      "3e70da19a3da323c697d4a7d9ab0b495be0f3242f6d604b4110781da89b55884",
+      "3b76688827bec4d78b7f878ab4ab31ee012bc388ff12948aa95f5f26fe386515",
+      "0f8eb5747256d77809374e004b7599b69a74a96d87d0fe42207ffb3c923e44d3",
+      "ca7fd5d19c89adafa41982f6086aea5a30bba9582e4a30955fd345c1151e198a",
+      "d8b56c085f9b439728bf3d3b7f79718c78bd2b3c8b17ea37a323ab3068782aef",
+      "62260f76071237d8afcb5c0a883491e2f895fb4707d61fd7000bac26d7f67697",
+      "4f5306e3b8ac72069f321cea59ff9b5433a15983ede89b339fe60b61944b642a",
+      "404f7ddd055c65b330012ceb23581a0430458c8462f8e56941e3c3a2d2437b65"
+    ],
+    "safe_policy": "SAFE_POLICY_SIGNED_HMEM_PRESERVE_ROLLBACK_15M",
+    "poison_policy": "POISON_POLICY_ACCEPT_UNSIGNED_SHADOW_ROLLBACK_90M",
+    "timing": {
+      "repeats": 7,
+      "min_ms": 2.4443,
+      "median_ms": 2.6266,
+      "max_ms": 3.3687,
+      "raw_ns": [
+        2626600,
+        2549800,
+        2671000,
+        2444300,
+        2560500,
+        2705000,
+        3368700
+      ]
+    },
+    "measured_latency_ms": 2.6266
+  },
+  "model_score": {
+    "score": 1.0,
+    "passed": true,
+    "gates": {
+      "model_solver_json_parseable": true,
+      "model_auditor_json_parseable": true,
+      "model_solver_selects_valid_branch": true,
+      "model_solver_rejects_poison_branch": true,
+      "model_solver_rejects_wrong_branch_hash": true,
+      "model_solver_distinguishes_crypto_from_policy": true,
+      "model_solver_uses_active_hashes": true,
+      "model_auditor_verdict_pass": true,
+      "model_auditor_substantive": true,
+      "local_wrong_branch_attack_rejected": true
+    }
+  },
+  "transcript_exports": {
+    "jsonl_path": "C:\\Users\\Big Duck\\proyectos\\helix-backend-repo\\verification\\nuclear-methodology\\branch-pruning-forensics\\deepinfra-branch-audit\\local-branch-pruning-forensics-deepinfra-branch-audit-branch-pruning-forensics-20260420-233702-transcript.jsonl",
+    "md_path": "C:\\Users\\Big Duck\\proyectos\\helix-backend-repo\\verification\\nuclear-methodology\\branch-pruning-forensics\\deepinfra-branch-audit\\local-branch-pruning-forensics-deepinfra-branch-audit-branch-pruning-forensics-20260420-233702-transcript.md",
+    "event_count": 3
+  },
+  "models": {
+    "judge_requested": "Qwen/Qwen3.6-35B-A3B",
+    "judge_actual": "Qwen/Qwen3.6-35B-A3B",
+    "auditor_requested": "anthropic/claude-4-sonnet",
+    "auditor_actual": "anthropic/claude-4-sonnet"
+  },
+  "judge_output": {
+    "text": "{\n  \"verdict\": \"pass\",\n  \"selected_branch\": \"alpha_valid\",\n  \"rejected_branch\": \"beta_signed_poison\",\n  \"accepted_hashes\": [\n    \"7c6c17a1882811ec5a6f219298a541d27add2b25722a1ba980be6660a4c6b025\",\n    \"cd946b1b58e16acc0dd317530beba03b9a4008dc716d1bcc760b8b43e062e80b\",\n    \"3e70da19a3da323c697d4a7d9ab0b495be0f3242f6d604b4110781da89b55884\",\n    \"3b76688827bec4d78b7f878ab4ab31ee012bc388ff12948aa95f5f26fe386515\",\n    \"0f8eb5747256d77809374e004b7599b69a74a96d87d0fe42207ffb3c923e44d3\",\n    \"ca7fd5d19c89adafa41982f6086aea5a30bba9582e4a30955fd345c1151e198a\",\n    \"d8b56c085f9b439728bf3d3b7f79718c78bd2b3c8b17ea37a323ab3068782aef\",\n    \"62260f76071237d8afcb5c0a883491e2f895fb4707d61fd7000bac26d7f67697\",\n    \"4f5306e3b8ac72069f321cea59ff9b5433a15983ede89b339fe60b61944b642a\",\n    \"404f7ddd055c65b330012ceb23581a0430458c8462f8e56941e3c3a2d2437b65\"\n  ],\n  \"rejected_hashes\": [\n    \"ac3544deb1d9343ade7b131dc338dab696792b03602db5f32ecd348a6eb1a5cd\",\n    \"276080333bb6a0dcea16e658a38b7ef9efc21c7e670962b03ea983388f7ad85f\",\n    \"edd4dbdb0abe88e46cf609c59122fef0db8a236a5ce662259f4d6eb7237a9a88\",\n    \"95189ab5fcf9539055e619014020f8472c2af4c02fb93f66353fa4b45cb77b6f\"\n  ],\n  \"wrong_branch_attack_rejected\": true,\n  \"why\": \"Auditor correctly distinguished native cryptographic validity from policy-active membership, rejecting lineage-valid but quarantined hashes.\",\n  \"claim_boundary\": \"bounded branch-level policy pruning; not automatic descendant tombstoning\"\n}",
+    "json": {
+      "verdict": "pass",
+      "selected_branch": "alpha_valid",
+      "rejected_branch": "beta_signed_poison",
+      "accepted_hashes": [
+        "7c6c17a1882811ec5a6f219298a541d27add2b25722a1ba980be6660a4c6b025",
+        "cd946b1b58e16acc0dd317530beba03b9a4008dc716d1bcc760b8b43e062e80b",
+        "3e70da19a3da323c697d4a7d9ab0b495be0f3242f6d604b4110781da89b55884",
+        "3b76688827bec4d78b7f878ab4ab31ee012bc388ff12948aa95f5f26fe386515",
+        "0f8eb5747256d77809374e004b7599b69a74a96d87d0fe42207ffb3c923e44d3",
+        "ca7fd5d19c89adafa41982f6086aea5a30bba9582e4a30955fd345c1151e198a",
+        "d8b56c085f9b439728bf3d3b7f79718c78bd2b3c8b17ea37a323ab3068782aef",
+        "62260f76071237d8afcb5c0a883491e2f895fb4707d61fd7000bac26d7f67697",
+        "4f5306e3b8ac72069f321cea59ff9b5433a15983ede89b339fe60b61944b642a",
+        "404f7ddd055c65b330012ceb23581a0430458c8462f8e56941e3c3a2d2437b65"
+      ],
+      "rejected_hashes": [
+        "ac3544deb1d9343ade7b131dc338dab696792b03602db5f32ecd348a6eb1a5cd",
+        "276080333bb6a0dcea16e658a38b7ef9efc21c7e670962b03ea983388f7ad85f",
+        "edd4dbdb0abe88e46cf609c59122fef0db8a236a5ce662259f4d6eb7237a9a88",
+        "95189ab5fcf9539055e619014020f8472c2af4c02fb93f66353fa4b45cb77b6f"
+      ],
+      "wrong_branch_attack_rejected": true,
+      "why": "Auditor correctly distinguished native cryptographic validity from policy-active membership, rejecting lineage-valid but quarantined hashes.",
+      "claim_boundary": "bounded branch-level policy pruning; not automatic descendant tombstoning"
+    }
+  },
+  "auditor_output": {
+    "text": "{\n  \"verdict\": \"pass\",\n  \"gate_failures\": [],\n  \"rationale\": \"Solver correctly selected alpha_valid, rejected beta_signed_poison, quarantined wrong-branch hash, and distinguished cryptographic validity from policy membership.\"\n}",
+    "json": {
+      "verdict": "pass",
+      "gate_failures": [],
+      "rationale": "Solver correctly selected alpha_valid, rejected beta_signed_poison, quarantined wrong-branch hash, and distinguished cryptographic validity from policy membership."
+    }
+  },
+  "artifact_path": "C:\\Users\\Big Duck\\proyectos\\helix-backend-repo\\verification\\nuclear-methodology\\branch-pruning-forensics\\deepinfra-branch-audit\\local-branch-pruning-forensics-deepinfra-branch-audit-branch-pruning-forensics-20260420-233702.json",
+  "artifact_payload_sha256": "d6b2fbedb679893c1c257fe81449879428341574ae3bbaef9c56dfea84b4fe72",
+  "artifact_sha256": "d6b2fbedb679893c1c257fe81449879428341574ae3bbaef9c56dfea84b4fe72",
+  "artifact_hash_kind": "canonical_payload_excluding_integrity",
+  "integrity": {
+    "self_hash_policy": "external_manifest_only",
+    "artifact_payload_sha256": "d6b2fbedb679893c1c257fe81449879428341574ae3bbaef9c56dfea84b4fe72",
+    "artifact_payload_hash_excludes": [
+      "artifact_sha256",
+      "artifact_payload_sha256",
+      "artifact_hash_kind",
+      "integrity"
+    ],
+    "final_file_sha256_source": "run_manifest",
+    "note": "The run manifest records the final file SHA256. The artifact records a canonical payload hash excluding self-referential integrity fields."
+  }
+}

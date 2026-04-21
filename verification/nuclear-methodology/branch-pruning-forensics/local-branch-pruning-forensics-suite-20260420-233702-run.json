@@ -1,0 +1,41 @@
+{
+    "artifact":  "local-branch-pruning-forensics-suite-run",
+    "generated_by":  "tools/run_branch_pruning_forensics_suite_secure.ps1",
+    "run_id":  "branch-pruning-forensics-20260420-233702",
+    "run_started_at_utc":  "2026-04-21T02:37:02.507Z",
+    "run_ended_at_utc":  "2026-04-21T02:37:36.064Z",
+    "run_date_utc":  "2026-04-21",
+    "run_timezone":  "America/Buenos_Aires",
+    "case":  "all",
+    "depth":  5000,
+    "branch_depth":  4,
+    "bytes_per_node":  2048,
+    "repeats":  7,
+    "thresholds":  {
+                       "max_anchor_ms":  25
+                   },
+    "deepinfra_enabled":  true,
+    "models":  {
+                   "solver_requested":  "Qwen/Qwen3.6-35B-A3B",
+                   "auditor_requested":  "anthropic/claude-4-sonnet"
+               },
+    "tokens":  2200,
+    "exit_code":  0,
+    "passed":  true,
+    "log_path":  "C:\\Users\\Big Duck\\proyectos\\helix-backend-repo\\verification\\nuclear-methodology\\branch-pruning-forensics\\local-branch-pruning-forensics-suite-20260420-233702.log",
+    "stable_log_path":  "C:\\Users\\Big Duck\\proyectos\\helix-backend-repo\\verification\\nuclear-methodology\\branch-pruning-forensics\\local-branch-pruning-forensics-suite.log",
+    "log_sha256":  "1fcf4955f5d2aadb1f0c2d0ccc6d583eea0def0e4bcab10be493c7dd07b44ba5",
+    "log_bytes":  13060,
+    "artifact_path":  "C:\\Users\\Big Duck\\proyectos\\helix-backend-repo\\verification\\nuclear-methodology\\branch-pruning-forensics\\local-branch-pruning-forensics-suite-branch-pruning-forensics-20260420-233702.json",
+    "artifact_sha256":  "1c58270b952e083a6e03d813c91473448167e5a875c3618bf74d89837d99d787",
+    "artifact_bytes":  7846,
+    "token_handling":  {
+                           "token_required":  true,
+                           "token_prompt_hidden":  true,
+                           "token_written_to_disk":  false,
+                           "api_key_persisted":  false,
+                           "headers_recorded":  false
+                       },
+    "transcript_sidecars":  "Each case artifact records transcript_exports.jsonl_path and transcript_exports.md_path.",
+    "claim_boundary":  "Policy-layer branch pruning over native Merkle DAG topology, not automatic descendant tombstoning."
+}

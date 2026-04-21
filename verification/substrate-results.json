@@ -1,0 +1,81 @@
+{
+  "package": "helix-substrate",
+  "version": "0.2.1",
+  "model": {
+    "id": "gpt2",
+    "path": "C:\\Users\\Big Duck\\.cache\\huggingface\\hub\\models--gpt2\\snapshots\\607a30d783dfa663caf39e06633721c8d4cfcd7e",
+    "cached_only": true
+  },
+  "install_verification": {
+    "pip_install_works": true,
+    "tools_module_exists": false,
+    "default_convert_works_out_of_box": false,
+    "default_convert_failure": "ImportError: brotli not available",
+    "windows_verbose_logging_issue": "UnicodeEncodeError on \u2192 in cp1252 console",
+    "functional_after_installing_brotli": true,
+    "decode_cdna_to_tensor_supports_generated_v2_files": false
+  },
+  "conversion": {
+    "command_style": "python API convert_huggingface_model('gpt2', offline cache)",
+    "codec": "brotli",
+    "block_rows": 64,
+    "conversion_seconds_cpu": 361.6766676999978,
+    "manifest_reported_original_bytes": 548090880,
+    "manifest_reported_compressed_bytes": 74952293,
+    "manifest_reported_ratio": 7.31,
+    "output_total_bytes": 75487316,
+    "output_cdna_bytes": 74952293,
+    "output_npy_bytes": 497920,
+    "actual_ratio_including_side_files": 7.2607,
+    "adjusted_original_stateful_bytes_excluding_attn_bias_buffers": 497759232,
+    "adjusted_compressed_stateful_bytes_excluding_attn_bias_buffers": 75399715,
+    "adjusted_ratio_excluding_attn_bias_buffers": 6.6016,
+    "tensor_count_manifest": 62
+  },
+  "load_and_forward": {
+    "reconstruction_supported_via_swap_to_helix": false,
+    "reconstruction_method": "CDNAv2Reader.get_all_indices() + codebook dequant + rebuild transformer state_dict",
+    "reconstruction_seconds_cpu": 7.873138299968559,
+    "loaded_from_artifacts_count": 148,
+    "skipped_manifest_keys": [
+      "h.0.attn.bias",
+      "h.1.attn.bias",
+      "h.10.attn.bias",
+      "h.11.attn.bias",
+      "h.2.attn.bias",
+      "h.3.attn.bias",
+      "h.4.attn.bias",
+      "h.5.attn.bias",
+      "h.6.attn.bias",
+      "h.7.attn.bias",
+      "h.8.attn.bias",
+      "h.9.attn.bias"
+    ],
+    "missing_after_load_state_dict": [],
+    "unexpected_after_load_state_dict": [],
+    "original_model_load_seconds": 0.8757077999762259,
+    "original_forward_seconds": 0.20485540002118796,
+    "reconstructed_forward_seconds": 0.15113080001901835,
+    "logits": {
+      "max_abs_err": 33.25273132324219,
+      "mean_abs_err": 7.332822799682617,
+      "cosine_similarity": 0.9960795640945435
+    },
+    "perplexity": {
+      "text": "Helix local compression keeps models private and available offline.",
+      "original": 1588.6476052010978,
+      "reconstructed": 2918.502864060128,
+      "delta": 1329.8552588590303
+    },
+    "next_token_match": true,
+    "next_token_ids": {
+      "original": 198,
+      "reconstructed": 198
+    }
+  },
+  "verdict": {
+    "compresses_without_errors": true,
+    "ratio_claim_around_4x_or_better": true,
+    "can_load_and_forward": true
+  }
+}

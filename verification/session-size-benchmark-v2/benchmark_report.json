@@ -1,0 +1,216 @@
+{
+  "prompt_lengths": [
+    128,
+    512,
+    1024
+  ],
+  "max_new_tokens": 1,
+  "kv_hot_window": 4,
+  "kv_quant_seed": 7,
+  "variants": {
+    "128": {
+      "fp32": {
+        "kv_cache_precision": "fp32",
+        "kv_rotation_mode": "qr",
+        "logical_kv_cache_bytes": 33024,
+        "session_total_bytes": 33175,
+        "kv_npz_bytes": 31504,
+        "session_json_bytes": 1671,
+        "session_format_version": 2,
+        "kv_session_payload": {
+          "format": "compressed-kv-v2",
+          "npz_compressed": true,
+          "stores_hot_window_exact_tail": true
+        },
+        "session_size_ratio_vs_fp32": 1.0,
+        "logical_kv_ratio_vs_fp32": 1.0,
+        "npz_size_ratio_vs_fp32": 1.0
+      },
+      "turbo-int8-hadamard": {
+        "kv_cache_precision": "turbo-int8",
+        "kv_rotation_mode": "hadamard",
+        "logical_kv_cache_bytes": 10024,
+        "session_total_bytes": 13614,
+        "kv_npz_bytes": 11825,
+        "session_json_bytes": 1789,
+        "session_format_version": 2,
+        "kv_session_payload": {
+          "format": "compressed-kv-v2",
+          "npz_compressed": true,
+          "stores_hot_window_exact_tail": true,
+          "rotation": {
+            "mode": "hadamard",
+            "original_dim": 16,
+            "rotated_dim": 16
+          }
+        },
+        "session_size_ratio_vs_fp32": 2.4368297340972527,
+        "logical_kv_ratio_vs_fp32": 3.2944932162809257,
+        "npz_size_ratio_vs_fp32": 2.664186046511628
+      },
+      "turbo-4bit": {
+        "kv_cache_precision": "turbo-4bit",
+        "kv_rotation_mode": "hadamard",
+        "logical_kv_cache_bytes": 6024,
+        "session_total_bytes": 10506,
+        "kv_npz_bytes": 8635,
+        "session_json_bytes": 1871,
+        "session_format_version": 2,
+        "kv_session_payload": {
+          "format": "compressed-kv-v2",
+          "npz_compressed": true,
+          "stores_hot_window_exact_tail": true,
+          "rotation": {
+            "mode": "hadamard",
+            "original_dim": 16,
+            "rotated_dim": 16
+          },
+          "codebook": {
+            "bits": 4,
+            "dim": 16,
+            "levels": 16
+          }
+        },
+        "session_size_ratio_vs_fp32": 3.1577193984389873,
+        "logical_kv_ratio_vs_fp32": 5.48207171314741,
+        "npz_size_ratio_vs_fp32": 3.648407643312102
+      }
+    },
+    "512": {
+      "fp32": {
+        "kv_cache_precision": "fp32",
+        "kv_rotation_mode": "qr",
+        "logical_kv_cache_bytes": 131328,
+        "session_total_bytes": 127662,
+        "kv_npz_bytes": 122595,
+        "session_json_bytes": 5067,
+        "session_format_version": 2,
+        "kv_session_payload": {
+          "format": "compressed-kv-v2",
+          "npz_compressed": true,
+          "stores_hot_window_exact_tail": true
+        },
+        "session_size_ratio_vs_fp32": 1.0,
+        "logical_kv_ratio_vs_fp32": 1.0,
+        "npz_size_ratio_vs_fp32": 1.0
+      },
+      "turbo-int8-hadamard": {
+        "kv_cache_precision": "turbo-int8",
+        "kv_rotation_mode": "hadamard",
+        "logical_kv_cache_bytes": 37672,
+        "session_total_bytes": 43200,
+        "kv_npz_bytes": 38015,
+        "session_json_bytes": 5185,
+        "session_format_version": 2,
+        "kv_session_payload": {
+          "format": "compressed-kv-v2",
+          "npz_compressed": true,
+          "stores_hot_window_exact_tail": true,
+          "rotation": {
+            "mode": "hadamard",
+            "original_dim": 16,
+            "rotated_dim": 16
+          }
+        },
+        "session_size_ratio_vs_fp32": 2.955138888888889,
+        "logical_kv_ratio_vs_fp32": 3.4860904650668934,
+        "npz_size_ratio_vs_fp32": 3.224911219255557
+      },
+      "turbo-4bit": {
+        "kv_cache_precision": "turbo-4bit",
+        "kv_rotation_mode": "hadamard",
+        "logical_kv_cache_bytes": 21384,
+        "session_total_bytes": 27625,
+        "kv_npz_bytes": 22358,
+        "session_json_bytes": 5267,
+        "session_format_version": 2,
+        "kv_session_payload": {
+          "format": "compressed-kv-v2",
+          "npz_compressed": true,
+          "stores_hot_window_exact_tail": true,
+          "rotation": {
+            "mode": "hadamard",
+            "original_dim": 16,
+            "rotated_dim": 16
+          },
+          "codebook": {
+            "bits": 4,
+            "dim": 16,
+            "levels": 16
+          }
+        },
+        "session_size_ratio_vs_fp32": 4.621248868778281,
+        "logical_kv_ratio_vs_fp32": 6.141414141414141,
+        "npz_size_ratio_vs_fp32": 5.483272206816352
+      }
+    },
+    "1024": {
+      "fp32": {
+        "kv_cache_precision": "fp32",
+        "kv_rotation_mode": "qr",
+        "logical_kv_cache_bytes": 262400,
+        "session_total_bytes": 253673,
+        "kv_npz_bytes": 244078,
+        "session_json_bytes": 9595,
+        "session_format_version": 2,
+        "kv_session_payload": {
+          "format": "compressed-kv-v2",
+          "npz_compressed": true,
+          "stores_hot_window_exact_tail": true
+        },
+        "session_size_ratio_vs_fp32": 1.0,
+        "logical_kv_ratio_vs_fp32": 1.0,
+        "npz_size_ratio_vs_fp32": 1.0
+      },
+      "turbo-int8-hadamard": {
+        "kv_cache_precision": "turbo-int8",
+        "kv_rotation_mode": "hadamard",
+        "logical_kv_cache_bytes": 74536,
+        "session_total_bytes": 82739,
+        "kv_npz_bytes": 73026,
+        "session_json_bytes": 9713,
+        "session_format_version": 2,
+        "kv_session_payload": {
+          "format": "compressed-kv-v2",
+          "npz_compressed": true,
+          "stores_hot_window_exact_tail": true,
+          "rotation": {
+            "mode": "hadamard",
+            "original_dim": 16,
+            "rotated_dim": 16
+          }
+        },
+        "session_size_ratio_vs_fp32": 3.0659423004870736,
+        "logical_kv_ratio_vs_fp32": 3.520446495653107,
+        "npz_size_ratio_vs_fp32": 3.342343822748062
+      },
+      "turbo-4bit": {
+        "kv_cache_precision": "turbo-4bit",
+        "kv_rotation_mode": "hadamard",
+        "logical_kv_cache_bytes": 41864,
+        "session_total_bytes": 47153,
+        "kv_npz_bytes": 37358,
+        "session_json_bytes": 9795,
+        "session_format_version": 2,
+        "kv_session_payload": {
+          "format": "compressed-kv-v2",
+          "npz_compressed": true,
+          "stores_hot_window_exact_tail": true,
+          "rotation": {
+            "mode": "hadamard",
+            "original_dim": 16,
+            "rotated_dim": 16
+          },
+          "codebook": {
+            "bits": 4,
+            "dim": 16,
+            "levels": 16
+          }
+        },
+        "session_size_ratio_vs_fp32": 5.379784955358089,
+        "logical_kv_ratio_vs_fp32": 6.267915153831455,
+        "npz_size_ratio_vs_fp32": 6.533486803362065
+      }
+    }
+  }
+}

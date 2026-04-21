@@ -1,0 +1,72 @@
+{
+  "package": "helix-online-kv",
+  "version": "0.1.0",
+  "model": {
+    "id": "gpt2",
+    "path": "C:\\Users\\Big Duck\\.cache\\huggingface\\hub\\models--gpt2\\snapshots\\607a30d783dfa663caf39e06633721c8d4cfcd7e",
+    "cached_only": true
+  },
+  "install_verification": {
+    "pip_install_from_pypi_works": false,
+    "pip_install_from_pypi_error": "No matching distribution found for helix-online-kv[torch]",
+    "source_repo_editable_install_works": true,
+    "documented_top_level_import_works": false,
+    "documented_top_level_import_error": "ImportError: cannot import name 'CompressedKVCache' from 'helix_online_kv'"
+  },
+  "minimal_api": {
+    "instantiation_via_module_paths_works": true,
+    "config": {
+      "calibration_tokens": 128,
+      "hot_window": 256,
+      "exact_layers": [
+        0
+      ]
+    },
+    "empty_memory_report_before_use": {
+      "exact_bytes": 0,
+      "compressed_bytes": 0,
+      "total_bytes": 0,
+      "n_layers": 12,
+      "total_tokens": 0,
+      "calibration_complete": false
+    }
+  },
+  "generation_verification": {
+    "prompt_tokens": 220,
+    "generated_new_tokens": 15,
+    "baseline_seconds": 2.7202150999801233,
+    "compressed_seconds": 31.149631900014356,
+    "time_overhead_ratio": 11.451164983328695,
+    "output_match_exact": true,
+    "baseline_tail_text": " offline. Helix local inference keeps data private and available offline. Helix local inference keeps data private and available offline. Helix local inference keeps data private and available offline. Helix local inference keeps",
+    "compressed_tail_text": " offline. Helix local inference keeps data private and available offline. Helix local inference keeps data private and available offline. Helix local inference keeps data private and available offline. Helix local inference keeps",
+    "calibration_complete_after_run": true,
+    "total_tokens_seen": 235,
+    "compressed_token_counts_sample_layers": {
+      "1": 107,
+      "2": 107,
+      "3": 107
+    }
+  },
+  "memory_verification": {
+    "baseline_exact_cache_bytes": 17326080,
+    "compressed_exact_cache_bytes": 17326080,
+    "compressed_bookkeeping_bytes": 1830400,
+    "effective_total_bytes_with_current_impl": 19156480,
+    "effective_savings_vs_baseline": 0.9045,
+    "memory_report_after_use": null,
+    "memory_report_after_use_error": "TypeError(\"'CompressedKVCache' object is not subscriptable\")",
+    "aging_behavior": {
+      "hot_window": 256,
+      "expected_compressed_tokens_if_hot_window_respected": 0,
+      "actual_compressed_tokens_first_non_exact_layer": 107,
+      "compresses_before_hot_window_boundary": true
+    }
+  },
+  "verdict": {
+    "codebook_fits_with_128_tokens": true,
+    "output_equal_or_nearly_equal_to_baseline": true,
+    "memory_report_shows_real_savings": false,
+    "time_overhead_is_small": false
+  }
+}

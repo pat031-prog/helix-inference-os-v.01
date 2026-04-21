@@ -1,0 +1,64 @@
+# Transcript: empty-retrieval-fast-path
+
+- Run ID: `infinite-depth-memory-baseline-validate-20260420-01`
+- Judge requested: `local/deterministic-measurer`
+- Judge actual: `local/deterministic-measurer`
+- Auditor requested: `local/deterministic-scorer`
+- Auditor actual: `local/deterministic-scorer`
+
+## Expected / Ground Truth
+
+```json
+{
+  "depth": 256,
+  "max_empty_query_ms": 1000.0,
+  "expected_hits": 0,
+  "expected_tokens": 0
+}
+```
+
+## Visible Contract
+
+```json
+{
+  "deterministic_suite": true,
+  "case": "empty-retrieval-fast-path",
+  "protocol": {
+    "null_hypothesis": "A deep memory store must pack or replay context even when the query has no support.",
+    "alternative_hypothesis": "Unsupported queries return an empty bounded context quickly without packing full history."
+  }
+}
+```
+
+## Judge Output
+
+```json
+{
+  "mode": "unsupported-query-fast-path",
+  "context_memory_ids": [],
+  "context_tokens": 0,
+  "timing": {
+    "repeats": 2,
+    "min_ms": 0.1465,
+    "median_ms": 0.19785,
+    "max_ms": 0.2492,
+    "rounded_min_ms_2dp": 0.15,
+    "rounded_median_ms_2dp": 0.2,
+    "raw_ns": [
+      249200,
+      146500
+    ]
+  },
+  "measured_latency_ms": 0.19785,
+  "rounded_zero_observed": false
+}
+```
+
+## Auditor Output
+
+```json
+{
+  "verdict": "pass",
+  "gate_failures": []
+}
+```

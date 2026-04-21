@@ -1,0 +1,80 @@
+{
+  "shape": [
+    64,
+    64
+  ],
+  "dtype": "float32",
+  "block_rows": 8,
+  "order": "C",
+  "extra": {
+    "tensor_name": "transformer.h.2.attn.c_proj.weight",
+    "source": "huggingface",
+    "original_dtype": "float32"
+  },
+  "blocks": [
+    {
+      "block_id": 0,
+      "row_start": 0,
+      "row_end": 8,
+      "sha256": "e241c4c63541c823ed3adcb9b87cc40fc5c463526a1a303b6b66026c88c93082",
+      "compressed_size": 1949,
+      "raw_size": 2048
+    },
+    {
+      "block_id": 1,
+      "row_start": 8,
+      "row_end": 16,
+      "sha256": "b084255349a931e5ce229daaec487a59c00ea7aa6359d135be95e306b647145a",
+      "compressed_size": 1949,
+      "raw_size": 2048
+    },
+    {
+      "block_id": 2,
+      "row_start": 16,
+      "row_end": 24,
+      "sha256": "6e7b46dc49072e92f70fb31fcbcc1145881fc7a3299890793b49e196d56bd753",
+      "compressed_size": 1952,
+      "raw_size": 2048
+    },
+    {
+      "block_id": 3,
+      "row_start": 24,
+      "row_end": 32,
+      "sha256": "711696187865310fbabb89d8cc14f1c25f4b3bc3cd3715b3c7bc5be89579a1c3",
+      "compressed_size": 1941,
+      "raw_size": 2048
+    },
+    {
+      "block_id": 4,
+      "row_start": 32,
+      "row_end": 40,
+      "sha256": "832d2165e6f2bef8150c8d5797bb012e89dde313ee45e778cc705c378db0e1bb",
+      "compressed_size": 1949,
+      "raw_size": 2048
+    },
+    {
+      "block_id": 5,
+      "row_start": 40,
+      "row_end": 48,
+      "sha256": "6184c38cf9450816c030fc72d75557e58defbea3a116b925b463075aab5b5198",
+      "compressed_size": 1951,
+      "raw_size": 2048
+    },
+    {
+      "block_id": 6,
+      "row_start": 48,
+      "row_end": 56,
+      "sha256": "f5307ba5e96266737ecc199a9d95d23f0a5e5b2f123e6917cee9ddc98cb3ef07",
+      "compressed_size": 1952,
+      "raw_size": 2048
+    },
+    {
+      "block_id": 7,
+      "row_start": 56,
+      "row_end": 64,
+      "sha256": "fa34e44e592ed575ac8e49cd4c0508d3d295f4f1f6c98fa8d119c6efdcff93c5",
+      "compressed_size": 1954,
+      "raw_size": 2048
+    }
+  ]
+}

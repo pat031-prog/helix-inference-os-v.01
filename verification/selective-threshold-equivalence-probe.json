@@ -1,0 +1,85 @@
+{
+  "export_dir": "C:\\Users\\Big Duck\\proyectos\\helix-backend-repo\\verification\\selective-long56-v3\\export",
+  "prompt_length": 56,
+  "max_new_tokens": 4,
+  "threshold_calls_tail": [
+    {
+      "type": "_Turbo4BitKVArray",
+      "cold_length": 44,
+      "effective_topk": 8,
+      "result": false
+    },
+    {
+      "type": "_Turbo4BitKVArray",
+      "cold_length": 45,
+      "effective_topk": 8,
+      "result": false
+    },
+    {
+      "type": "_Turbo4BitKVArray",
+      "cold_length": 46,
+      "effective_topk": 8,
+      "result": false
+    },
+    {
+      "type": "_Turbo4BitKVArray",
+      "cold_length": 47,
+      "effective_topk": 8,
+      "result": false
+    },
+    {
+      "type": "_Turbo4BitKVArray",
+      "cold_length": 48,
+      "effective_topk": 8,
+      "result": false
+    },
+    {
+      "type": "_Turbo4BitKVArray",
+      "cold_length": 49,
+      "effective_topk": 8,
+      "result": false
+    },
+    {
+      "type": "_Turbo4BitKVArray",
+      "cold_length": 50,
+      "effective_topk": 8,
+      "result": false
+    },
+    {
+      "type": "_Turbo4BitKVArray",
+      "cold_length": 51,
+      "effective_topk": 8,
+      "result": false
+    },
+    {
+      "type": "_Turbo4BitKVArray",
+      "cold_length": 52,
+      "effective_topk": 8,
+      "result": false
+    },
+    {
+      "type": "_Turbo4BitKVArray",
+      "cold_length": 53,
+      "effective_topk": 8,
+      "result": false
+    },
+    {
+      "type": "_Turbo4BitKVArray",
+      "cold_length": 54,
+      "effective_topk": 8,
+      "result": false
+    },
+    {
+      "type": "_Turbo4BitKVArray",
+      "cold_length": 55,
+      "effective_topk": 8,
+      "result": false
+    }
+  ],
+  "selective_ever_enabled": false,
+  "generated_equal": true,
+  "last_logits_max_abs_err": 0.02730729430913925,
+  "last_logits_mean_abs_err": 0.007610751315951347,
+  "full_total_time_s": 3.5356461000046693,
+  "topk_total_time_s": 3.7624421000364237
+}

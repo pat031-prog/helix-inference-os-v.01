@@ -1,0 +1,8 @@
+{
+  "benchmark": "Infinite Asymmetric Loop (Context Depth Stress)",
+  "memory_nodes": 5000,
+  "insertion_time_ms": 957.59,
+  "build_context_5000_depth_ms": 0.0,
+  "rag_relevant_hits": 0,
+  "context_tokens_packed": 0
+}

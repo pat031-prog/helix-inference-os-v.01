@@ -1,0 +1,225 @@
+{
+  "generated_at": "2026-03-29T15:05:00-03:00",
+  "reference_repo": "https://github.com/OnlyTerp/turboquant",
+  "real_gpt2_prompt_benchmark": {
+    "source": "benchmark_gpt2_kv_mode_matrix on verification/gpt2-hf-export",
+    "prompt_ids": [
+      3,
+      5,
+      8,
+      13,
+      21,
+      34,
+      2,
+      1,
+      4,
+      6,
+      7,
+      9,
+      11,
+      15,
+      18,
+      22
+    ],
+    "max_new_tokens": 4,
+    "kv_quant_seed": 7,
+    "baseline_variant": "fp32",
+    "variants": {
+      "fp32": {
+        "kv_cache_precision": "fp32",
+        "kv_rotation_mode": "qr",
+        "prompt_perplexity": 671.914022434155,
+        "total_time_s": 138.04258289997233,
+        "kv_cache_bytes": 1474560,
+        "generated_match_vs_baseline": true,
+        "logit_comparison_vs_baseline": null
+      },
+      "turbo-int8-qr": {
+        "kv_cache_precision": "turbo-int8",
+        "kv_rotation_mode": "qr",
+        "prompt_perplexity": 670.2729873556722,
+        "total_time_s": 120.68577069998719,
+        "kv_cache_bytes": 380160,
+        "generated_match_vs_baseline": true,
+        "logit_comparison_vs_baseline": {
+          "max_abs_err": 0.6770248413085938,
+          "mean_abs_err": 0.5845367908477783,
+          "cosine_similarity": 0.9999997615814209
+        }
+      },
+      "turbo-int8-hadamard": {
+        "kv_cache_precision": "turbo-int8",
+        "kv_rotation_mode": "hadamard",
+        "prompt_perplexity": 667.1704701640311,
+        "total_time_s": 129.39559259999078,
+        "kv_cache_bytes": 380160,
+        "generated_match_vs_baseline": true,
+        "logit_comparison_vs_baseline": {
+          "max_abs_err": 0.179962158203125,
+          "mean_abs_err": 0.09448371827602386,
+          "cosine_similarity": 0.9999998807907104
+        }
+      },
+      "turbo-4bit": {
+        "kv_cache_precision": "turbo-4bit",
+        "kv_rotation_mode": "hadamard",
+        "prompt_perplexity": 700.0446419210315,
+        "total_time_s": 128.65112779999617,
+        "kv_cache_bytes": 195840,
+        "generated_match_vs_baseline": true,
+        "logit_comparison_vs_baseline": {
+          "max_abs_err": 17.335922241210938,
+          "mean_abs_err": 15.402933120727539,
+          "cosine_similarity": 0.9999818205833435
+        }
+      },
+      "turbo-qjl": {
+        "kv_cache_precision": "turbo-qjl",
+        "kv_rotation_mode": "hadamard",
+        "prompt_perplexity": 631.10059836383,
+        "total_time_s": 123.81763679999858,
+        "kv_cache_bytes": 253440,
+        "generated_match_vs_baseline": false,
+        "logit_comparison_vs_baseline": {
+          "max_abs_err": 42.39453125,
+          "mean_abs_err": 37.51508712768555,
+          "cosine_similarity": 0.9999387860298157
+        }
+      }
+    }
+  },
+  "synthetic_kv_roundtrip_benchmark": {
+    "shape": [
+      12,
+      32,
+      64
+    ],
+    "fp32_bytes": 98304,
+    "variants": {
+      "turbo-int8-qr": {
+        "kv_cache_bytes": 25344,
+        "compression_ratio_vs_fp32": 3.878787878787879,
+        "max_abs_err": 0.0031609386205673218,
+        "mean_abs_err": 0.0004703968297690153,
+        "cosine_similarity": 0.9999820590019226
+      },
+      "turbo-int8-hadamard": {
+        "kv_cache_bytes": 25344,
+        "compression_ratio_vs_fp32": 3.878787878787879,
+        "max_abs_err": 0.002808518707752228,
+        "mean_abs_err": 0.0004684118030127138,
+        "cosine_similarity": 0.9999819397926331
+      },
+      "turbo-4bit": {
+        "kv_cache_bytes": 13056,
+        "compression_ratio_vs_fp32": 7.529411764705882,
+        "max_abs_err": 0.04056159779429436,
+        "mean_abs_err": 0.007606294006109238,
+        "cosine_similarity": 0.9954124689102173
+      },
+      "turbo-qjl": {
+        "kv_cache_bytes": 16896,
+        "compression_ratio_vs_fp32": 5.818181818181818,
+        "max_abs_err": 0.07216832041740417,
+        "mean_abs_err": 0.012137808836996555,
+        "cosine_similarity": 0.9882445931434631
+      }
+    }
+  },
+  "cli_smoke_tiny_gpt2": {
+    "source": "python -m helix_proto.cli benchmark-gpt-kv-modes --output verification/turboquant-cli-smoke --include-qjl",
+    "report_path": "verification/turboquant-cli-smoke/benchmark_report.json",
+    "prompt_ids": [
+      3,
+      5,
+      8,
+      13,
+      21,
+      34
+    ],
+    "max_new_tokens": 4,
+    "kv_quant_seed": 7,
+    "baseline_variant": "fp32",
+    "variants": {
+      "fp32": {
+        "kv_cache_precision": "fp32",
+        "kv_rotation_mode": "qr",
+        "prompt_perplexity": 63.29993921597338,
+        "total_time_s": 1.7612537000095472,
+        "avg_step_ms": 175.8372099895496,
+        "kv_cache_bytes": 5120,
+        "generated_match_vs_baseline": true,
+        "logit_comparison_vs_baseline": null
+      },
+      "turbo-int8-qr": {
+        "kv_cache_precision": "turbo-int8",
+        "kv_rotation_mode": "qr",
+        "prompt_perplexity": 63.29675189083481,
+        "total_time_s": 1.6039379999856465,
+        "avg_step_ms": 160.00428000697866,
+        "kv_cache_bytes": 1600,
+        "generated_match_vs_baseline": true,
+        "logit_comparison_vs_baseline": {
+          "max_abs_err": 0.0002123713493347168,
+          "mean_abs_err": 6.725508137606084e-05,
+          "cosine_similarity": 0.9999998807907104
+        }
+      },
+      "turbo-int8-hadamard": {
+        "kv_cache_precision": "turbo-int8",
+        "kv_rotation_mode": "hadamard",
+        "prompt_perplexity": 63.29815236241655,
+        "total_time_s": 2.0548704999964684,
+        "avg_step_ms": 205.11037000105716,
+        "kv_cache_bytes": 1600,
+        "generated_match_vs_baseline": true,
+        "logit_comparison_vs_baseline": {
+          "max_abs_err": 0.00024164468050003052,
+          "mean_abs_err": 8.005084237083793e-05,
+          "cosine_similarity": 0.9999996423721313
+        }
+      },
+      "turbo-4bit": {
+        "kv_cache_precision": "turbo-4bit",
+        "kv_rotation_mode": "hadamard",
+        "prompt_perplexity": 63.38753267842847,
+        "total_time_s": 1.557892200013157,
+        "avg_step_ms": 155.55805999902077,
+        "kv_cache_bytes": 960,
+        "generated_match_vs_baseline": true,
+        "logit_comparison_vs_baseline": {
+          "max_abs_err": 0.011385424062609673,
+          "mean_abs_err": 0.00394330732524395,
+          "cosine_similarity": 0.9991974830627441
+        }
+      },
+      "turbo-qjl": {
+        "kv_cache_precision": "turbo-qjl",
+        "kv_rotation_mode": "hadamard",
+        "prompt_perplexity": 63.29835156994321,
+        "total_time_s": 1.6487948999856599,
+        "avg_step_ms": 164.59583998075686,
+        "kv_cache_bytes": 1440,
+        "generated_match_vs_baseline": false,
+        "logit_comparison_vs_baseline": {
+          "max_abs_err": 0.3234109580516815,
+          "mean_abs_err": 0.06587772071361542,
+          "cosine_similarity": 0.7427255511283875
+        }
+      }
+    }
+  },
+  "summary": {
+    "implemented": [
+      "Hadamard rotation as an alternative to QR for turbo-int8.",
+      "Lloyd-Max 4-bit KV quantization as turbo-4bit.",
+      "First-pass QJL residual path as turbo-qjl.",
+      "CLI and session plumbing kept backward compatible with turbo-int8."
+    ],
+    "recommendations": [
+      "Promote Hadamard as the preferred rotation for turbo-int8 based on the real GPT2 logit-fidelity win.",
+      "Keep turbo-4bit experimental but available: it materially improves KV compression and held generation on short prompts.",
+      "Do not promote turbo-qjl yet: the first pass still changes generation and needs a better residual estimator."
+    ]
+  }
+}

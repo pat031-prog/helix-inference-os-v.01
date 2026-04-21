@@ -1,0 +1,48 @@
+{
+  "title": "HeliX vs Agent Memory Below the Prompt",
+  "benchmark_kind": "agent-memory-comparison-v1",
+  "competitor_paper": {
+    "title": "Agent Memory Below the Prompt: Persistent Q4 KV Cache for Multi-Agent LLM Inference on Edge Devices",
+    "arxiv_id": "2603.04428",
+    "url": "https://huggingface.co/papers/2603.04428",
+    "authors": [
+      "Yakov Pyotr Shkolnikov"
+    ]
+  },
+  "competitor_claims": [
+    "Persistent Q4 KV cache for multi-agent LLM inference on edge devices.",
+    "Cache restoration reduces time-to-first-token by up to 136x in the reported larger-model suite.",
+    "Q4 quantization fits 4x more agent contexts into fixed device memory than FP16.",
+    "Includes block pool, BatchQuantizedKVCache, and cross-phase context injection.",
+    "Evaluated on Gemma 3 12B, DeepSeek-Coder-V2-Lite 16B, and Llama 3.1 8B."
+  ],
+  "helix_verified_claims": [
+    "Local TTFT cold-vs-warm evidence is now measured separately for restore-including and compute-only paths.",
+    "HeliX session artifacts distinguish pending checkpoints from verified cryptographic audit.",
+    "HeliX has Rust .hlx session persistence with deferred audit and Merkle/SHA-256 receipts.",
+    "Existing HeliX artifacts cover hybrid Zamba2 recurrent-state compression and multimodel session scheduling."
+  ],
+  "helix_best_ttft_speedup_including_restore": 8.254087144665668,
+  "helix_best_ttft_speedup_compute_only": 8.372054729281581,
+  "helix_best_ttft_model_ref": "Qwen/Qwen2.5-1.5B-Instruct",
+  "helix_gaps": [
+    "No OpenAI-compatible /v1/chat/completions endpoint in this sprint.",
+    "No true prefix matching yet; token IDs are stored only as evidence metadata.",
+    "No append-incremental compressed cache path yet.",
+    "Local evidence uses small CPU models; Shkolnikov reports larger Apple Silicon model runs."
+  ],
+  "next_features_from_paper": [
+    "Prefix matching over stored session_token_ids.",
+    "Cross-phase context injection without recomputing earlier turns.",
+    "OpenAI-compatible chat completions endpoint for framework adoption.",
+    "TTFT and agents-fit tables on larger GPU/Apple Silicon hardware."
+  ],
+  "evidence_artifacts": [
+    "local-ttft-cold-warm-summary.json",
+    "local-agent-capacity-budget.json",
+    "local-session-core-deferred-audit-summary.json",
+    "local-multimodel-hypervisor-demo.json",
+    "hybrid-memory-frontier-summary.json"
+  ],
+  "capacity_rows": 4
+}

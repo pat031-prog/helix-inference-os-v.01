@@ -1,0 +1,80 @@
+{
+  "shape": [
+    64,
+    192
+  ],
+  "dtype": "float32",
+  "block_rows": 8,
+  "order": "C",
+  "extra": {
+    "tensor_name": "transformer.h.2.attn.c_attn.weight",
+    "source": "huggingface",
+    "original_dtype": "float32"
+  },
+  "blocks": [
+    {
+      "block_id": 0,
+      "row_start": 0,
+      "row_end": 8,
+      "sha256": "e4c2f4d4f29a627e8aeb10355735577a8276d229c1698a35bfff7317b97f1131",
+      "compressed_size": 5734,
+      "raw_size": 6144
+    },
+    {
+      "block_id": 1,
+      "row_start": 8,
+      "row_end": 16,
+      "sha256": "a9f9e960ef20be08a8d580b55a5b5ccd61f16ea228e33737b4955f58fee14360",
+      "compressed_size": 5711,
+      "raw_size": 6144
+    },
+    {
+      "block_id": 2,
+      "row_start": 16,
+      "row_end": 24,
+      "sha256": "c4eb5c007dc9014d802a09fc3b77e7db303244ef8c3c46e4ac2958f95de0512b",
+      "compressed_size": 5724,
+      "raw_size": 6144
+    },
+    {
+      "block_id": 3,
+      "row_start": 24,
+      "row_end": 32,
+      "sha256": "49fa90514200460d5137e4e666751a7035b66d08081e3b7bd9dc98f47edce50f",
+      "compressed_size": 5724,
+      "raw_size": 6144
+    },
+    {
+      "block_id": 4,
+      "row_start": 32,
+      "row_end": 40,
+      "sha256": "f4fd60fcace14f75c59bd88344c1605d1177dd9b23e31956ac5ff81025ff2b09",
+      "compressed_size": 5715,
+      "raw_size": 6144
+    },
+    {
+      "block_id": 5,
+      "row_start": 40,
+      "row_end": 48,
+      "sha256": "bf366bc2c9530dc9b57a8220988dbec53bd24c6a54e81ff6daf30e9110b51f1a",
+      "compressed_size": 5716,
+      "raw_size": 6144
+    },
+    {
+      "block_id": 6,
+      "row_start": 48,
+      "row_end": 56,
+      "sha256": "2731349de6d74e819d131eca187ef13a3187672ca9dd2fa30a7b1443d260b91b",
+      "compressed_size": 5720,
+      "raw_size": 6144
+    },
+    {
+      "block_id": 7,
+      "row_start": 56,
+      "row_end": 64,
+      "sha256": "97da1b853527c494e7bcf76e525021acdb115699f5a79abc99fa17399ffae564",
+      "compressed_size": 5718,
+      "raw_size": 6144
+    }
+  ]
+}

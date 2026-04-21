@@ -1,0 +1,131 @@
+{
+  "prompt_ids": [
+    3,
+    5,
+    8,
+    13,
+    21,
+    34
+  ],
+  "max_new_tokens": 4,
+  "kv_quant_seed": 7,
+  "baseline_variant": "fp32",
+  "variants": {
+    "fp32": {
+      "kv_cache_precision": "fp32",
+      "kv_rotation_mode": "qr",
+      "prompt_perplexity": 1543.8382992148956,
+      "total_time_s": 102.20038420002675,
+      "avg_step_ms": 10219.575100013753,
+      "kv_cache_bytes": 737280,
+      "generated_ids": [
+        3,
+        5,
+        8,
+        13,
+        21,
+        34,
+        3,
+        5,
+        13,
+        21
+      ],
+      "cache_lengths": [
+        10,
+        10,
+        10,
+        10,
+        10,
+        10,
+        10,
+        10,
+        10,
+        10,
+        10,
+        10
+      ],
+      "logit_comparison_vs_baseline": null,
+      "generated_match_vs_baseline": true
+    },
+    "turbo-4bit": {
+      "kv_cache_precision": "turbo-4bit",
+      "kv_rotation_mode": "hadamard",
+      "prompt_perplexity": 1603.315923747846,
+      "total_time_s": 79.17366520001087,
+      "avg_step_ms": 7916.990229993826,
+      "kv_cache_bytes": 97920,
+      "generated_ids": [
+        3,
+        5,
+        8,
+        13,
+        21,
+        34,
+        3,
+        5,
+        2,
+        5
+      ],
+      "cache_lengths": [
+        10,
+        10,
+        10,
+        10,
+        10,
+        10,
+        10,
+        10,
+        10,
+        10,
+        10,
+        10
+      ],
+      "logit_comparison_vs_baseline": {
+        "max_abs_err": 17.539886474609375,
+        "mean_abs_err": 10.501267433166504,
+        "cosine_similarity": 0.9999039173126221
+      },
+      "generated_match_vs_baseline": false
+    },
+    "turbo-qjl": {
+      "kv_cache_precision": "turbo-qjl",
+      "kv_rotation_mode": "hadamard",
+      "prompt_perplexity": 1558.4559348617124,
+      "total_time_s": 77.8261966999853,
+      "avg_step_ms": 7782.337969983928,
+      "kv_cache_bytes": 126720,
+      "generated_ids": [
+        3,
+        5,
+        8,
+        13,
+        21,
+        34,
+        3,
+        5,
+        2,
+        5
+      ],
+      "cache_lengths": [
+        10,
+        10,
+        10,
+        10,
+        10,
+        10,
+        10,
+        10,
+        10,
+        10,
+        10,
+        10
+      ],
+      "logit_comparison_vs_baseline": {
+        "max_abs_err": 18.627113342285156,
+        "mean_abs_err": 11.772710800170898,
+        "cosine_similarity": 0.9999074935913086
+      },
+      "generated_match_vs_baseline": false
+    }
+  }
+}

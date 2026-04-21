@@ -1,0 +1,276 @@
+# Transcript: scale-gradient-vs-naive-copy
+
+- Run ID: `infinite-depth-memory-baseline-validate-20260420-01`
+- Judge requested: `local/deterministic-measurer`
+- Judge actual: `local/deterministic-measurer`
+- Auditor requested: `local/deterministic-scorer`
+- Auditor actual: `local/deterministic-scorer`
+
+## Expected / Ground Truth
+
+```json
+{
+  "largest_depth": 256,
+  "max_bounded_context_ms": 1000.0,
+  "max_output_compression_ratio": 0.05,
+  "baseline_min_speedup": 0.0
+}
+```
+
+## Visible Contract
+
+```json
+{
+  "deterministic_suite": true,
+  "case": "scale-gradient-vs-naive-copy",
+  "protocol": {
+    "null_hypothesis": "Bounded context construction has the same output amplification as naive full-history copy.",
+    "alternative_hypothesis": "Bounded context emits a compressed working set and avoids full-history text replay."
+  }
+}
+```
+
+## Judge Output
+
+```json
+{
+  "classification": "bounded_context_vs_full_history_replay",
+  "measurements": [
+    {
+      "depth": 32,
+      "build": {
+        "depth": 32,
+        "project": "scale-gradient-vs-naive-copy-infinite-depth-memory-baseline-validate-20260420-01-32",
+        "session_id": "scale-gradient-vs-naive-copy-32-session",
+        "insert_ms": 10.2453,
+        "full_text_chars": 5421,
+        "anchor_index": 25,
+        "anchor_memory_id": "mem-scale-gradient-vs-naive-copy-32-000025",
+        "leaf_memory_id": "mem-scale-gradient-vs-naive-copy-32-000031",
+        "memory_count": 32,
+        "catalog_stats": {
+          "memory_count": 32,
+          "observation_count": 0,
+          "link_count": 0,
+          "fts_enabled": false,
+          "journal_mode": "memory",
+          "busy_timeout_ms": 5000,
+          "dag_node_count": 32,
+          "memory_backend": "in_memory_dag",
+          "search_backend": "rust_bm25",
+          "rust_index_available": true,
+          "rust_index_error": null,
+          "rust_index_stats": {
+            "backend": "rust_bm25",
+            "node_count": 32,
+            "term_count": 58,
+            "doc_freq_term_count": 58,
+            "posting_count": 809,
+            "total_doc_len": 830,
+            "tombstoned_count": 0
+          },
+          "semantic_query_router": {
+            "enabled": true,
+            "calls": 0,
+            "rewrites": 0,
+            "pass_through": 0,
+            "recent_fallback": 0
+          }
+        }
+      },
+      "optimized_context_tokens": 61,
+      "optimized_context_memory_ids": [
+        "mem-scale-gradient-vs-naive-copy-32-000025"
+      ],
+      "optimized_context_chars": 243,
+      "naive_full_copy_chars": 5932,
+      "optimized_timing": {
+        "repeats": 2,
+        "min_ms": 0.1232,
+        "median_ms": 0.13845,
+        "max_ms": 0.1537,
+        "rounded_min_ms_2dp": 0.12,
+        "rounded_median_ms_2dp": 0.14,
+        "raw_ns": [
+          153700,
+          123200
+        ]
+      },
+      "naive_copy_timing": {
+        "repeats": 2,
+        "min_ms": 0.0123,
+        "median_ms": 0.01345,
+        "max_ms": 0.0146,
+        "rounded_min_ms_2dp": 0.01,
+        "rounded_median_ms_2dp": 0.01,
+        "raw_ns": [
+          14600,
+          12300
+        ]
+      },
+      "output_compression_ratio": 0.04096426
+    },
+    {
+      "depth": 128,
+      "build": {
+        "depth": 128,
+        "project": "scale-gradient-vs-naive-copy-infinite-depth-memory-baseline-validate-20260420-01-128",
+        "session_id": "scale-gradient-vs-naive-copy-128-session",
+        "insert_ms": 45.4625,
+        "full_text_chars": 21823,
+        "anchor_index": 121,
+        "anchor_memory_id": "mem-scale-gradient-vs-naive-copy-128-000121",
+        "leaf_memory_id": "mem-scale-gradient-vs-naive-copy-128-000127",
+        "memory_count": 128,
+        "catalog_stats": {
+          "memory_count": 128,
+          "observation_count": 0,
+          "link_count": 0,
+          "fts_enabled": false,
+          "journal_mode": "memory",
+          "busy_timeout_ms": 5000,
+          "dag_node_count": 128,
+          "memory_backend": "in_memory_dag",
+          "search_backend": "rust_bm25",
+          "rust_index_available": true,
+          "rust_index_error": null,
+          "rust_index_stats": {
+            "backend": "rust_bm25",
+            "node_count": 128,
+            "term_count": 154,
+            "doc_freq_term_count": 154,
+            "posting_count": 3305,
+            "total_doc_len": 3422,
+            "tombstoned_count": 0
+          },
+          "semantic_query_router": {
+            "enabled": true,
+            "calls": 0,
+            "rewrites": 0,
+            "pass_through": 0,
+            "recent_fallback": 0
+          }
+        }
+      },
+      "optimized_context_tokens": 62,
+      "optimized_context_memory_ids": [
+        "mem-scale-gradient-vs-naive-copy-128-000121"
+      ],
+      "optimized_context_chars": 244,
+      "naive_full_copy_chars": 23870,
+      "optimized_timing": {
+        "repeats": 2,
+        "min_ms": 0.1285,
+        "median_ms": 0.13045,
+        "max_ms": 0.1324,
+        "rounded_min_ms_2dp": 0.13,
+        "rounded_median_ms_2dp": 0.13,
+        "raw_ns": [
+          132400,
+          128500
+        ]
+      },
+      "naive_copy_timing": {
+        "repeats": 2,
+        "min_ms": 0.0397,
+        "median_ms": 0.0415,
+        "max_ms": 0.0433,
+        "rounded_min_ms_2dp": 0.04,
+        "rounded_median_ms_2dp": 0.04,
+        "raw_ns": [
+          43300,
+          39700
+        ]
+      },
+      "output_compression_ratio": 0.01022204
+    },
+    {
+      "depth": 256,
+      "build": {
+        "depth": 256,
+        "project": "scale-gradient-vs-naive-copy-infinite-depth-memory-baseline-validate-20260420-01-256",
+        "session_id": "scale-gradient-vs-naive-copy-256-session",
+        "insert_ms": 102.5838,
+        "full_text_chars": 43967,
+        "anchor_index": 249,
+        "anchor_memory_id": "mem-scale-gradient-vs-naive-copy-256-000249",
+        "leaf_memory_id": "mem-scale-gradient-vs-naive-copy-256-000255",
+        "memory_count": 256,
+        "catalog_stats": {
+          "memory_count": 256,
+          "observation_count": 0,
+          "link_count": 0,
+          "fts_enabled": false,
+          "journal_mode": "memory",
+          "busy_timeout_ms": 5000,
+          "dag_node_count": 256,
+          "memory_backend": "in_memory_dag",
+          "search_backend": "rust_bm25",
+          "rust_index_available": true,
+          "rust_index_error": null,
+          "rust_index_stats": {
+            "backend": "rust_bm25",
+            "node_count": 256,
+            "term_count": 282,
+            "doc_freq_term_count": 282,
+            "posting_count": 6633,
+            "total_doc_len": 6878,
+            "tombstoned_count": 0
+          },
+          "semantic_query_router": {
+            "enabled": true,
+            "calls": 0,
+            "rewrites": 0,
+            "pass_through": 0,
+            "recent_fallback": 0
+          }
+        }
+      },
+      "optimized_context_tokens": 62,
+      "optimized_context_memory_ids": [
+        "mem-scale-gradient-vs-naive-copy-256-000249"
+      ],
+      "optimized_context_chars": 244,
+      "naive_full_copy_chars": 48062,
+      "optimized_timing": {
+        "repeats": 2,
+        "min_ms": 0.1315,
+        "median_ms": 0.1343,
+        "max_ms": 0.1371,
+        "rounded_min_ms_2dp": 0.13,
+        "rounded_median_ms_2dp": 0.13,
+        "raw_ns": [
+          137100,
+          131500
+        ]
+      },
+      "naive_copy_timing": {
+        "repeats": 2,
+        "min_ms": 0.0791,
+        "median_ms": 0.10775,
+        "max_ms": 0.1364,
+        "rounded_min_ms_2dp": 0.08,
+        "rounded_median_ms_2dp": 0.11,
+        "raw_ns": [
+          136400,
+          79100
+        ]
+      },
+      "output_compression_ratio": 0.00507678
+    }
+  ],
+  "depth_ratio": 8.0,
+  "optimized_latency_ratio": 0.970025,
+  "speedup_vs_naive_at_largest_depth": 0.802308,
+  "measured_latency_ms": 0.1343
+}
+```
+
+## Auditor Output
+
+```json
+{
+  "verdict": "pass",
+  "gate_failures": []
+}
+```

@@ -1,0 +1,43 @@
+{
+  "model": "gpt2",
+  "prompt_tokens": 220,
+  "notes": [
+    "Online-KV measurement uses Hugging Face GPT2 + DynamicCache/CompressedKVCache.",
+    "Turbo-int8 measurement uses helix_proto GPT2StreamingEngine on the same model exported to the local tensor runtime.",
+    "Output-fidelity and KV-byte comparisons are informative; wall-clock times are not apples-to-apples across the two runtimes."
+  ],
+  "baseline_hf_dynamiccache": {
+    "kv_cache_bytes": 17326080,
+    "total_time_s": 2.7202150999801233,
+    "output_reference": "hf-gpt2-greedy"
+  },
+  "helix_proto_fp32": {
+    "kv_cache_bytes": 17399808,
+    "total_time_s": 1118.2993427000474,
+    "output_reference": "helix-proto-gpt2-greedy"
+  },
+  "helix_proto_turbo_int8": {
+    "kv_cache_bytes": 4485888,
+    "total_time_s": 1120.2690588000114,
+    "output_match_vs_helix_proto_fp32": true,
+    "kv_compression_ratio_vs_helix_proto_fp32": 3.8788,
+    "time_ratio_vs_helix_proto_fp32": 1.0018
+  },
+  "josh_online_kv_current_impl": {
+    "exact_cache_bytes": 17326080,
+    "compressed_bookkeeping_bytes": 1830400,
+    "effective_total_bytes": 19156480,
+    "total_time_s": 31.149631900014356,
+    "output_match_vs_hf_baseline": true,
+    "effective_memory_ratio_vs_hf_baseline": 1.1056,
+    "time_ratio_vs_hf_baseline": 11.4512,
+    "calibration_complete": true
+  },
+  "summary": {
+    "best_memory_reduction_observed": "helix_proto turbo-int8",
+    "best_memory_reduction_ratio": 3.8788,
+    "online_kv_delivered_real_memory_savings_in_current_impl": false,
+    "online_kv_output_changed": false,
+    "substrate_adjusted_weight_ratio": 6.6016
+  }
+}

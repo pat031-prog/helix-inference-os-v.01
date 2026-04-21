@@ -1,0 +1,126 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Helix App Runtime Guide</title>
+  <meta name="description" content="Guia publica del runtime de Helix App y del demo local privado.">
+  <link rel="stylesheet" href="/static/research.css">
+  <style>
+    .handoff-shell {
+      width: min(1120px, calc(100vw - 24px));
+      margin: 16px auto 32px;
+      display: grid;
+      gap: var(--space-4);
+      position: relative;
+      z-index: 1;
+    }
+    .handoff-grid {
+      display: grid;
+      grid-template-columns: 1.2fr 0.8fr;
+      gap: var(--space-4);
+    }
+    .handoff-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      margin-top: 16px;
+    }
+    .handoff-list {
+      margin: 0;
+      padding-left: 20px;
+      color: var(--ink-soft);
+      line-height: 1.65;
+    }
+    .handoff-kicker {
+      display: flex;
+      justify-content: space-between;
+      gap: 16px;
+      align-items: center;
+    }
+    .locale-toggle-inline {
+      display: inline-flex;
+      gap: 8px;
+    }
+    @media (max-width: 900px) {
+      .handoff-grid {
+        grid-template-columns: 1fr;
+      }
+      .handoff-kicker {
+        flex-direction: column;
+        align-items: flex-start;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="handoff-shell">
+    <section class="module hero-module">
+      <div class="handoff-kicker">
+        <div class="eyebrow" data-es="Helix App" data-en="Helix App">Helix App</div>
+        <div class="locale-toggle locale-toggle-inline" role="group" aria-label="Language selector">
+          <button type="button" class="locale-btn active" data-locale="es">ES</button>
+          <button type="button" class="locale-btn" data-locale="en">EN</button>
+        </div>
+      </div>
+      <h1 data-es="El demo interactivo real sigue siendo local o privado." data-en="The real interactive demo remains local or private.">
+        El demo interactivo real sigue siendo local o privado.
+      </h1>
+      <p class="lede" data-es="Esta version publica en Vercel muestra la historia, los benchmarks y los artifacts. El runtime de inferencia con assistants y streaming no corre dentro de esta instancia estatica." data-en="This public Vercel build shows the story, benchmarks, and artifacts. The assistants and streaming inference runtime does not run inside this static instance.">
+        Esta version publica en Vercel muestra la historia, los benchmarks y los artifacts. El runtime de inferencia con assistants y streaming no corre dentro de esta instancia estatica.
+      </p>
+      <div class="handoff-actions">
+        <a class="action-pill primary" href="/research" data-es="Volver a Research" data-en="Back to Research">Volver a Research</a>
+        <a class="action-pill secondary" href="/" data-es="Ir al Hub" data-en="Go to Hub">Ir al Hub</a>
+        <a class="action-pill secondary" href="/research#method" data-es="Ver metodo / setup" data-en="View method / setup">Ver metodo / setup</a>
+      </div>
+    </section>
+
+    <section class="handoff-grid">
+      <article class="story-card">
+        <div class="widget-title" data-es="Como correr el runtime real" data-en="How to run the real runtime">Como correr el runtime real</div>
+        <ol class="handoff-list">
+          <li data-es="Clona el repo y crea un entorno Python con las dependencias del backend." data-en="Clone the repo and create a Python environment with the backend dependencies.">Clona el repo y crea un entorno Python con las dependencias del backend.</li>
+          <li data-es="Levanta el backend local con el entrypoint actual de Helix para exponer /assistants y /assistants/chat/stream." data-en="Start the local backend using the current Helix entrypoint so it exposes /assistants and /assistants/chat/stream.">Levanta el backend local con el entrypoint actual de Helix para exponer /assistants y /assistants/chat/stream.</li>
+          <li data-es="Abre la app local o conecta un frontend privado a esa URL de backend." data-en="Open the local app or connect a private frontend to that backend URL.">Abre la app local o conecta un frontend privado a esa URL de backend.</li>
+        </ol>
+      </article>
+
+      <article class="story-card">
+        <div class="widget-title" data-es="Por que esta instancia es distinta" data-en="Why this instance is different">Por que esta instancia es distinta</div>
+        <p class="body-copy" data-es="Vercel sirve esta superficie como microsite publica estatica. Eso nos deja publicar la narrativa, los SVG, la evidencia y el browser de JSONs sin arrastrar el runtime pesado de modelos a la web publica." data-en="Vercel serves this surface as a static public microsite. That lets us publish the narrative, SVGs, evidence, and JSON browser without dragging the heavy model runtime into the public web instance.">
+          Vercel sirve esta superficie como microsite publica estatica. Eso nos deja publicar la narrativa, los SVG, la evidencia y el browser de JSONs sin arrastrar el runtime pesado de modelos a la web publica.
+        </p>
+      </article>
+    </section>
+  </main>
+
+  <script>
+    (function () {
+      const state = { locale: window.localStorage.getItem("helix-research-locale") || "es" };
+
+      function applyLocale() {
+        document.documentElement.lang = state.locale;
+        document.querySelectorAll("[data-es][data-en]").forEach((node) => {
+          node.textContent = node.getAttribute(state.locale === "es" ? "data-es" : "data-en");
+        });
+        document.querySelectorAll(".locale-btn").forEach((button) => {
+          const active = button.dataset.locale === state.locale;
+          button.classList.toggle("active", active);
+          button.setAttribute("aria-pressed", active ? "true" : "false");
+        });
+      }
+
+      document.querySelectorAll(".locale-btn").forEach((button) => {
+        button.addEventListener("click", () => {
+          state.locale = button.dataset.locale;
+          window.localStorage.setItem("helix-research-locale", state.locale);
+          applyLocale();
+        });
+      });
+
+      applyLocale();
+    })();
+  </script>
+</body>
+</html>

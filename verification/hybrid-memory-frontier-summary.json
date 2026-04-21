@@ -1,0 +1,107 @@
+{
+  "benchmark_kind": "hybrid-memory-frontier-summary-v1",
+  "sources": {
+    "transformer_gpu_summary": "verification/remote-transformers-gpu-summary.json",
+    "hybrid_local_summary": "verification/local-zamba2-hxq-vs-vanilla-summary.json",
+    "hybrid_local_prompt_suite": "verification/local-zamba2-prompt-suite-code-daily.json"
+  },
+  "transformer_gpu": {
+    "best_fidelity_default": {
+      "variant": "turbo-int8-hadamard",
+      "reason": "Preserved generated match and near-zero prompt perplexity delta on all three primary GPU models while roughly halving native bf16 KV footprint."
+    },
+    "best_compression_default": {
+      "variant": "turbo-int8k-4bitv",
+      "reason": "Delivered the strongest real compression against native bf16 across all primary GPU models while keeping generated match true."
+    },
+    "models": [
+      {
+        "model_ref": "Qwen/Qwen2.5-1.5B-Instruct",
+        "best_fidelity_variant": "turbo-int8-hadamard",
+        "best_fidelity_kv_ratio_vs_native": 1.9552959676513535,
+        "best_fidelity_prompt_perplexity_delta_pct_vs_native": 0.0,
+        "best_fidelity_match_vs_baseline": true,
+        "best_compression_variant": "turbo-int8k-4bitv",
+        "best_compression_kv_ratio_vs_native": 2.600732053484724,
+        "best_compression_prompt_perplexity_delta_pct_vs_native": 0.7843097206448055,
+        "best_compression_match_vs_baseline": true
+      },
+      {
+        "model_ref": "HuggingFaceTB/SmolLM2-1.7B-Instruct",
+        "best_fidelity_variant": "turbo-int8-hadamard",
+        "best_fidelity_kv_ratio_vs_native": 1.9260898428855941,
+        "best_fidelity_prompt_perplexity_delta_pct_vs_native": 0.0,
+        "best_fidelity_match_vs_baseline": true,
+        "best_compression_variant": "turbo-int8k-4bitv",
+        "best_compression_kv_ratio_vs_native": 2.575433664977623,
+        "best_compression_prompt_perplexity_delta_pct_vs_native": 0.0,
+        "best_compression_match_vs_baseline": true
+      },
+      {
+        "model_ref": "Qwen/Qwen2.5-3B-Instruct",
+        "best_fidelity_variant": "turbo-int8-hadamard",
+        "best_fidelity_kv_ratio_vs_native": 1.9552959676513535,
+        "best_fidelity_prompt_perplexity_delta_pct_vs_native": 0.0,
+        "best_fidelity_match_vs_baseline": true,
+        "best_compression_variant": "turbo-int8k-4bitv",
+        "best_compression_kv_ratio_vs_native": 2.600732053484724,
+        "best_compression_prompt_perplexity_delta_pct_vs_native": 3.174340749910271,
+        "best_compression_match_vs_baseline": true
+      }
+    ]
+  },
+  "hybrid_local": {
+    "kv_only_gain": {
+      "baseline_variant": "native-dense",
+      "target_variant": "turbo-int8-hadamard",
+      "speedup_vs_native": 1.0507518994805207,
+      "kv_cache_ratio_vs_native": 1.6035372144436257,
+      "mamba_state_runtime_ratio_vs_native": 1.0,
+      "hybrid_total_runtime_cache_ratio_vs_native": 1.0149011140963204,
+      "prompt_perplexity_delta_pct_vs_native": 6.449445891785935,
+      "generated_match_vs_baseline": true
+    },
+    "mamba_state_only_gain": {
+      "baseline_variant": "native-dense",
+      "target_variant": "q-mamba-dsq-int4",
+      "speedup_vs_native": 1.215467997189594,
+      "kv_cache_ratio_vs_native": 1.0,
+      "mamba_state_runtime_ratio_vs_native": 3.761673286853143,
+      "hybrid_total_runtime_cache_ratio_vs_native": 3.3958352093365987,
+      "prompt_perplexity_delta_pct_vs_native": 0.0,
+      "generated_match_vs_baseline": true
+    },
+    "combined_hybrid_gain": {
+      "baseline_variant": "native-dense",
+      "target_variant": "turbo-int8-hadamard+q-mamba-dsq-int4",
+      "speedup_vs_native": 1.4952353797959292,
+      "kv_cache_ratio_vs_native": 1.6035372144436257,
+      "mamba_state_runtime_ratio_vs_native": 3.761673286853143,
+      "hybrid_total_runtime_cache_ratio_vs_native": 3.5740320761391167,
+      "prompt_perplexity_delta_pct_vs_native": 6.449445891785935,
+      "generated_match_vs_baseline": true
+    },
+    "prompt_category_aggregates": {
+      "vanilla": {
+        "code": {
+          "prompt_count": 2,
+          "avg_speedup_vs_native": 1.0449358950932264,
+          "avg_prompt_perplexity_delta_pct_vs_native": -1.538338276182795,
+          "avg_hybrid_total_runtime_cache_ratio_vs_native": 3.5740320761391167
+        },
+        "daily": {
+          "prompt_count": 2,
+          "avg_speedup_vs_native": 0.8969903375540891,
+          "avg_prompt_perplexity_delta_pct_vs_native": 0.7873854293342814,
+          "avg_hybrid_total_runtime_cache_ratio_vs_native": 3.5740320761391167
+        }
+      }
+    },
+    "vanilla_vs_hxq": {
+      "hxq_logits_finite": false,
+      "hxq_load_error": null,
+      "hxq_forward_error": null,
+      "comparison_available": false
+    }
+  }
+}

@@ -1,0 +1,9 @@
+En el barrio la cotizacion no se discute como un numero aislado. Se comenta como si fuera una temperatura moral:
+sube, baja, asusta, promete, se vuelve rumor y luego vuelve a hacerse cifra. El narrador del mercado camina
+entre persianas a medio abrir, escucha la respiracion del dia y decide que cada centavo tiene un tono distinto.
+Cuando la calle se tensa, la explicacion nunca puede ser fria; hay que contarla con el mismo pulso humano con
+el que se escucha el motor de un colectivo al doblar la esquina. Por eso, cuando leas el dato duro que sigue,
+no lo traduzcas como un contador. Traducilo como quien vuelve de una noche larga y aun asi necesita explicarle
+a un vecino por que el cierre importa, donde estuvo el riesgo y cual fue la pequeña victoria escondida.
+
+{"desk":"rioplate-labs","snapshot_ts":"2026-04-10T02:11:55Z","currency":"USD","instruments":[{"ticker":"HELIX","closing_price_usd":142.75,"open_price_usd":137.10,"intraday_high_usd":143.80,"intraday_low_usd":135.90,"volume":1882200,"risk_band":"medium"},{"ticker":"MAMBA","closing_price_usd":88.40,"open_price_usd":90.05,"intraday_high_usd":91.22,"intraday_low_usd":86.77,"volume":2241900,"risk_band":"high"},{"ticker":"ZBA2","closing_price_usd":64.18,"open_price_usd":63.91,"intraday_high_usd":65.01,"intraday_low_usd":62.44,"volume":1190044,"risk_band":"medium"}],"targets":{"primary_ticker":"HELIX","primary_field":"closing_price_usd","secondary_field":"risk_band"}}

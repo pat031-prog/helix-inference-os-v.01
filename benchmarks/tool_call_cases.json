@@ -1,0 +1,253 @@
+{
+  "name": "helix_tool_call_cases",
+  "description": "Synthetic but Helix-shaped planner cases for tool selection, argument filling and multi-step next-action decisions.",
+  "cases": [
+    {
+      "id": "workspace_list_models",
+      "domain": "workspace",
+      "toolset": "workspace_basic",
+      "steps": [
+        {
+          "goal": "Quiero ver qué modelos locales ya están preparados en el workspace.",
+          "expected": {
+            "kind": "tool",
+            "tool_name": "workspace.list_models",
+            "arguments": {}
+          }
+        }
+      ]
+    },
+    {
+      "id": "workspace_model_info",
+      "domain": "workspace",
+      "toolset": "workspace_basic",
+      "steps": [
+        {
+          "goal": "Mostrame la metadata del alias legal-ft para ver qué modelo tiene atrás.",
+          "expected": {
+            "kind": "tool",
+            "tool_name": "workspace.model_info",
+            "arguments": {
+              "alias": "legal-ft"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "memory_search_previous_incident",
+      "domain": "memory",
+      "toolset": "workspace_basic",
+      "steps": [
+        {
+          "goal": "Buscá si ya vimos antes un incidente parecido de nginx caído en este agente.",
+          "expected": {
+            "kind": "tool",
+            "tool_name": "memory.search",
+            "arguments": {
+              "query": "nginx caído"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "rag_search_mail_context",
+      "domain": "rag",
+      "toolset": "workspace_basic",
+      "steps": [
+        {
+          "goal": "Necesito contexto de la knowledge base sobre el mail de PyPI y compresión de modelos.",
+          "expected": {
+            "kind": "tool",
+            "tool_name": "rag.search",
+            "arguments": {
+              "query": "PyPI compresión de modelos"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "draft_with_default_model",
+      "domain": "generation",
+      "toolset": "workspace_basic",
+      "steps": [
+        {
+          "goal": "Redactá una respuesta corta para un cliente explicando por qué conviene usar un modelo local chico.",
+          "default_model_alias": "general-qwen",
+          "expected": {
+            "kind": "tool",
+            "tool_name": "gpt.generate_text",
+            "arguments": {
+              "alias": "general-qwen",
+              "prompt": "Redactá una respuesta corta para un cliente explicando por qué conviene usar un modelo local chico."
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "ops_disk_usage",
+      "domain": "ops",
+      "toolset": "ops_readonly",
+      "steps": [
+        {
+          "goal": "El servidor reporta disco lleno en /var. ¿Cuál es el siguiente paso más útil?",
+          "expected": {
+            "kind": "tool",
+            "tool_name": "ops.read_disk_usage",
+            "arguments": {
+              "path": "/var"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "ops_journald_nginx",
+      "domain": "ops",
+      "toolset": "ops_readonly",
+      "steps": [
+        {
+          "goal": "Nginx quedó caído después de un deploy. Primero quiero ver los logs del servicio.",
+          "expected": {
+            "kind": "tool",
+            "tool_name": "ops.read_journald",
+            "arguments": {
+              "service": "nginx"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "ops_process_cpu",
+      "domain": "ops",
+      "toolset": "ops_readonly",
+      "steps": [
+        {
+          "goal": "La máquina está lenta y sospecho CPU alta. Quiero ver los procesos más pesados por CPU.",
+          "expected": {
+            "kind": "tool",
+            "tool_name": "ops.read_process_list",
+            "arguments": {
+              "sort_by": "cpu"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "ops_network_stats",
+      "domain": "ops",
+      "toolset": "ops_readonly",
+      "steps": [
+        {
+          "goal": "Veo muchas conexiones extrañas y quiero revisar el estado de red antes de concluir nada.",
+          "expected": {
+            "kind": "tool",
+            "tool_name": "ops.read_network_stats",
+            "arguments": {}
+          }
+        }
+      ]
+    },
+    {
+      "id": "ops_syslog_ssh",
+      "domain": "ops",
+      "toolset": "ops_readonly",
+      "steps": [
+        {
+          "goal": "Hubo intentos de acceso SSH no autorizados. Leé syslog filtrando por ssh.",
+          "expected": {
+            "kind": "tool",
+            "tool_name": "ops.read_syslog",
+            "arguments": {
+              "grep": "ssh"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "multistep_disk_then_logs",
+      "domain": "ops",
+      "toolset": "ops_readonly",
+      "steps": [
+        {
+          "goal": "El servidor tiene el disco casi lleno y todavía no sé por qué.",
+          "expected": {
+            "kind": "tool",
+            "tool_name": "ops.read_disk_usage",
+            "arguments": {}
+          }
+        },
+        {
+          "goal": "El servidor tiene el disco casi lleno y todavía no sé por qué.",
+          "observations": [
+            {
+              "tool_name": "ops.read_disk_usage",
+              "observation": {
+                "result": {
+                  "/": "61%",
+                  "/var": "96%",
+                  "/var/log": "99%"
+                }
+              }
+            }
+          ],
+          "expected": {
+            "kind": "tool",
+            "tool_name": "ops.read_syslog",
+            "arguments": {
+              "grep": "logrotate"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "multistep_memory_then_final",
+      "domain": "memory",
+      "toolset": "workspace_basic",
+      "steps": [
+        {
+          "goal": "Recordame cómo resolvimos antes un problema parecido con PostgreSQL caído.",
+          "expected": {
+            "kind": "tool",
+            "tool_name": "memory.search",
+            "arguments": {
+              "query": "PostgreSQL caído"
+            }
+          }
+        },
+        {
+          "goal": "Recordame cómo resolvimos antes un problema parecido con PostgreSQL caído.",
+          "observations": [
+            {
+              "tool_name": "memory.search",
+              "observation": {
+                "result": {
+                  "results": [
+                    {
+                      "text": "En el incidente anterior PostgreSQL no iniciaba por falta de espacio en /var/lib/postgresql. Primero liberamos espacio y luego reiniciamos el servicio."
+                    }
+                  ]
+                }
+              }
+            }
+          ],
+          "expected": {
+            "kind": "final",
+            "final_contains": [
+              "postgresql",
+              "espacio",
+              "reiniciamos"
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}

@@ -11,6 +11,8 @@
 //!   - Only takes a write lock for the brief HashMap insert
 //!   - Releases the GIL during all CPU-bound work via py.allow_threads()
 
+use base64::{engine::general_purpose, Engine as _};
+use ed25519_dalek::{Signature, Signer, SigningKey, Verifier, VerifyingKey};
 use parking_lot::RwLock;
 use pyo3::exceptions::{PyRuntimeError, PyValueError};
 use pyo3::prelude::*;
@@ -156,6 +158,123 @@ fn compute_hash(content: &str, parent_hash: Option<&str>) -> String {
     hex::encode(hasher.finalize())
 }
 
+fn canonical_json_value(value: &Value) -> PyResult<String> {
+    fn reject_floats(value: &Value, path: &str) -> PyResult<()> {
+        match value {
+            Value::Number(number) if number.is_f64() => Err(PyValueError::new_err(format!(
+                "floats are not allowed in signed receipt payloads: {path}"
+            ))),
+            Value::Array(items) => {
+                for (idx, item) in items.iter().enumerate() {
+                    reject_floats(item, &format!("{path}[{idx}]"))?;
+                }
+                Ok(())
+            }
+            Value::Object(map) => {
+                for (key, item) in map {
+                    reject_floats(item, &format!("{path}.{key}"))?;
+                }
+                Ok(())
+            }
+            _ => Ok(()),
+        }
+    }
+    reject_floats(value, "$")?;
+    serde_json::to_string(value)
+        .map_err(|exc| PyValueError::new_err(format!("canonical json encode: {exc}")))
+}
+
+fn canonical_json_from_text(raw: &str) -> PyResult<String> {
+    let value: Value = serde_json::from_str(raw)
+        .map_err(|exc| PyValueError::new_err(format!("invalid json payload: {exc}")))?;
+    canonical_json_value(&value)
+}
+
+fn decode_b64_32(value: &str, label: &str) -> PyResult<[u8; 32]> {
+    let raw = general_purpose::STANDARD
+        .decode(value.as_bytes())
+        .map_err(|exc| PyValueError::new_err(format!("invalid {label} base64: {exc}")))?;
+    raw.try_into()
+        .map_err(|_| PyValueError::new_err(format!("{label} must decode to 32 bytes")))
+}
+
+#[pyfunction]
+fn receipt_canonical_json(payload_json: String) -> PyResult<String> {
+    canonical_json_from_text(&payload_json)
+}
+
+#[pyfunction]
+fn receipt_canonical_sha256(payload_json: String) -> PyResult<String> {
+    let canonical = canonical_json_from_text(&payload_json)?;
+    let mut hasher = Sha256::new();
+    hasher.update(canonical.as_bytes());
+    Ok(hex::encode(hasher.finalize()))
+}
+
+#[pyfunction]
+fn receipt_derive_ephemeral_keypair(seed: String) -> PyResult<PyObject> {
+    Python::with_gil(|py| {
+        let digest = Sha256::digest(seed.as_bytes());
+        let mut secret = [0u8; 32];
+        secret.copy_from_slice(&digest);
+        let signing_key = SigningKey::from_bytes(&secret);
+        let verifying_key = signing_key.verifying_key();
+        let out = PyDict::new_bound(py);
+        out.set_item(
+            "private_key",
+            general_purpose::STANDARD.encode(signing_key.to_bytes()),
+        )?;
+        out.set_item(
+            "public_key",
+            general_purpose::STANDARD.encode(verifying_key.to_bytes()),
+        )?;
+        out.set_item("key_provenance", "ephemeral_preregistered")?;
+        Ok(out.into())
+    })
+}
+
+#[pyfunction]
+fn receipt_sign_payload(payload_json: String, private_key_b64: String) -> PyResult<PyObject> {
+    Python::with_gil(|py| {
+        let canonical = canonical_json_from_text(&payload_json)?;
+        let secret = decode_b64_32(&private_key_b64, "private_key")?;
+        let signing_key = SigningKey::from_bytes(&secret);
+        let verifying_key = signing_key.verifying_key();
+        let signature = signing_key.sign(canonical.as_bytes());
+        let out = PyDict::new_bound(py);
+        out.set_item(
+            "signature",
+            general_purpose::STANDARD.encode(signature.to_bytes()),
+        )?;
+        out.set_item(
+            "public_key",
+            general_purpose::STANDARD.encode(verifying_key.to_bytes()),
+        )?;
+        out.set_item("signature_alg", "ed25519")?;
+        Ok(out.into())
+    })
+}
+
+#[pyfunction]
+fn receipt_verify_signature(
+    payload_json: String,
+    public_key_b64: String,
+    signature_b64: String,
+) -> PyResult<bool> {
+    let canonical = canonical_json_from_text(&payload_json)?;
+    let public = decode_b64_32(&public_key_b64, "public_key")?;
+    let signature_raw = general_purpose::STANDARD
+        .decode(signature_b64.as_bytes())
+        .map_err(|exc| PyValueError::new_err(format!("invalid signature base64: {exc}")))?;
+    let signature = Signature::from_slice(&signature_raw)
+        .map_err(|exc| PyValueError::new_err(format!("invalid ed25519 signature: {exc}")))?;
+    let verifying_key = VerifyingKey::from_bytes(&public)
+        .map_err(|exc| PyValueError::new_err(format!("invalid ed25519 public key: {exc}")))?;
+    Ok(verifying_key
+        .verify(canonical.as_bytes(), &signature)
+        .is_ok())
+}
+
 fn tokenize(text: &str) -> Vec<String> {
     let mut tokens = Vec::new();
     let mut current = String::new();
@@ -211,12 +330,21 @@ fn parse_metadata(metadata_json: Option<String>) -> PyResult<IndexedMetadata> {
         project: as_string(&value, "project").unwrap_or_default(),
         agent_id: as_string(&value, "agent_id").unwrap_or_default(),
         memory_id: as_string(&value, "memory_id").or_else(|| as_string(&value, "observation_id")),
-        memory_type: as_string(&value, "memory_type").or_else(|| as_string(&value, "observation_type")),
+        memory_type: as_string(&value, "memory_type")
+            .or_else(|| as_string(&value, "observation_type")),
         summary: as_string(&value, "summary").unwrap_or_default(),
-        index_content: as_string(&value, "index_content").or_else(|| as_string(&value, "content")).unwrap_or_default(),
+        index_content: as_string(&value, "index_content")
+            .or_else(|| as_string(&value, "content"))
+            .unwrap_or_default(),
         tags: as_string_vec(&value, "tags"),
-        importance: value.get("importance").and_then(Value::as_f64).unwrap_or(5.0),
-        decay_score: value.get("decay_score").and_then(Value::as_f64).unwrap_or(1.0),
+        importance: value
+            .get("importance")
+            .and_then(Value::as_f64)
+            .unwrap_or(5.0),
+        decay_score: value
+            .get("decay_score")
+            .and_then(Value::as_f64)
+            .unwrap_or(1.0),
         content_available: value
             .get("content_available")
             .and_then(Value::as_bool)
@@ -239,12 +367,21 @@ fn parse_metadata_value(value: &Value) -> IndexedMetadata {
         project: as_string(value, "project").unwrap_or_default(),
         agent_id: as_string(value, "agent_id").unwrap_or_default(),
         memory_id: as_string(value, "memory_id").or_else(|| as_string(value, "observation_id")),
-        memory_type: as_string(value, "memory_type").or_else(|| as_string(value, "observation_type")),
+        memory_type: as_string(value, "memory_type")
+            .or_else(|| as_string(value, "observation_type")),
         summary: as_string(value, "summary").unwrap_or_default(),
-        index_content: as_string(value, "index_content").or_else(|| as_string(value, "content")).unwrap_or_default(),
+        index_content: as_string(value, "index_content")
+            .or_else(|| as_string(value, "content"))
+            .unwrap_or_default(),
         tags: as_string_vec(value, "tags"),
-        importance: value.get("importance").and_then(Value::as_f64).unwrap_or(5.0),
-        decay_score: value.get("decay_score").and_then(Value::as_f64).unwrap_or(1.0),
+        importance: value
+            .get("importance")
+            .and_then(Value::as_f64)
+            .unwrap_or(5.0),
+        decay_score: value
+            .get("decay_score")
+            .and_then(Value::as_f64)
+            .unwrap_or(1.0),
         content_available: value
             .get("content_available")
             .and_then(Value::as_bool)
@@ -253,7 +390,9 @@ fn parse_metadata_value(value: &Value) -> IndexedMetadata {
     }
 }
 
-fn parse_batch_records(records_json: String) -> PyResult<Vec<(String, Option<String>, IndexedMetadata)>> {
+fn parse_batch_records(
+    records_json: String,
+) -> PyResult<Vec<(String, Option<String>, IndexedMetadata)>> {
     let value: Value = serde_json::from_str(&records_json)
         .map_err(|exc| PyValueError::new_err(format!("invalid records_json: {exc}")))?;
     let records = value
@@ -264,9 +403,14 @@ fn parse_batch_records(records_json: String) -> PyResult<Vec<(String, Option<Str
         let content = item
             .get("content")
             .and_then(Value::as_str)
-            .ok_or_else(|| PyValueError::new_err(format!("record {index} is missing string content")))?
+            .ok_or_else(|| {
+                PyValueError::new_err(format!("record {index} is missing string content"))
+            })?
             .to_string();
-        let parent_hash = item.get("parent_hash").and_then(Value::as_str).map(str::to_string);
+        let parent_hash = item
+            .get("parent_hash")
+            .and_then(Value::as_str)
+            .map(str::to_string);
         let metadata = if let Some(raw) = item.get("metadata_json").and_then(Value::as_str) {
             parse_metadata(Some(raw.to_string()))?
         } else if let Some(meta_value) = item.get("metadata") {
@@ -316,7 +460,10 @@ fn insert_prepared_locked(
     let depth = match &prepared.parent_hash {
         Some(ph) => {
             let parent = state.nodes.get(ph).ok_or_else(|| {
-                PyValueError::new_err(format!("parent_hash {} not found in RustIndexedMerkleDAG", ph))
+                PyValueError::new_err(format!(
+                    "parent_hash {} not found in RustIndexedMerkleDAG",
+                    ph
+                ))
             })?;
             parent.node.depth + 1
         }
@@ -417,9 +564,7 @@ fn field_boost(field: &str) -> f64 {
 }
 
 fn quality_boost(metadata: &IndexedMetadata) -> f64 {
-    1.0
-        + (metadata.importance.max(0.0) / 10.0) * 0.20
-        + metadata.decay_score.max(0.0) * 0.10
+    1.0 + (metadata.importance.max(0.0) / 10.0) * 0.20 + metadata.decay_score.max(0.0) * 0.10
 }
 
 fn bm25_component(tf: u32, idf: f64, doc_len: f64, avg_doc_len: f64, k1: f64, b: f64) -> f64 {
@@ -440,17 +585,22 @@ fn posting_score(
     b: f64,
 ) -> f64 {
     let doc_len = indexed.doc_len.max(1) as f64;
-    let bm25 = bm25_component(posting.content_tf, idf, doc_len, avg_doc_len, k1, b) * field_boost("content")
-        + bm25_component(posting.summary_tf, idf, doc_len, avg_doc_len, k1, b) * field_boost("summary")
+    let bm25 = bm25_component(posting.content_tf, idf, doc_len, avg_doc_len, k1, b)
+        * field_boost("content")
+        + bm25_component(posting.summary_tf, idf, doc_len, avg_doc_len, k1, b)
+            * field_boost("summary")
         + bm25_component(posting.tags_tf, idf, doc_len, avg_doc_len, k1, b) * field_boost("tags");
     bm25 * quality_boost(&indexed.metadata)
 }
 
 fn term_upper_bound(bounds: &TermBounds, idf: f64, avg_doc_len: f64, k1: f64, b: f64) -> f64 {
     let doc_len = bounds.min_doc_len.max(1) as f64;
-    let bm25 = bm25_component(bounds.max_content_tf, idf, doc_len, avg_doc_len, k1, b) * field_boost("content")
-        + bm25_component(bounds.max_summary_tf, idf, doc_len, avg_doc_len, k1, b) * field_boost("summary")
-        + bm25_component(bounds.max_tags_tf, idf, doc_len, avg_doc_len, k1, b) * field_boost("tags");
+    let bm25 = bm25_component(bounds.max_content_tf, idf, doc_len, avg_doc_len, k1, b)
+        * field_boost("content")
+        + bm25_component(bounds.max_summary_tf, idf, doc_len, avg_doc_len, k1, b)
+            * field_boost("summary")
+        + bm25_component(bounds.max_tags_tf, idf, doc_len, avg_doc_len, k1, b)
+            * field_boost("tags");
     bm25 * bounds.max_quality_boost.max(1.0)
 }
 
@@ -532,11 +682,19 @@ fn topk_threshold(top: &[(String, f64, f64)], limit: usize) -> f64 {
     if top.len() < limit {
         0.0
     } else {
-        top.iter().map(|(_, score, _)| *score).fold(f64::INFINITY, f64::min)
+        top.iter()
+            .map(|(_, score, _)| *score)
+            .fold(f64::INFINITY, f64::min)
     }
 }
 
-fn maybe_insert_top(top: &mut Vec<(String, f64, f64)>, hash: String, score: f64, timestamp_ms: f64, limit: usize) {
+fn maybe_insert_top(
+    top: &mut Vec<(String, f64, f64)>,
+    hash: String,
+    score: f64,
+    timestamp_ms: f64,
+    limit: usize,
+) {
     if limit == 0 {
         return;
     }
@@ -549,14 +707,17 @@ fn maybe_insert_top(top: &mut Vec<(String, f64, f64)>, hash: String, score: f64,
     let mut worst_timestamp = f64::INFINITY;
     for (idx, (_, item_score, item_timestamp)) in top.iter().enumerate() {
         if *item_score < worst_score
-            || ((*item_score - worst_score).abs() <= f64::EPSILON && *item_timestamp < worst_timestamp)
+            || ((*item_score - worst_score).abs() <= f64::EPSILON
+                && *item_timestamp < worst_timestamp)
         {
             worst_score = *item_score;
             worst_timestamp = *item_timestamp;
             worst_idx = idx;
         }
     }
-    if score > worst_score || ((score - worst_score).abs() <= f64::EPSILON && timestamp_ms > worst_timestamp) {
+    if score > worst_score
+        || ((score - worst_score).abs() <= f64::EPSILON && timestamp_ms > worst_timestamp)
+    {
         top[worst_idx] = (hash, score, timestamp_ms);
     }
 }
@@ -639,11 +800,7 @@ impl PyMerkleDAG {
 
     /// Audit chain traversal. Read lock — parallel with other reads.
     #[pyo3(signature = (leaf_hash, max_depth=None))]
-    fn audit_chain(
-        &self,
-        leaf_hash: &str,
-        max_depth: Option<u32>,
-    ) -> PyResult<Vec<PyMerkleNode>> {
+    fn audit_chain(&self, leaf_hash: &str, max_depth: Option<u32>) -> PyResult<Vec<PyMerkleNode>> {
         let max_d = max_depth.unwrap_or(10_000);
         let nodes = self.nodes.read();
         let mut chain = Vec::new();
@@ -766,7 +923,11 @@ impl PyIndexedMerkleDAG {
     }
 
     #[pyo3(signature = (records_json))]
-    fn insert_indexed_batch(&self, py: Python<'_>, records_json: String) -> PyResult<Vec<PyMerkleNode>> {
+    fn insert_indexed_batch(
+        &self,
+        py: Python<'_>,
+        records_json: String,
+    ) -> PyResult<Vec<PyMerkleNode>> {
         let records = parse_batch_records(records_json)?;
         let prepared = py.allow_threads(|| {
             records
@@ -937,7 +1098,14 @@ impl PyIndexedMerkleDAG {
                         for cursor in cursors.iter() {
                             if cursor.current_doc() == Some(pivot_doc) {
                                 if let Some(posting) = cursor.current() {
-                                    score += posting_score(posting, indexed, cursor.idf, avg_doc_len, k1, b);
+                                    score += posting_score(
+                                        posting,
+                                        indexed,
+                                        cursor.idf,
+                                        avg_doc_len,
+                                        k1,
+                                        b,
+                                    );
                                     terms.insert(cursor.term.clone());
                                 }
                             }
@@ -945,7 +1113,13 @@ impl PyIndexedMerkleDAG {
                         if score > 0.0 {
                             scores.insert(hash.clone(), score);
                             matched.insert(hash.clone(), terms);
-                            maybe_insert_top(&mut top, hash, score, indexed.node.timestamp_ms, limit);
+                            maybe_insert_top(
+                                &mut top,
+                                hash,
+                                score,
+                                indexed.node.timestamp_ms,
+                                limit,
+                            );
                         }
                     }
                 }
@@ -971,8 +1145,16 @@ impl PyIndexedMerkleDAG {
                 .partial_cmp(score_a)
                 .unwrap_or(std::cmp::Ordering::Equal)
                 .then_with(|| {
-                    let ta = state.nodes.get(hash_a).map(|n| n.node.timestamp_ms).unwrap_or(0.0);
-                    let tb = state.nodes.get(hash_b).map(|n| n.node.timestamp_ms).unwrap_or(0.0);
+                    let ta = state
+                        .nodes
+                        .get(hash_a)
+                        .map(|n| n.node.timestamp_ms)
+                        .unwrap_or(0.0);
+                    let tb = state
+                        .nodes
+                        .get(hash_b)
+                        .map(|n| n.node.timestamp_ms)
+                        .unwrap_or(0.0);
                     tb.partial_cmp(&ta).unwrap_or(std::cmp::Ordering::Equal)
                 })
                 .then_with(|| hash_a.cmp(hash_b))
@@ -1011,7 +1193,10 @@ impl PyIndexedMerkleDAG {
 
     fn lookup(&self, hash_hex: &str) -> Option<PyMerkleNode> {
         let state = self.state.read();
-        state.nodes.get(hash_hex).map(|indexed| PyMerkleNode::from(&indexed.node))
+        state
+            .nodes
+            .get(hash_hex)
+            .map(|indexed| PyMerkleNode::from(&indexed.node))
     }
 
     #[pyo3(signature = (leaf_hash, max_depth=None))]
@@ -1039,7 +1224,12 @@ impl PyIndexedMerkleDAG {
     }
 
     #[pyo3(signature = (leaf_hash, _policy=None))]
-    fn verify_chain(&self, py: Python<'_>, leaf_hash: &str, _policy: Option<String>) -> PyResult<PyObject> {
+    fn verify_chain(
+        &self,
+        py: Python<'_>,
+        leaf_hash: &str,
+        _policy: Option<String>,
+    ) -> PyResult<PyObject> {
         let state = self.state.read();
         let mut current: Option<&str> = Some(leaf_hash);
         let mut chain_len = 0usize;
@@ -1053,7 +1243,8 @@ impl PyIndexedMerkleDAG {
                 break;
             };
             chain_len += 1;
-            let recomputed = compute_hash(&indexed.node.content, indexed.node.parent_hash.as_deref());
+            let recomputed =
+                compute_hash(&indexed.node.content, indexed.node.parent_hash.as_deref());
             if recomputed != indexed.node.hash {
                 if indexed.metadata.content_available {
                     failed_at = Some(indexed.node.hash.clone());
@@ -1084,7 +1275,8 @@ impl PyIndexedMerkleDAG {
     #[pyo3(signature = (criteria_json=None))]
     fn gc_tombstone(&self, py: Python<'_>, criteria_json: Option<String>) -> PyResult<PyObject> {
         let criteria = parse_filters(criteria_json)?;
-        let target_hash = filter_string(&criteria, "hash").or_else(|| filter_string(&criteria, "node_hash"));
+        let target_hash =
+            filter_string(&criteria, "hash").or_else(|| filter_string(&criteria, "node_hash"));
         let target_memory_id = filter_string(&criteria, "memory_id");
         let mut state = self.state.write();
         let mut changed = 0usize;
@@ -1105,7 +1297,8 @@ impl PyIndexedMerkleDAG {
             if !indexed.metadata.content_available {
                 continue;
             }
-            let original_hash = compute_hash(&indexed.node.content, indexed.node.parent_hash.as_deref());
+            let original_hash =
+                compute_hash(&indexed.node.content, indexed.node.parent_hash.as_deref());
             let original_size = indexed.node.content.len();
             indexed.node.content = format!(
                 "[GC_TOMBSTONE:sha256={},size={}]",
@@ -1145,6 +1338,39 @@ impl PyIndexedMerkleDAG {
         Ok(dict.into_py(py))
     }
 
+    #[pyo3(signature = (node_hashes, hard_anchors_mode))]
+    fn build_context_fast(
+        &self,
+        _py: Python<'_>,
+        node_hashes: Vec<String>,
+        hard_anchors_mode: bool,
+    ) -> PyResult<String> {
+        let state = self.state.read();
+        let mut context =
+            String::with_capacity(node_hashes.len().saturating_mul(if hard_anchors_mode {
+                96
+            } else {
+                256
+            }));
+        for hash in node_hashes {
+            if let Some(indexed_node) = state.nodes.get(&hash) {
+                if !context.is_empty() {
+                    context.push('\n');
+                }
+                if hard_anchors_mode {
+                    context.push_str("<hard_anchor>");
+                    context.push_str(&hash);
+                    context.push_str("</hard_anchor>");
+                } else {
+                    context.push_str("<legacy_memory>");
+                    context.push_str(&indexed_node.node.content);
+                    context.push_str("</legacy_memory>");
+                }
+            }
+        }
+        Ok(context)
+    }
+
     fn __len__(&self) -> usize {
         self.state.read().nodes.len()
     }
@@ -1155,6 +1381,11 @@ fn _helix_merkle_dag(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<PyMerkleNode>()?;
     m.add_class::<PyMerkleDAG>()?;
     m.add_class::<PyIndexedMerkleDAG>()?;
+    m.add_function(wrap_pyfunction!(receipt_canonical_json, m)?)?;
+    m.add_function(wrap_pyfunction!(receipt_canonical_sha256, m)?)?;
+    m.add_function(wrap_pyfunction!(receipt_derive_ephemeral_keypair, m)?)?;
+    m.add_function(wrap_pyfunction!(receipt_sign_payload, m)?)?;
+    m.add_function(wrap_pyfunction!(receipt_verify_signature, m)?)?;
     Ok(())
 }
 
@@ -1164,7 +1395,10 @@ mod tests {
 
     #[test]
     fn tokenization_matches_python_shape() {
-        assert_eq!(tokenize("The quick_brown-fox! a"), vec!["the", "quick_brown-fox"]);
+        assert_eq!(
+            tokenize("The quick_brown-fox! a"),
+            vec!["the", "quick_brown-fox"]
+        );
     }
 
     #[test]
@@ -1177,7 +1411,10 @@ mod tests {
                     py,
                     "root content".to_string(),
                     None,
-                    Some(r#"{"project":"p","agent_id":"a","record_kind":"memory","memory_id":"m0"}"#.to_string()),
+                    Some(
+                        r#"{"project":"p","agent_id":"a","record_kind":"memory","memory_id":"m0"}"#
+                            .to_string(),
+                    ),
                 )
                 .unwrap();
             let child = dag
@@ -1185,7 +1422,10 @@ mod tests {
                     py,
                     "child content".to_string(),
                     Some(root.hash.clone()),
-                    Some(r#"{"project":"p","agent_id":"a","record_kind":"memory","memory_id":"m1"}"#.to_string()),
+                    Some(
+                        r#"{"project":"p","agent_id":"a","record_kind":"memory","memory_id":"m1"}"#
+                            .to_string(),
+                    ),
                 )
                 .unwrap();
             assert_eq!(child.depth, 1);
@@ -1311,11 +1551,19 @@ mod tests {
             assert_eq!(hits.len(), 1);
             let dict = hits[0].downcast_bound::<PyDict>(py).unwrap();
             assert_eq!(
-                dict.get_item("memory_id").unwrap().unwrap().extract::<String>().unwrap(),
+                dict.get_item("memory_id")
+                    .unwrap()
+                    .unwrap()
+                    .extract::<String>()
+                    .unwrap(),
                 "m-historical"
             );
             assert_eq!(
-                dict.get_item("search_algorithm").unwrap().unwrap().extract::<String>().unwrap(),
+                dict.get_item("search_algorithm")
+                    .unwrap()
+                    .unwrap()
+                    .extract::<String>()
+                    .unwrap(),
                 "wand_dynamic_bm25"
             );
         });
@@ -1347,7 +1595,42 @@ mod tests {
             assert_eq!(hits.len(), 0);
             let receipt = dag.verify_chain(py, &node.hash, None).unwrap();
             let dict = receipt.downcast_bound::<PyDict>(py).unwrap();
-            assert_eq!(dict.get_item("status").unwrap().unwrap().extract::<String>().unwrap(), "tombstone_preserved");
+            assert_eq!(
+                dict.get_item("status")
+                    .unwrap()
+                    .unwrap()
+                    .extract::<String>()
+                    .unwrap(),
+                "tombstone_preserved"
+            );
+        });
+    }
+
+    #[test]
+    fn build_context_fast_hard_anchor_mode_omits_narrative_content() {
+        pyo3::prepare_freethreaded_python();
+        Python::with_gil(|py| {
+            let dag = PyIndexedMerkleDAG::new();
+            let node = dag
+                .insert_indexed(
+                    py,
+                    "large private narrative content".to_string(),
+                    None,
+                    Some(r#"{"project":"p","agent_id":"a","record_kind":"memory","memory_id":"m1","summary":"anchor"}"#.to_string()),
+                )
+                .unwrap();
+            let anchors = dag
+                .build_context_fast(py, vec![node.hash.clone()], true)
+                .unwrap();
+            let legacy = dag
+                .build_context_fast(py, vec![node.hash.clone()], false)
+                .unwrap();
+
+            assert!(anchors.contains(&format!("<hard_anchor>{}</hard_anchor>", node.hash)));
+            assert!(!anchors.contains("large private narrative content"));
+            assert!(
+                legacy.contains("<legacy_memory>large private narrative content</legacy_memory>")
+            );
         });
     }
 }

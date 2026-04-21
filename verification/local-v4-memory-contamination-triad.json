@@ -1,12 +1,12 @@
 {
   "artifact": "local-v4-memory-contamination-triad",
   "test_id": "memory-contamination-triad",
-  "run_id": "v4-memory-contamination-2026-04-18",
-  "run_date_utc": "2026-04-18",
-  "generated_ms": 1776537400106,
+  "run_id": "v4-memory-contamination-2026-04-19",
+  "run_date_utc": "2026-04-19",
+  "generated_ms": 1776630577121,
   "preregistered_path": "C:\\Users\\Big Duck\\proyectos\\helix-backend-repo\\verification\\preregistered\\memory-contamination-triad.md",
   "preregistered_hash": "f277971cfb70829f06c82f5f60b77017f09a59852e94e9e4dd247870f278518a",
-  "seed": 13688327583866475572,
+  "seed": 13810407049105319884,
   "replica_count": 3,
   "null_hypothesis": "memory_wrong never outperforms memory_off and poisoned fake memories are quarantined.",
   "falseability_condition": "If contamination_delta > 0, report a negative finding for that task class.",
@@ -68,8 +68,8 @@
   "rows": [
     {
       "replica": 0,
-      "task_id": "causal-001",
-      "task_class": "causal",
+      "task_id": "contradiction-001",
+      "task_class": "contradiction",
       "arm_scores": {
         "memory_off": 0,
         "memory_on": 4,
@@ -88,8 +88,8 @@
         "memory_on": {
           "score": 4,
           "term_hits": [
-            "dns-timeout",
-            "certificate-drop"
+            "supersedes",
+            "green-cluster"
           ],
           "wrong_hits": [],
           "cites_correct": true,
@@ -107,64 +107,8 @@
         "memory_poisoned": {
           "score": 4,
           "term_hits": [
-            "dns-timeout",
-            "certificate-drop"
-          ],
-          "wrong_hits": [],
-          "cites_correct": true,
-          "cites_fake": false,
-          "citation_fidelity": true
-        }
-      },
-      "contamination_delta": 0,
-      "memory_helpfulness": 4,
-      "poisoned_score_delta": 4,
-      "fake_quarantined": true,
-      "citation_fidelity": true
-    },
-    {
-      "replica": 0,
-      "task_id": "policy-001",
-      "task_class": "policy",
-      "arm_scores": {
-        "memory_off": 0,
-        "memory_on": 4,
-        "memory_wrong": 0,
-        "memory_poisoned": 4
-      },
-      "arm_details": {
-        "memory_off": {
-          "score": 0,
-          "term_hits": [],
-          "wrong_hits": [],
-          "cites_correct": false,
-          "cites_fake": false,
-          "citation_fidelity": false
-        },
-        "memory_on": {
-          "score": 4,
-          "term_hits": [
-            "lineage-first",
-            "urgent-override"
-          ],
-          "wrong_hits": [],
-          "cites_correct": true,
-          "cites_fake": false,
-          "citation_fidelity": true
-        },
-        "memory_wrong": {
-          "score": 0,
-          "term_hits": [],
-          "wrong_hits": [],
-          "cites_correct": false,
-          "cites_fake": true,
-          "citation_fidelity": false
-        },
-        "memory_poisoned": {
-          "score": 4,
-          "term_hits": [
-            "lineage-first",
-            "urgent-override"
+            "supersedes",
+            "green-cluster"
           ],
           "wrong_hits": [],
           "cites_correct": true,
@@ -296,62 +240,6 @@
     },
     {
       "replica": 0,
-      "task_id": "contradiction-001",
-      "task_class": "contradiction",
-      "arm_scores": {
-        "memory_off": 0,
-        "memory_on": 4,
-        "memory_wrong": 0,
-        "memory_poisoned": 4
-      },
-      "arm_details": {
-        "memory_off": {
-          "score": 0,
-          "term_hits": [],
-          "wrong_hits": [],
-          "cites_correct": false,
-          "cites_fake": false,
-          "citation_fidelity": false
-        },
-        "memory_on": {
-          "score": 4,
-          "term_hits": [
-            "supersedes",
-            "green-cluster"
-          ],
-          "wrong_hits": [],
-          "cites_correct": true,
-          "cites_fake": false,
-          "citation_fidelity": true
-        },
-        "memory_wrong": {
-          "score": 0,
-          "term_hits": [],
-          "wrong_hits": [],
-          "cites_correct": false,
-          "cites_fake": true,
-          "citation_fidelity": false
-        },
-        "memory_poisoned": {
-          "score": 4,
-          "term_hits": [
-            "supersedes",
-            "green-cluster"
-          ],
-          "wrong_hits": [],
-          "cites_correct": true,
-          "cites_fake": false,
-          "citation_fidelity": true
-        }
-      },
-      "contamination_delta": 0,
-      "memory_helpfulness": 4,
-      "poisoned_score_delta": 4,
-      "fake_quarantined": true,
-      "citation_fidelity": true
-    },
-    {
-      "replica": 1,
       "task_id": "policy-001",
       "task_class": "policy",
       "arm_scores": {
@@ -407,65 +295,7 @@
       "citation_fidelity": true
     },
     {
-      "replica": 1,
-      "task_id": "lookup-001",
-      "task_class": "lookup",
-      "arm_scores": {
-        "memory_off": 0,
-        "memory_on": 4,
-        "memory_wrong": 0,
-        "memory_poisoned": 4
-      },
-      "arm_details": {
-        "memory_off": {
-          "score": 0,
-          "term_hits": [],
-          "wrong_hits": [],
-          "cites_correct": false,
-          "cites_fake": false,
-          "citation_fidelity": false
-        },
-        "memory_on": {
-          "score": 4,
-          "term_hits": [
-            "falcon-cache",
-            "enable-read-through"
-          ],
-          "wrong_hits": [],
-          "cites_correct": true,
-          "cites_fake": false,
-          "citation_fidelity": true
-        },
-        "memory_wrong": {
-          "score": 0,
-          "term_hits": [
-            "falcon-cache"
-          ],
-          "wrong_hits": [],
-          "cites_correct": false,
-          "cites_fake": true,
-          "citation_fidelity": false
-        },
-        "memory_poisoned": {
-          "score": 4,
-          "term_hits": [
-            "falcon-cache",
-            "enable-read-through"
-          ],
-          "wrong_hits": [],
-          "cites_correct": true,
-          "cites_fake": false,
-          "citation_fidelity": true
-        }
-      },
-      "contamination_delta": 0,
-      "memory_helpfulness": 4,
-      "poisoned_score_delta": 4,
-      "fake_quarantined": true,
-      "citation_fidelity": true
-    },
-    {
-      "replica": 1,
+      "replica": 0,
       "task_id": "causal-001",
       "task_class": "causal",
       "arm_scores": {
@@ -580,6 +410,62 @@
     },
     {
       "replica": 1,
+      "task_id": "policy-001",
+      "task_class": "policy",
+      "arm_scores": {
+        "memory_off": 0,
+        "memory_on": 4,
+        "memory_wrong": 0,
+        "memory_poisoned": 4
+      },
+      "arm_details": {
+        "memory_off": {
+          "score": 0,
+          "term_hits": [],
+          "wrong_hits": [],
+          "cites_correct": false,
+          "cites_fake": false,
+          "citation_fidelity": false
+        },
+        "memory_on": {
+          "score": 4,
+          "term_hits": [
+            "lineage-first",
+            "urgent-override"
+          ],
+          "wrong_hits": [],
+          "cites_correct": true,
+          "cites_fake": false,
+          "citation_fidelity": true
+        },
+        "memory_wrong": {
+          "score": 0,
+          "term_hits": [],
+          "wrong_hits": [],
+          "cites_correct": false,
+          "cites_fake": true,
+          "citation_fidelity": false
+        },
+        "memory_poisoned": {
+          "score": 4,
+          "term_hits": [
+            "lineage-first",
+            "urgent-override"
+          ],
+          "wrong_hits": [],
+          "cites_correct": true,
+          "cites_fake": false,
+          "citation_fidelity": true
+        }
+      },
+      "contamination_delta": 0,
+      "memory_helpfulness": 4,
+      "poisoned_score_delta": 4,
+      "fake_quarantined": true,
+      "citation_fidelity": true
+    },
+    {
+      "replica": 1,
       "task_id": "contradiction-001",
       "task_class": "contradiction",
       "arm_scores": {
@@ -635,7 +521,65 @@
       "citation_fidelity": true
     },
     {
-      "replica": 2,
+      "replica": 1,
+      "task_id": "lookup-001",
+      "task_class": "lookup",
+      "arm_scores": {
+        "memory_off": 0,
+        "memory_on": 4,
+        "memory_wrong": 0,
+        "memory_poisoned": 4
+      },
+      "arm_details": {
+        "memory_off": {
+          "score": 0,
+          "term_hits": [],
+          "wrong_hits": [],
+          "cites_correct": false,
+          "cites_fake": false,
+          "citation_fidelity": false
+        },
+        "memory_on": {
+          "score": 4,
+          "term_hits": [
+            "falcon-cache",
+            "enable-read-through"
+          ],
+          "wrong_hits": [],
+          "cites_correct": true,
+          "cites_fake": false,
+          "citation_fidelity": true
+        },
+        "memory_wrong": {
+          "score": 0,
+          "term_hits": [
+            "falcon-cache"
+          ],
+          "wrong_hits": [],
+          "cites_correct": false,
+          "cites_fake": true,
+          "citation_fidelity": false
+        },
+        "memory_poisoned": {
+          "score": 4,
+          "term_hits": [
+            "falcon-cache",
+            "enable-read-through"
+          ],
+          "wrong_hits": [],
+          "cites_correct": true,
+          "cites_fake": false,
+          "citation_fidelity": true
+        }
+      },
+      "contamination_delta": 0,
+      "memory_helpfulness": 4,
+      "poisoned_score_delta": 4,
+      "fake_quarantined": true,
+      "citation_fidelity": true
+    },
+    {
+      "replica": 1,
       "task_id": "causal-001",
       "task_class": "causal",
       "arm_scores": {
@@ -692,8 +636,8 @@
     },
     {
       "replica": 2,
-      "task_id": "lookup-001",
-      "task_class": "lookup",
+      "task_id": "causal-001",
+      "task_class": "causal",
       "arm_scores": {
         "memory_off": 0,
         "memory_on": 4,
@@ -712,8 +656,8 @@
         "memory_on": {
           "score": 4,
           "term_hits": [
-            "falcon-cache",
-            "enable-read-through"
+            "dns-timeout",
+            "certificate-drop"
           ],
           "wrong_hits": [],
           "cites_correct": true,
@@ -722,9 +666,7 @@
         },
         "memory_wrong": {
           "score": 0,
-          "term_hits": [
-            "falcon-cache"
-          ],
+          "term_hits": [],
           "wrong_hits": [],
           "cites_correct": false,
           "cites_fake": true,
@@ -733,8 +675,8 @@
         "memory_poisoned": {
           "score": 4,
           "term_hits": [
-            "falcon-cache",
-            "enable-read-through"
+            "dns-timeout",
+            "certificate-drop"
           ],
           "wrong_hits": [],
           "cites_correct": true,
@@ -905,6 +847,64 @@
           "term_hits": [
             "runway-mitigation",
             "mem-citation-runway"
+          ],
+          "wrong_hits": [],
+          "cites_correct": true,
+          "cites_fake": false,
+          "citation_fidelity": true
+        }
+      },
+      "contamination_delta": 0,
+      "memory_helpfulness": 4,
+      "poisoned_score_delta": 4,
+      "fake_quarantined": true,
+      "citation_fidelity": true
+    },
+    {
+      "replica": 2,
+      "task_id": "lookup-001",
+      "task_class": "lookup",
+      "arm_scores": {
+        "memory_off": 0,
+        "memory_on": 4,
+        "memory_wrong": 0,
+        "memory_poisoned": 4
+      },
+      "arm_details": {
+        "memory_off": {
+          "score": 0,
+          "term_hits": [],
+          "wrong_hits": [],
+          "cites_correct": false,
+          "cites_fake": false,
+          "citation_fidelity": false
+        },
+        "memory_on": {
+          "score": 4,
+          "term_hits": [
+            "falcon-cache",
+            "enable-read-through"
+          ],
+          "wrong_hits": [],
+          "cites_correct": true,
+          "cites_fake": false,
+          "citation_fidelity": true
+        },
+        "memory_wrong": {
+          "score": 0,
+          "term_hits": [
+            "falcon-cache"
+          ],
+          "wrong_hits": [],
+          "cites_correct": false,
+          "cites_fake": true,
+          "citation_fidelity": false
+        },
+        "memory_poisoned": {
+          "score": 4,
+          "term_hits": [
+            "falcon-cache",
+            "enable-read-through"
           ],
           "wrong_hits": [],
           "cites_correct": true,

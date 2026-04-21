@@ -3,14 +3,14 @@
   "test_id": "provider-substitution-longitudinal",
   "run_id": "v4-provider-substitution-2026-04-19",
   "run_date_utc": "2026-04-19",
-  "generated_ms": 1776568824083,
+  "generated_ms": 1776624669603,
   "preregistered_path": "C:\\Users\\Big Duck\\proyectos\\helix-backend-repo\\verification\\preregistered\\provider-substitution-longitudinal.md",
-  "preregistered_hash": "7911de03982347c859c19141c247bacb7276e25cefb0f7b01dbfd64b56ffcdee",
-  "seed": 3483374082944683713,
+  "preregistered_hash": "8580ceb3d97642865a0a268ada5128698499859790d303114b2f79f908ad80cc",
+  "seed": 9665284913196793612,
   "replica_count": 3,
-  "null_hypothesis": "For each provider/requested model, actual_model is consistent on >= 90% of days.",
-  "falseability_condition": "If consistency < 90%, substitution is dynamic rather than fixed aliasing.",
-  "kill_switch": "If requested/actual model fields are absent, abort the longitudinal claim.",
+  "null_hypothesis": "For each provider/requested model, provider_returned_model is consistent on >= 90% of days.",
+  "falseability_condition": "If consistency < 90%, provider-returned model mapping is dynamic rather than fixed aliasing.",
+  "kill_switch": "If requested/provider_returned model fields are absent, abort the longitudinal claim.",
   "control_arms": [
     "temperature_0_same_prompt",
     "provider_served_actual_model"
@@ -27,9 +27,13 @@
       {
         "provider": "deepinfra",
         "requested_model": "Qwen/Qwen2.5-7B-Instruct",
+        "provider_returned_model_counts": {
+          "Qwen/Qwen3-14B": 3
+        },
         "actual_model_counts": {
           "Qwen/Qwen3-14B": 3
         },
+        "dominant_provider_returned_model": "Qwen/Qwen3-14B",
         "dominant_actual_model": "Qwen/Qwen3-14B",
         "dominant_consistency_rate": 1.0,
         "substitution_churn_rate": 0.0
@@ -37,9 +41,13 @@
       {
         "provider": "deepinfra",
         "requested_model": "meta-llama/Llama-3.2-3B-Instruct",
+        "provider_returned_model_counts": {
+          "meta-llama/Llama-3.2-11B-Vision-Instruct": 3
+        },
         "actual_model_counts": {
           "meta-llama/Llama-3.2-11B-Vision-Instruct": 3
         },
+        "dominant_provider_returned_model": "meta-llama/Llama-3.2-11B-Vision-Instruct",
         "dominant_actual_model": "meta-llama/Llama-3.2-11B-Vision-Instruct",
         "dominant_consistency_rate": 1.0,
         "substitution_churn_rate": 0.0
@@ -47,9 +55,13 @@
       {
         "provider": "deepinfra",
         "requested_model": "mistralai/Mistral-7B-Instruct-v0.3",
+        "provider_returned_model_counts": {
+          "mistralai/Mistral-Small-3.2-24B-Instruct-2506": 3
+        },
         "actual_model_counts": {
           "mistralai/Mistral-Small-3.2-24B-Instruct-2506": 3
         },
+        "dominant_provider_returned_model": "mistralai/Mistral-Small-3.2-24B-Instruct-2506",
         "dominant_actual_model": "mistralai/Mistral-Small-3.2-24B-Instruct-2506",
         "dominant_consistency_rate": 1.0,
         "substitution_churn_rate": 0.0
@@ -85,7 +97,7 @@
   "claim_boundary": "v4 gauntlet claims are bounded by preregistered controls, baselines, falseability conditions and the recorded public_claim_ladder.",
   "claims_allowed": [
     "Fixture validates the longitudinal artifact shape and churn metrics.",
-    "A 14-day series is required before claiming longitudinal substitution rates."
+    "A 14-day series is required before claiming longitudinal provider-returned model rates."
   ],
   "claims_not_allowed": [
     "This 3-day fixture is not a 14-day industry substitution rate."
@@ -107,27 +119,31 @@
       "provider-integrity-observatory-20260418-031521",
       "provider-integrity-observatory-20260418-031611",
       "provider-integrity-observatory-20260418-154218",
-      "provider-observatory-9ee66494d2f3"
+      "provider-observatory-2686abf77ec1"
     ],
     "observed_event_count": 66,
     "observed_requested_actual_matrix": [
       {
         "requested_model": "Qwen/Qwen2.5-7B-Instruct",
+        "provider_returned_model": "Qwen/Qwen3-14B",
         "actual_model": "Qwen/Qwen3-14B",
         "count": 22
       },
       {
         "requested_model": "meta-llama/Llama-3.2-3B-Instruct",
+        "provider_returned_model": "meta-llama/Llama-3.2-11B-Vision-Instruct",
         "actual_model": "meta-llama/Llama-3.2-11B-Vision-Instruct",
         "count": 22
       },
       {
         "requested_model": "mistralai/Mistral-7B-Instruct-v0.3",
+        "provider_returned_model": "mistralai/Mistral-Small-24B-Instruct-2501",
         "actual_model": "mistralai/Mistral-Small-24B-Instruct-2501",
         "count": 9
       },
       {
         "requested_model": "mistralai/Mistral-7B-Instruct-v0.3",
+        "provider_returned_model": "mistralai/Mistral-Small-3.2-24B-Instruct-2506",
         "actual_model": "mistralai/Mistral-Small-3.2-24B-Instruct-2506",
         "count": 13
       }
@@ -140,9 +156,13 @@
     {
       "provider": "deepinfra",
       "requested_model": "Qwen/Qwen2.5-7B-Instruct",
+      "provider_returned_model_counts": {
+        "Qwen/Qwen3-14B": 3
+      },
       "actual_model_counts": {
         "Qwen/Qwen3-14B": 3
       },
+      "dominant_provider_returned_model": "Qwen/Qwen3-14B",
       "dominant_actual_model": "Qwen/Qwen3-14B",
       "dominant_consistency_rate": 1.0,
       "substitution_churn_rate": 0.0
@@ -150,9 +170,13 @@
     {
       "provider": "deepinfra",
       "requested_model": "meta-llama/Llama-3.2-3B-Instruct",
+      "provider_returned_model_counts": {
+        "meta-llama/Llama-3.2-11B-Vision-Instruct": 3
+      },
       "actual_model_counts": {
         "meta-llama/Llama-3.2-11B-Vision-Instruct": 3
       },
+      "dominant_provider_returned_model": "meta-llama/Llama-3.2-11B-Vision-Instruct",
       "dominant_actual_model": "meta-llama/Llama-3.2-11B-Vision-Instruct",
       "dominant_consistency_rate": 1.0,
       "substitution_churn_rate": 0.0
@@ -160,9 +184,13 @@
     {
       "provider": "deepinfra",
       "requested_model": "mistralai/Mistral-7B-Instruct-v0.3",
+      "provider_returned_model_counts": {
+        "mistralai/Mistral-Small-3.2-24B-Instruct-2506": 3
+      },
       "actual_model_counts": {
         "mistralai/Mistral-Small-3.2-24B-Instruct-2506": 3
       },
+      "dominant_provider_returned_model": "mistralai/Mistral-Small-3.2-24B-Instruct-2506",
       "dominant_actual_model": "mistralai/Mistral-Small-3.2-24B-Instruct-2506",
       "dominant_consistency_rate": 1.0,
       "substitution_churn_rate": 0.0

@@ -68,7 +68,9 @@ def _analyze(days: list[dict[str, Any]]) -> dict[str, Any]:
         matrix.append({
             "provider": provider,
             "requested_model": requested,
+            "provider_returned_model_counts": dict(counter),
             "actual_model_counts": dict(counter),
+            "dominant_provider_returned_model": top_actual,
             "dominant_actual_model": top_actual,
             "dominant_consistency_rate": top_count / max(total, 1),
             "substitution_churn_rate": churn,
@@ -113,6 +115,7 @@ def _observed_substitution_baseline() -> dict[str, Any]:
                     "run_id": run_id,
                     "artifact": payload.get("artifact"),
                     "requested_model": requested,
+                    "provider_returned_model": actual,
                     "actual_model": actual,
                 })
     matrix = Counter((row["requested_model"], row["actual_model"]) for row in observed)
@@ -120,7 +123,7 @@ def _observed_substitution_baseline() -> dict[str, Any]:
         "baseline_run_ids": sorted(run_ids),
         "observed_event_count": len(observed),
         "observed_requested_actual_matrix": [
-            {"requested_model": requested, "actual_model": actual, "count": count}
+            {"requested_model": requested, "provider_returned_model": actual, "actual_model": actual, "count": count}
             for (requested, actual), count in sorted(matrix.items())
         ],
         "cron_installed": False,
@@ -132,10 +135,10 @@ def test_provider_substitution_longitudinal_fixture_has_claim_ladder() -> None:
     prereg = preregister(
         test_id=TEST_ID,
         question="Are provider model substitutions stable or noisy over time?",
-        null_hypothesis="For each provider/requested model, actual_model is consistent on >= 90% of days.",
-        metrics=["requested_actual_matrix", "substitution_churn_rate", "output_digest_stability"],
-        falseability_condition="If consistency < 90%, substitution is dynamic rather than fixed aliasing.",
-        kill_switch="If requested/actual model fields are absent, abort the longitudinal claim.",
+        null_hypothesis="For each provider/requested model, provider_returned_model is consistent on >= 90% of days.",
+        metrics=["requested_provider_returned_matrix", "substitution_churn_rate", "output_digest_stability"],
+        falseability_condition="If consistency < 90%, provider-returned model mapping is dynamic rather than fixed aliasing.",
+        kill_switch="If requested/provider_returned model fields are absent, abort the longitudinal claim.",
         control_arms=["temperature_0_same_prompt", "provider_served_actual_model"],
     )
     analysis = _analyze(FIXTURE_DAYS)
@@ -154,7 +157,7 @@ def test_provider_substitution_longitudinal_fixture_has_claim_ladder() -> None:
         public_claim_ladder=ladder,
         claims_allowed=[
             "Fixture validates the longitudinal artifact shape and churn metrics.",
-            "A 14-day series is required before claiming longitudinal substitution rates.",
+            "A 14-day series is required before claiming longitudinal provider-returned model rates.",
         ],
         claims_not_allowed=["This 3-day fixture is not a 14-day industry substitution rate."],
         prompt_selection_risk="low",

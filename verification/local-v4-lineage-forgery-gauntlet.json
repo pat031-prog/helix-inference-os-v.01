@@ -1,12 +1,12 @@
 {
   "artifact": "local-v4-lineage-forgery-gauntlet",
   "test_id": "lineage-forgery-gauntlet",
-  "run_id": "v4-lineage-forgery-2026-04-18",
-  "run_date_utc": "2026-04-18",
-  "generated_ms": 1776537400188,
+  "run_id": "v4-lineage-forgery-2026-04-19",
+  "run_date_utc": "2026-04-19",
+  "generated_ms": 1776630577106,
   "preregistered_path": "C:\\Users\\Big Duck\\proyectos\\helix-backend-repo\\verification\\preregistered\\lineage-forgery-gauntlet.md",
   "preregistered_hash": "52243bb374d4e112befa814571308d1f006aeea9d2315772b21cebf1c24ac7f6",
-  "seed": 2153659586358984481,
+  "seed": 4920254945830407304,
   "replica_count": 20,
   "null_hypothesis": "HeliX detects signature-aware forgeries with recall >= 0.95 and FPR <= 0.01.",
   "falseability_condition": "If signature-aware recall < 0.95 or FPR > 0.01, publish the bound as a failure.",
@@ -78,7 +78,7 @@
         "fn": 0
       }
     },
-    "latency_ms_p95": 0.04010001430287957
+    "latency_ms_p95": 0.04339998122304678
   },
   "public_claim_ladder": "mechanics_verified",
   "claim_boundary": "v4 gauntlet claims are bounded by preregistered controls, baselines, falseability conditions and the recorded public_claim_ladder.",
@@ -90,10 +90,10 @@
     "This fixture is not a cryptographic proof against real compromised production keys."
   ],
   "prompt_selection_risk": "low",
-  "mean": 0.02862187500593589,
-  "stdev": 0.014990716704864463,
+  "mean": 0.028491249556989513,
+  "stdev": 0.012227816052055957,
   "n": 1440,
-  "cv": 0.5237503378711401,
+  "cv": 0.42917794909617124,
   "high_variance": true,
   "primary_metric": "detection_latency_ms",
   "chain_count": 20,
@@ -152,12 +152,12 @@
     }
   },
   "detection_latency_ms": {
-    "p95": 0.04010001430287957,
+    "p95": 0.04339998122304678,
     "summary": {
-      "mean": 0.02862187500593589,
-      "stdev": 0.014990716704864463,
+      "mean": 0.028491249556989513,
+      "stdev": 0.012227816052055957,
       "n": 1440,
-      "cv": 0.5237503378711401,
+      "cv": 0.42917794909617124,
       "high_variance": true
     }
   },

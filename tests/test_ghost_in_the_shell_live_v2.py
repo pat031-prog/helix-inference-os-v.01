@@ -140,12 +140,19 @@ def _doppel_vote_score(text: str) -> dict[str, Any]:
         or ("shadow" in lower and rejection_language)
         or ("open-shell" in lower and "shadow" in lower)
     )
-    preserves_invariant = "parent-hash-before-content" in lower and "content-before-lineage" in lower
+    preserves_root_invariant = (
+        "parent-hash-before-content" in lower
+        or "parent hash before content" in lower
+        or _field_value(text, "preserve_invariant") == "parent-hash-before-content"
+    )
+    contrasts_doppel_invariant = "content-before-lineage" in lower or "content before lineage" in lower
     return {
         "selects_original": selects_original,
         "rejects_revision": rejects_revision and rejection_language,
         "rejects_shadow": rejects_shadow and rejection_language,
-        "preserves_invariant": preserves_invariant,
+        "preserves_root_invariant": preserves_root_invariant,
+        "contrasts_doppel_invariant": contrasts_doppel_invariant,
+        "preserves_invariant": preserves_root_invariant,
         "passed": selects_original and rejection_language and (rejects_revision or rejects_shadow),
     }
 
@@ -354,6 +361,7 @@ class TestGhostInTheShellLiveV2DoppelgangerWar:
                         "call_id": result.call_id,
                         "requested_model": result.requested_model,
                         "actual_model": result.actual_model,
+                        "provider_returned_model": result.provider_returned_model,
                         "recalled_facts": score["term_hits"],
                         "memory_ids_cited": [ROOT_MEMORY_ID] if score["memory_id_hit"] else [],
                         "identity_anchor_hit": _identity_anchor_hit(result.text, ROOT_MEMORY_ID),
@@ -431,6 +439,7 @@ class TestGhostInTheShellLiveV2DoppelgangerWar:
                         "call_id": vote.call_id,
                         "requested_model": vote.requested_model,
                         "actual_model": vote.actual_model,
+                        "provider_returned_model": vote.provider_returned_model,
                         "score": _doppel_vote_score(vote.text),
                         "preview": obs._sanitize_preview(vote.text, 380),
                     })
@@ -702,6 +711,8 @@ class TestGhostInTheShellLiveV2DoppelgangerWar:
 
                 models_requested = sorted({call.get("requested_model") for call in obs.AUDIT.calls if call.get("requested_model")})
                 models_actual = sorted({call.get("actual_model") for call in obs.AUDIT.calls if call.get("actual_model")})
+                models_provider_returned = sorted({call.get("provider_returned_model") for call in obs.AUDIT.calls if call.get("provider_returned_model")})
+                substitutions = obs.AUDIT.model_substitutions()
                 doppel_artifact = {
                     "artifact": "local-ghost-v2-doppelganger-war",
                     "root_memory_id": ROOT_MEMORY_ID,
@@ -750,8 +761,10 @@ class TestGhostInTheShellLiveV2DoppelgangerWar:
                     "run_date_utc": RUN_DATE_UTC,
                     "models_requested": models_requested,
                     "models_actual": models_actual,
-                    "model_substitution_detected": bool(obs.AUDIT.model_substitutions()),
-                    "substitution_events": obs.AUDIT.model_substitutions(),
+                    "models_provider_returned": models_provider_returned,
+                    "model_substitution_detected": bool(substitutions),
+                    "substitution_observation_status": "mismatch_observed" if substitutions else "none_observed_in_this_run",
+                    "substitution_events": substitutions,
                     "root_ghost": {
                         "ghost_id": GHOST_ID,
                         "root_memory_id": ROOT_MEMORY_ID,

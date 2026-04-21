@@ -78,6 +78,27 @@ try {
     if ($TestId -eq "all" -or $TestId -eq "provider-substitution-longitudinal") {
         $expectedArtifacts += (Join-Path $verificationDir "provider-substitution-longitudinal\provider-substitution-longitudinal-fixture.json")
     }
+    if ($TestId -eq "all" -or $TestId -eq "signed-receipt-provenance") {
+        $expectedArtifacts += (Join-Path $verificationDir "local-signed-receipt-gauntlet.json")
+    }
+    if ($TestId -eq "all" -or $TestId -eq "indirect-prompt-injection-memory") {
+        $expectedArtifacts += (Join-Path $verificationDir "local-indirect-prompt-injection-memory.json")
+    }
+    if ($TestId -eq "all" -or $TestId -eq "byzantine-shared-hmem") {
+        $expectedArtifacts += (Join-Path $verificationDir "local-byzantine-shared-hmem.json")
+    }
+    if ($TestId -eq "all" -or $TestId -eq "hybrid-rerank-ab") {
+        $expectedArtifacts += (Join-Path $verificationDir "local-hybrid-rerank-ab.json")
+    }
+    if ($TestId -eq "all" -or $TestId -eq "cross-provider-behavioral-triangulation") {
+        $expectedArtifacts += (Join-Path $verificationDir "local-cross-provider-triangulation.json")
+    }
+    if ($TestId -eq "all" -or $TestId -eq "stack-upgrade-integration") {
+        $expectedArtifacts += (Join-Path $verificationDir "local-signed-receipt-integration.json")
+        $expectedArtifacts += (Join-Path $verificationDir "local-browser-verifier-smoke.json")
+        $expectedArtifacts += (Join-Path $verificationDir "local-helix-replay-cassette-smoke.json")
+        $expectedArtifacts += (Join-Path $verificationDir "local-hybrid-rerank-live-ab.json")
+    }
     $artifactBytes = 0
     foreach ($artifactPath in $expectedArtifacts) {
         if (Test-Path -LiteralPath $artifactPath) {

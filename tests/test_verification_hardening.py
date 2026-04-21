@@ -10,6 +10,7 @@ from helix_proto.verification_hardening import (
     suspicious_short_log,
     validate_artifact,
 )
+from helix_kv.memory_catalog import privacy_filter
 
 
 def test_synthetic_avg_score_delta_is_renamed() -> None:
@@ -124,3 +125,8 @@ def test_hardener_declares_stable_timestamped_artifact_aliases(tmp_path: Path) -
 def test_schema_smoke_exists() -> None:
     schema = json.loads(Path("schemas/helix-verification-v0.schema.json").read_text(encoding="utf-8"))
     assert schema["properties"]["public_claim_ladder"]["enum"]
+
+
+def test_privacy_filter_does_not_redact_memory_id_task_substrings() -> None:
+    text = "memory_id=ghost-v2-task-code-review-recall cites wand-router-before-generic-scan"
+    assert privacy_filter(text) == text

@@ -56,6 +56,27 @@ The canonical contamination negative finding is
 retrieval included authentic root evidence and valid-but-inauthentic
 doppelganger records, and the delayed-trigger arm selected the wrong action.
 
+## Signed Receipts, Browser Verification and Replay
+
+New signed receipts are load-bearing only when retrieval runs with
+`signature_enforcement=strict`. Strict retrieval filters unsigned or unverified
+records before context construction. The boundary is deliberate: signatures
+prove writer/key provenance for a canonical payload, not semantic truth or
+authentic branch truth.
+
+Review paths:
+
+```powershell
+python tools\helix_replay.py --mode verify-only --artifact verification\local-signed-receipt-integration.json
+python -m pytest -q tests/test_stack_upgrade_integration.py
+```
+
+For a zero-network browser check, open `verification/viewer/index.html` and
+load a local JSON artifact. The browser verifier computes artifact hashes,
+checks signed receipts when browser Ed25519 is available, and marks
+`unsigned_legacy` evidence explicitly. It verifies recorded evidence, not model
+behavior or provider intent.
+
 ## v4 Claim Ladder
 
 - `mechanics_verified`: synthetic or fixture-only mechanics.

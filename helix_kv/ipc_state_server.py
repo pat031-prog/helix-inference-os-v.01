@@ -106,12 +106,21 @@ class StateServer:
                 return self.catalog.observe(**params)
             elif method == "remember":
                 item = self.catalog.remember(**params)
-                return item.to_dict()
+                payload = item.to_dict()
+                payload["node_hash"] = self.catalog.get_memory_node_hash(item.memory_id)
+                payload["signed_receipt"] = self.catalog.get_memory_receipt(item.memory_id)
+                return payload
             elif method == "bulk_remember":
                 items = params.get("items", [])
                 if not isinstance(items, list):
                     return {"error": "bulk_remember requires params.items list"}
-                return [item.to_dict() for item in self.catalog.bulk_remember(items)]
+                payloads = []
+                for item in self.catalog.bulk_remember(items):
+                    payload = item.to_dict()
+                    payload["node_hash"] = self.catalog.get_memory_node_hash(item.memory_id)
+                    payload["signed_receipt"] = self.catalog.get_memory_receipt(item.memory_id)
+                    payloads.append(payload)
+                return payloads
             elif method == "search":
                 return self.catalog.search(**params)
             elif method == "get_memory":

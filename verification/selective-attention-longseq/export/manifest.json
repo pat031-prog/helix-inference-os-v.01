@@ -1,0 +1,714 @@
+{
+  "format": "helix-proto-hf-manifest",
+  "model_ref": "verification\\selective-attention-longseq\\model-tmp",
+  "config": {
+    "add_cross_attention": false,
+    "tie_word_embeddings": true,
+    "vocab_size": 64,
+    "n_positions": 300,
+    "n_embd": 64,
+    "n_layer": 4,
+    "n_head": 4,
+    "n_inner": null,
+    "activation_function": "gelu_new",
+    "resid_pdrop": 0.1,
+    "embd_pdrop": 0.1,
+    "attn_pdrop": 0.1,
+    "layer_norm_epsilon": 1e-05,
+    "initializer_range": 0.02,
+    "summary_type": "cls_index",
+    "summary_use_proj": true,
+    "summary_activation": null,
+    "summary_first_dropout": 0.1,
+    "summary_proj_to_labels": true,
+    "scale_attn_weights": true,
+    "use_cache": true,
+    "scale_attn_by_inverse_layer_idx": false,
+    "reorder_and_upcast_attn": false,
+    "bos_token_id": 0,
+    "eos_token_id": 1,
+    "pad_token_id": null,
+    "return_dict": true,
+    "output_hidden_states": false,
+    "dtype": "float32",
+    "chunk_size_feed_forward": 0,
+    "is_encoder_decoder": false,
+    "architectures": [
+      "GPT2LMHeadModel"
+    ],
+    "id2label": {
+      "0": "LABEL_0",
+      "1": "LABEL_1"
+    },
+    "label2id": {
+      "LABEL_0": 0,
+      "LABEL_1": 1
+    },
+    "problem_type": null,
+    "_name_or_path": "verification\\selective-attention-longseq\\model-tmp",
+    "transformers_version": "5.3.0",
+    "model_type": "gpt2",
+    "n_ctx": 300,
+    "output_attentions": false
+  },
+  "block_rows": 8,
+  "compression_level": 6,
+  "exported": [
+    {
+      "name": "transformer.wte.weight",
+      "path": "tensors\\transformer.wte.weight",
+      "transpose_path": "tensors\\transformer.wte.weight\\transpose",
+      "shape": [
+        64,
+        64
+      ],
+      "dtype": "float32",
+      "compression_ratio": 1.051739632815509,
+      "raw_bytes": 16384,
+      "compressed_bytes": 15578
+    },
+    {
+      "name": "transformer.wpe.weight",
+      "path": "tensors\\transformer.wpe.weight",
+      "transpose_path": "tensors\\transformer.wpe.weight\\transpose",
+      "shape": [
+        300,
+        64
+      ],
+      "dtype": "float32",
+      "compression_ratio": 1.0510900953919007,
+      "raw_bytes": 76800,
+      "compressed_bytes": 73067
+    },
+    {
+      "name": "transformer.h.0.ln_1.weight",
+      "path": "tensors\\transformer.h.0.ln_1.weight",
+      "transpose_path": null,
+      "shape": [
+        64
+      ],
+      "dtype": "float32",
+      "compression_ratio": 2.2857142857142856,
+      "raw_bytes": 256,
+      "compressed_bytes": 112
+    },
+    {
+      "name": "transformer.h.0.ln_1.bias",
+      "path": "tensors\\transformer.h.0.ln_1.bias",
+      "transpose_path": null,
+      "shape": [
+        64
+      ],
+      "dtype": "float32",
+      "compression_ratio": 2.909090909090909,
+      "raw_bytes": 256,
+      "compressed_bytes": 88
+    },
+    {
+      "name": "transformer.h.0.attn.c_attn.weight",
+      "path": "tensors\\transformer.h.0.attn.c_attn.weight",
+      "transpose_path": "tensors\\transformer.h.0.attn.c_attn.weight\\transpose",
+      "shape": [
+        64,
+        192
+      ],
+      "dtype": "float32",
+      "compression_ratio": 1.0739381227058207,
+      "raw_bytes": 49152,
+      "compressed_bytes": 45768
+    },
+    {
+      "name": "transformer.h.0.attn.c_attn.bias",
+      "path": "tensors\\transformer.h.0.attn.c_attn.bias",
+      "transpose_path": null,
+      "shape": [
+        192
+      ],
+      "dtype": "float32",
+      "compression_ratio": 2.909090909090909,
+      "raw_bytes": 768,
+      "compressed_bytes": 264
+    },
+    {
+      "name": "transformer.h.0.attn.c_proj.weight",
+      "path": "tensors\\transformer.h.0.attn.c_proj.weight",
+      "transpose_path": "tensors\\transformer.h.0.attn.c_proj.weight\\transpose",
+      "shape": [
+        64,
+        64
+      ],
+      "dtype": "float32",
+      "compression_ratio": 1.051469644461558,
+      "raw_bytes": 16384,
+      "compressed_bytes": 15582
+    },
+    {
+      "name": "transformer.h.0.attn.c_proj.bias",
+      "path": "tensors\\transformer.h.0.attn.c_proj.bias",
+      "transpose_path": null,
+      "shape": [
+        64
+      ],
+      "dtype": "float32",
+      "compression_ratio": 2.909090909090909,
+      "raw_bytes": 256,
+      "compressed_bytes": 88
+    },
+    {
+      "name": "transformer.h.0.ln_2.weight",
+      "path": "tensors\\transformer.h.0.ln_2.weight",
+      "transpose_path": null,
+      "shape": [
+        64
+      ],
+      "dtype": "float32",
+      "compression_ratio": 2.2857142857142856,
+      "raw_bytes": 256,
+      "compressed_bytes": 112
+    },
+    {
+      "name": "transformer.h.0.ln_2.bias",
+      "path": "tensors\\transformer.h.0.ln_2.bias",
+      "transpose_path": null,
+      "shape": [
+        64
+      ],
+      "dtype": "float32",
+      "compression_ratio": 2.909090909090909,
+      "raw_bytes": 256,
+      "compressed_bytes": 88
+    },
+    {
+      "name": "transformer.h.0.mlp.c_fc.weight",
+      "path": "tensors\\transformer.h.0.mlp.c_fc.weight",
+      "transpose_path": "tensors\\transformer.h.0.mlp.c_fc.weight\\transpose",
+      "shape": [
+        64,
+        256
+      ],
+      "dtype": "float32",
+      "compression_ratio": 1.0757361872558353,
+      "raw_bytes": 65536,
+      "compressed_bytes": 60922
+    },
+    {
+      "name": "transformer.h.0.mlp.c_fc.bias",
+      "path": "tensors\\transformer.h.0.mlp.c_fc.bias",
+      "transpose_path": null,
+      "shape": [
+        256
+      ],
+      "dtype": "float32",
+      "compression_ratio": 2.909090909090909,
+      "raw_bytes": 1024,
+      "compressed_bytes": 352
+    },
+    {
+      "name": "transformer.h.0.mlp.c_proj.weight",
+      "path": "tensors\\transformer.h.0.mlp.c_proj.weight",
+      "transpose_path": "tensors\\transformer.h.0.mlp.c_proj.weight\\transpose",
+      "shape": [
+        256,
+        64
+      ],
+      "dtype": "float32",
+      "compression_ratio": 1.0511323538846475,
+      "raw_bytes": 65536,
+      "compressed_bytes": 62348
+    },
+    {
+      "name": "transformer.h.0.mlp.c_proj.bias",
+      "path": "tensors\\transformer.h.0.mlp.c_proj.bias",
+      "transpose_path": null,
+      "shape": [
+        64
+      ],
+      "dtype": "float32",
+      "compression_ratio": 2.909090909090909,
+      "raw_bytes": 256,
+      "compressed_bytes": 88
+    },
+    {
+      "name": "transformer.h.1.ln_1.weight",
+      "path": "tensors\\transformer.h.1.ln_1.weight",
+      "transpose_path": null,
+      "shape": [
+        64
+      ],
+      "dtype": "float32",
+      "compression_ratio": 2.2857142857142856,
+      "raw_bytes": 256,
+      "compressed_bytes": 112
+    },
+    {
+      "name": "transformer.h.1.ln_1.bias",
+      "path": "tensors\\transformer.h.1.ln_1.bias",
+      "transpose_path": null,
+      "shape": [
+        64
+      ],
+      "dtype": "float32",
+      "compression_ratio": 2.909090909090909,
+      "raw_bytes": 256,
+      "compressed_bytes": 88
+    },
+    {
+      "name": "transformer.h.1.attn.c_attn.weight",
+      "path": "tensors\\transformer.h.1.attn.c_attn.weight",
+      "transpose_path": "tensors\\transformer.h.1.attn.c_attn.weight\\transpose",
+      "shape": [
+        64,
+        192
+      ],
+      "dtype": "float32",
+      "compression_ratio": 1.0740319902106459,
+      "raw_bytes": 49152,
+      "compressed_bytes": 45764
+    },
+    {
+      "name": "transformer.h.1.attn.c_attn.bias",
+      "path": "tensors\\transformer.h.1.attn.c_attn.bias",
+      "transpose_path": null,
+      "shape": [
+        192
+      ],
+      "dtype": "float32",
+      "compression_ratio": 2.909090909090909,
+      "raw_bytes": 768,
+      "compressed_bytes": 264
+    },
+    {
+      "name": "transformer.h.1.attn.c_proj.weight",
+      "path": "tensors\\transformer.h.1.attn.c_proj.weight",
+      "transpose_path": "tensors\\transformer.h.1.attn.c_proj.weight\\transpose",
+      "shape": [
+        64,
+        64
+      ],
+      "dtype": "float32",
+      "compression_ratio": 1.0507952796305797,
+      "raw_bytes": 16384,
+      "compressed_bytes": 15592
+    },
+    {
+      "name": "transformer.h.1.attn.c_proj.bias",
+      "path": "tensors\\transformer.h.1.attn.c_proj.bias",
+      "transpose_path": null,
+      "shape": [
+        64
+      ],
+      "dtype": "float32",
+      "compression_ratio": 2.909090909090909,
+      "raw_bytes": 256,
+      "compressed_bytes": 88
+    },
+    {
+      "name": "transformer.h.1.ln_2.weight",
+      "path": "tensors\\transformer.h.1.ln_2.weight",
+      "transpose_path": null,
+      "shape": [
+        64
+      ],
+      "dtype": "float32",
+      "compression_ratio": 2.2857142857142856,
+      "raw_bytes": 256,
+      "compressed_bytes": 112
+    },
+    {
+      "name": "transformer.h.1.ln_2.bias",
+      "path": "tensors\\transformer.h.1.ln_2.bias",
+      "transpose_path": null,
+      "shape": [
+        64
+      ],
+      "dtype": "float32",
+      "compression_ratio": 2.909090909090909,
+      "raw_bytes": 256,
+      "compressed_bytes": 88
+    },
+    {
+      "name": "transformer.h.1.mlp.c_fc.weight",
+      "path": "tensors\\transformer.h.1.mlp.c_fc.weight",
+      "transpose_path": "tensors\\transformer.h.1.mlp.c_fc.weight\\transpose",
+      "shape": [
+        64,
+        256
+      ],
+      "dtype": "float32",
+      "compression_ratio": 1.0763015273443914,
+      "raw_bytes": 65536,
+      "compressed_bytes": 60890
+    },
+    {
+      "name": "transformer.h.1.mlp.c_fc.bias",
+      "path": "tensors\\transformer.h.1.mlp.c_fc.bias",
+      "transpose_path": null,
+      "shape": [
+        256
+      ],
+      "dtype": "float32",
+      "compression_ratio": 2.909090909090909,
+      "raw_bytes": 1024,
+      "compressed_bytes": 352
+    },
+    {
+      "name": "transformer.h.1.mlp.c_proj.weight",
+      "path": "tensors\\transformer.h.1.mlp.c_proj.weight",
+      "transpose_path": "tensors\\transformer.h.1.mlp.c_proj.weight\\transpose",
+      "shape": [
+        256,
+        64
+      ],
+      "dtype": "float32",
+      "compression_ratio": 1.0507952796305797,
+      "raw_bytes": 65536,
+      "compressed_bytes": 62368
+    },
+    {
+      "name": "transformer.h.1.mlp.c_proj.bias",
+      "path": "tensors\\transformer.h.1.mlp.c_proj.bias",
+      "transpose_path": null,
+      "shape": [
+        64
+      ],
+      "dtype": "float32",
+      "compression_ratio": 2.909090909090909,
+      "raw_bytes": 256,
+      "compressed_bytes": 88
+    },
+    {
+      "name": "transformer.h.2.ln_1.weight",
+      "path": "tensors\\transformer.h.2.ln_1.weight",
+      "transpose_path": null,
+      "shape": [
+        64
+      ],
+      "dtype": "float32",
+      "compression_ratio": 2.2857142857142856,
+      "raw_bytes": 256,
+      "compressed_bytes": 112
+    },
+    {
+      "name": "transformer.h.2.ln_1.bias",
+      "path": "tensors\\transformer.h.2.ln_1.bias",
+      "transpose_path": null,
+      "shape": [
+        64
+      ],
+      "dtype": "float32",
+      "compression_ratio": 2.909090909090909,
+      "raw_bytes": 256,
+      "compressed_bytes": 88
+    },
+    {
+      "name": "transformer.h.2.attn.c_attn.weight",
+      "path": "tensors\\transformer.h.2.attn.c_attn.weight",
+      "transpose_path": "tensors\\transformer.h.2.attn.c_attn.weight\\transpose",
+      "shape": [
+        64,
+        192
+      ],
+      "dtype": "float32",
+      "compression_ratio": 1.0740789301166906,
+      "raw_bytes": 49152,
+      "compressed_bytes": 45762
+    },
+    {
+      "name": "transformer.h.2.attn.c_attn.bias",
+      "path": "tensors\\transformer.h.2.attn.c_attn.bias",
+      "transpose_path": null,
+      "shape": [
+        192
+      ],
+      "dtype": "float32",
+      "compression_ratio": 2.909090909090909,
+      "raw_bytes": 768,
+      "compressed_bytes": 264
+    },
+    {
+      "name": "transformer.h.2.attn.c_proj.weight",
+      "path": "tensors\\transformer.h.2.attn.c_proj.weight",
+      "transpose_path": "tensors\\transformer.h.2.attn.c_proj.weight\\transpose",
+      "shape": [
+        64,
+        64
+      ],
+      "dtype": "float32",
+      "compression_ratio": 1.0504584214913124,
+      "raw_bytes": 16384,
+      "compressed_bytes": 15597
+    },
+    {
+      "name": "transformer.h.2.attn.c_proj.bias",
+      "path": "tensors\\transformer.h.2.attn.c_proj.bias",
+      "transpose_path": null,
+      "shape": [
+        64
+      ],
+      "dtype": "float32",
+      "compression_ratio": 2.909090909090909,
+      "raw_bytes": 256,
+      "compressed_bytes": 88
+    },
+    {
+      "name": "transformer.h.2.ln_2.weight",
+      "path": "tensors\\transformer.h.2.ln_2.weight",
+      "transpose_path": null,
+      "shape": [
+        64
+      ],
+      "dtype": "float32",
+      "compression_ratio": 2.2857142857142856,
+      "raw_bytes": 256,
+      "compressed_bytes": 112
+    },
+    {
+      "name": "transformer.h.2.ln_2.bias",
+      "path": "tensors\\transformer.h.2.ln_2.bias",
+      "transpose_path": null,
+      "shape": [
+        64
+      ],
+      "dtype": "float32",
+      "compression_ratio": 2.909090909090909,
+      "raw_bytes": 256,
+      "compressed_bytes": 88
+    },
+    {
+      "name": "transformer.h.2.mlp.c_fc.weight",
+      "path": "tensors\\transformer.h.2.mlp.c_fc.weight",
+      "transpose_path": "tensors\\transformer.h.2.mlp.c_fc.weight\\transpose",
+      "shape": [
+        64,
+        256
+      ],
+      "dtype": "float32",
+      "compression_ratio": 1.0762131537893094,
+      "raw_bytes": 65536,
+      "compressed_bytes": 60895
+    },
+    {
+      "name": "transformer.h.2.mlp.c_fc.bias",
+      "path": "tensors\\transformer.h.2.mlp.c_fc.bias",
+      "transpose_path": null,
+      "shape": [
+        256
+      ],
+      "dtype": "float32",
+      "compression_ratio": 2.909090909090909,
+      "raw_bytes": 1024,
+      "compressed_bytes": 352
+    },
+    {
+      "name": "transformer.h.2.mlp.c_proj.weight",
+      "path": "tensors\\transformer.h.2.mlp.c_proj.weight",
+      "transpose_path": "tensors\\transformer.h.2.mlp.c_proj.weight\\transpose",
+      "shape": [
+        256,
+        64
+      ],
+      "dtype": "float32",
+      "compression_ratio": 1.051807151569622,
+      "raw_bytes": 65536,
+      "compressed_bytes": 62308
+    },
+    {
+      "name": "transformer.h.2.mlp.c_proj.bias",
+      "path": "tensors\\transformer.h.2.mlp.c_proj.bias",
+      "transpose_path": null,
+      "shape": [
+        64
+      ],
+      "dtype": "float32",
+      "compression_ratio": 2.909090909090909,
+      "raw_bytes": 256,
+      "compressed_bytes": 88
+    },
+    {
+      "name": "transformer.h.3.ln_1.weight",
+      "path": "tensors\\transformer.h.3.ln_1.weight",
+      "transpose_path": null,
+      "shape": [
+        64
+      ],
+      "dtype": "float32",
+      "compression_ratio": 2.2857142857142856,
+      "raw_bytes": 256,
+      "compressed_bytes": 112
+    },
+    {
+      "name": "transformer.h.3.ln_1.bias",
+      "path": "tensors\\transformer.h.3.ln_1.bias",
+      "transpose_path": null,
+      "shape": [
+        64
+      ],
+      "dtype": "float32",
+      "compression_ratio": 2.909090909090909,
+      "raw_bytes": 256,
+      "compressed_bytes": 88
+    },
+    {
+      "name": "transformer.h.3.attn.c_attn.weight",
+      "path": "tensors\\transformer.h.3.attn.c_attn.weight",
+      "transpose_path": "tensors\\transformer.h.3.attn.c_attn.weight\\transpose",
+      "shape": [
+        64,
+        192
+      ],
+      "dtype": "float32",
+      "compression_ratio": 1.0741024016083565,
+      "raw_bytes": 49152,
+      "compressed_bytes": 45761
+    },
+    {
+      "name": "transformer.h.3.attn.c_attn.bias",
+      "path": "tensors\\transformer.h.3.attn.c_attn.bias",
+      "transpose_path": null,
+      "shape": [
+        192
+      ],
+      "dtype": "float32",
+      "compression_ratio": 2.909090909090909,
+      "raw_bytes": 768,
+      "compressed_bytes": 264
+    },
+    {
+      "name": "transformer.h.3.attn.c_proj.weight",
+      "path": "tensors\\transformer.h.3.attn.c_proj.weight",
+      "transpose_path": "tensors\\transformer.h.3.attn.c_proj.weight\\transpose",
+      "shape": [
+        64,
+        64
+      ],
+      "dtype": "float32",
+      "compression_ratio": 1.0509974982359356,
+      "raw_bytes": 16384,
+      "compressed_bytes": 15589
+    },
+    {
+      "name": "transformer.h.3.attn.c_proj.bias",
+      "path": "tensors\\transformer.h.3.attn.c_proj.bias",
+      "transpose_path": null,
+      "shape": [
+        64
+      ],
+      "dtype": "float32",
+      "compression_ratio": 2.909090909090909,
+      "raw_bytes": 256,
+      "compressed_bytes": 88
+    },
+    {
+      "name": "transformer.h.3.ln_2.weight",
+      "path": "tensors\\transformer.h.3.ln_2.weight",
+      "transpose_path": null,
+      "shape": [
+        64
+      ],
+      "dtype": "float32",
+      "compression_ratio": 2.2857142857142856,
+      "raw_bytes": 256,
+      "compressed_bytes": 112
+    },
+    {
+      "name": "transformer.h.3.ln_2.bias",
+      "path": "tensors\\transformer.h.3.ln_2.bias",
+      "transpose_path": null,
+      "shape": [
+        64
+      ],
+      "dtype": "float32",
+      "compression_ratio": 2.909090909090909,
+      "raw_bytes": 256,
+      "compressed_bytes": 88
+    },
+    {
+      "name": "transformer.h.3.mlp.c_fc.weight",
+      "path": "tensors\\transformer.h.3.mlp.c_fc.weight",
+      "transpose_path": "tensors\\transformer.h.3.mlp.c_fc.weight\\transpose",
+      "shape": [
+        64,
+        256
+      ],
+      "dtype": "float32",
+      "compression_ratio": 1.0758598046458179,
+      "raw_bytes": 65536,
+      "compressed_bytes": 60915
+    },
+    {
+      "name": "transformer.h.3.mlp.c_fc.bias",
+      "path": "tensors\\transformer.h.3.mlp.c_fc.bias",
+      "transpose_path": null,
+      "shape": [
+        256
+      ],
+      "dtype": "float32",
+      "compression_ratio": 2.909090909090909,
+      "raw_bytes": 1024,
+      "compressed_bytes": 352
+    },
+    {
+      "name": "transformer.h.3.mlp.c_proj.weight",
+      "path": "tensors\\transformer.h.3.mlp.c_proj.weight",
+      "transpose_path": "tensors\\transformer.h.3.mlp.c_proj.weight\\transpose",
+      "shape": [
+        256,
+        64
+      ],
+      "dtype": "float32",
+      "compression_ratio": 1.0507615840949174,
+      "raw_bytes": 65536,
+      "compressed_bytes": 62370
+    },
+    {
+      "name": "transformer.h.3.mlp.c_proj.bias",
+      "path": "tensors\\transformer.h.3.mlp.c_proj.bias",
+      "transpose_path": null,
+      "shape": [
+        64
+      ],
+      "dtype": "float32",
+      "compression_ratio": 2.909090909090909,
+      "raw_bytes": 256,
+      "compressed_bytes": 88
+    },
+    {
+      "name": "transformer.ln_f.weight",
+      "path": "tensors\\transformer.ln_f.weight",
+      "transpose_path": null,
+      "shape": [
+        64
+      ],
+      "dtype": "float32",
+      "compression_ratio": 2.2857142857142856,
+      "raw_bytes": 256,
+      "compressed_bytes": 112
+    },
+    {
+      "name": "transformer.ln_f.bias",
+      "path": "tensors\\transformer.ln_f.bias",
+      "transpose_path": null,
+      "shape": [
+        64
+      ],
+      "dtype": "float32",
+      "compression_ratio": 2.909090909090909,
+      "raw_bytes": 256,
+      "compressed_bytes": 88
+    },
+    {
+      "name": "lm_head.weight",
+      "path": "tensors\\lm_head.weight",
+      "transpose_path": "tensors\\lm_head.weight\\transpose",
+      "shape": [
+        64,
+        64
+      ],
+      "dtype": "float32",
+      "compression_ratio": 1.051739632815509,
+      "raw_bytes": 16384,
+      "compressed_bytes": 15578
+    }
+  ],
+  "skipped": []
+}

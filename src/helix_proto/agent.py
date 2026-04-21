@@ -5,7 +5,7 @@ import re
 import time
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 
 from helix_kv.memory_catalog import privacy_filter
 from helix_kv.policy import AdaptiveKVPolicy
@@ -225,7 +225,21 @@ def _active_memory_query(
     scratchpad: list[dict[str, Any]],
     observations: list[dict[str, Any]],
 ) -> str:
-    parts = [f"Goal: {goal}", f"Tool: {tool_name}"]
+    clean_goal = str(goal or "").strip()
+    if tool_name == "__planner__":
+        parts = [clean_goal or "planner"]
+        for item in scratchpad[-2:]:
+            thought = str(item.get("thought") or "").strip()
+            if thought:
+                parts.append(f"Recent step: {_shorten(thought, limit=240)}")
+        for item in observations[-1:]:
+            parts.append(
+                "Previous observation: "
+                + _shorten(json.dumps(item.get("observation", {}), ensure_ascii=True, sort_keys=True), limit=360)
+            )
+        return _shorten("\n".join(parts), limit=1400)
+
+    parts = [f"Goal: {clean_goal}", f"Tool: {tool_name}"]
     prompt = arguments.get("prompt")
     if isinstance(prompt, str) and prompt.strip():
         parts.append(f"Prompt: {_shorten(prompt, limit=600)}")
@@ -373,6 +387,17 @@ class _BasePlanner:
 
     def decide(self, state: dict[str, Any]) -> PlannerDecision:  # pragma: no cover - interface only
         raise NotImplementedError
+
+
+class CallbackPlanner(_BasePlanner):
+    name = "callback"
+
+    def __init__(self, callback: Callable[[dict[str, Any]], PlannerDecision], *, name: str = "callback") -> None:
+        self.callback = callback
+        self.name = str(name or "callback")
+
+    def decide(self, state: dict[str, Any]) -> PlannerDecision:
+        return self.callback(state)
 
 
 class RuntimePlanner(_BasePlanner):
@@ -649,14 +674,22 @@ class AgentRoutingPolicy:
         remote_model_ref: str | None = None,
         prefer_remote: bool = False,
         trust_remote_code: bool = False,
+        planner_callback: Callable[[dict[str, Any]], PlannerDecision] | None = None,
+        planner_name: str = "callback",
+        allow_heuristic_fallback: bool = True,
     ) -> None:
         self.local_planner_alias = local_planner_alias
         self.remote_model_ref = remote_model_ref
         self.prefer_remote = prefer_remote
         self.trust_remote_code = trust_remote_code
+        self.planner_callback = planner_callback
+        self.planner_name = planner_name
+        self.allow_heuristic_fallback = allow_heuristic_fallback
 
     def planners(self, runtime: Any) -> list[_BasePlanner]:
         planners: list[_BasePlanner] = []
+        if self.planner_callback is not None:
+            planners.append(CallbackPlanner(self.planner_callback, name=self.planner_name))
         local = RuntimePlanner(runtime, self.local_planner_alias) if self.local_planner_alias else None
         remote = (
             RemotePlanner(self.remote_model_ref, trust_remote_code=self.trust_remote_code)
@@ -673,7 +706,8 @@ class AgentRoutingPolicy:
                 planners.append(local)
             if remote is not None:
                 planners.append(remote)
-        planners.append(HeuristicPlanner())
+        if self.allow_heuristic_fallback:
+            planners.append(HeuristicPlanner())
         return planners
 
 
@@ -704,13 +738,59 @@ class AgentRunner:
     def search_knowledge(self, agent_name: str, query: str, *, top_k: int = 5) -> dict[str, Any]:
         return search_knowledge(agent_name, query, top_k=top_k, root=self.root)
 
-    def search_memory(self, agent_name: str, query: str, *, top_k: int = 5) -> dict[str, Any]:
-        return hmem.search(root=self.root, agent_id=agent_name, query=query, top_k=top_k)
+    def search_memory(
+        self,
+        agent_name: str,
+        query: str,
+        *,
+        top_k: int = 5,
+        memory_project: str = hmem.DEFAULT_PROJECT,
+        session_id: str | None = None,
+        retrieval_scope: str = "workspace",
+        exclude_memory_ids: list[str] | None = None,
+    ) -> dict[str, Any]:
+        return hmem.search(
+            root=self.root,
+            project=memory_project,
+            agent_id=agent_name,
+            session_id=session_id,
+            query=query,
+            top_k=top_k,
+            retrieval_scope=retrieval_scope,
+            exclude_memory_ids=exclude_memory_ids,
+        )
 
-    def search_hybrid(self, agent_name: str, query: str, *, top_k: int = 5) -> dict[str, Any]:
-        return hmem.hybrid_search(root=self.root, agent_id=agent_name, query=query, top_k=top_k)
+    def search_hybrid(
+        self,
+        agent_name: str,
+        query: str,
+        *,
+        top_k: int = 5,
+        memory_project: str = hmem.DEFAULT_PROJECT,
+        session_id: str | None = None,
+        retrieval_scope: str = "workspace",
+        exclude_memory_ids: list[str] | None = None,
+    ) -> dict[str, Any]:
+        return hmem.hybrid_search(
+            root=self.root,
+            project=memory_project,
+            agent_id=agent_name,
+            session_id=session_id,
+            query=query,
+            top_k=top_k,
+            retrieval_scope=retrieval_scope,
+            exclude_memory_ids=exclude_memory_ids,
+        )
 
-    def _agent_tool_registry(self, *, agent_name: str) -> ToolRegistry:
+    def _agent_tool_registry(
+        self,
+        *,
+        agent_name: str,
+        memory_project: str = hmem.DEFAULT_PROJECT,
+        session_id: str | None = None,
+        retrieval_scope: str = "workspace",
+        exclude_memory_ids: list[str] | None = None,
+    ) -> ToolRegistry:
         return ToolRegistry(
             [
                 ToolSpec(
@@ -728,6 +808,10 @@ class AgentRunner:
                         agent_name,
                         str(args["query"]),
                         top_k=int(args.get("top_k", 4)),
+                        memory_project=memory_project,
+                        session_id=session_id,
+                        retrieval_scope=retrieval_scope,
+                        exclude_memory_ids=exclude_memory_ids,
                     ),
                 ),
                 ToolSpec(
@@ -762,6 +846,10 @@ class AgentRunner:
                         agent_name,
                         str(args["query"]),
                         top_k=int(args.get("top_k", 4)),
+                        memory_project=memory_project,
+                        session_id=session_id,
+                        retrieval_scope=retrieval_scope,
+                        exclude_memory_ids=exclude_memory_ids,
                     ),
                 ),
             ]
@@ -822,6 +910,9 @@ class AgentRunner:
         goal: str,
         agent_name: str,
         memory_project: str,
+        session_id: str | None,
+        retrieval_scope: str,
+        exclude_memory_ids: list[str] | None,
         memory_mode: str,
         memory_budget_tokens: int,
         tool_name: str,
@@ -845,9 +936,12 @@ class AgentRunner:
                 root=self.root,
                 project=memory_project,
                 agent_id=agent_name,
+                session_id=session_id,
                 query=query,
                 budget_tokens=memory_budget_tokens,
                 mode=memory_mode,
+                retrieval_scope=retrieval_scope,
+                exclude_memory_ids=exclude_memory_ids,
             )
         except Exception as exc:  # noqa: BLE001
             return {
@@ -870,6 +964,9 @@ class AgentRunner:
         goal: str,
         agent_name: str,
         memory_project: str,
+        session_id: str | None,
+        retrieval_scope: str,
+        exclude_memory_ids: list[str] | None,
         memory_mode: str,
         memory_budget_tokens: int,
         step_index: int,
@@ -884,6 +981,9 @@ class AgentRunner:
             goal=goal,
             agent_name=agent_name,
             memory_project=memory_project,
+            session_id=session_id,
+            retrieval_scope=retrieval_scope,
+            exclude_memory_ids=exclude_memory_ids,
             memory_mode=memory_mode,
             memory_budget_tokens=memory_budget_tokens,
             tool_name=tool_name,
@@ -905,6 +1005,7 @@ class AgentRunner:
         *,
         runtime_tools: ToolRegistry,
         agent_tools: ToolRegistry,
+        extra_tools: ToolRegistry | None = None,
         default_model_alias: str | None,
         step_index: int = 0,
         phase_trace: list[dict[str, Any]] | None = None,
@@ -929,13 +1030,20 @@ class AgentRunner:
         try:
             return runtime_tools.call(tool_name, enriched)
         except KeyError:
-            return agent_tools.call(tool_name, enriched)
+            try:
+                return agent_tools.call(tool_name, enriched)
+            except KeyError:
+                if extra_tools is None:
+                    raise
+                return extra_tools.call(tool_name, enriched)
 
     def run(
         self,
         *,
         goal: str,
         agent_name: str = "default-agent",
+        agent_id: str | None = None,
+        session_id: str | None = None,
         default_model_alias: str | None = None,
         local_planner_alias: str | None = None,
         remote_model_ref: str | None = None,
@@ -947,23 +1055,41 @@ class AgentRunner:
         memory_mode: str = "search",
         memory_budget_tokens: int = 800,
         memory_compressor_alias: str | None = None,
+        extra_tools: ToolRegistry | None = None,
+        planner_callback: Callable[[dict[str, Any]], PlannerDecision] | None = None,
+        planner_name: str = "callback",
+        allow_heuristic_fallback: bool = True,
+        tool_policy: dict[str, Any] | None = None,
+        retrieval_scope: str = "workspace",
+        memory_exclude_ids: list[str] | None = None,
     ) -> dict[str, Any]:
-        run_id = f"{slugify(agent_name)}-{int(time.time())}"
+        effective_agent_id = str(agent_id or agent_name)
+        run_id = str(session_id or f"{slugify(effective_agent_id)}-{int(time.time())}")
         runtime_tools = build_runtime_tool_registry(self.runtime)
-        agent_tools = self._agent_tool_registry(agent_name=agent_name)
-        tool_manifest = runtime_tools.manifest() + agent_tools.manifest()
+        agent_tools = self._agent_tool_registry(
+            agent_name=effective_agent_id,
+            memory_project=memory_project,
+            session_id=run_id,
+            retrieval_scope=retrieval_scope,
+            exclude_memory_ids=memory_exclude_ids,
+        )
+        extra_tool_registry = extra_tools or ToolRegistry([])
+        tool_manifest = runtime_tools.manifest() + agent_tools.manifest() + extra_tool_registry.manifest()
         memory_compress_fn = hmem.runtime_compress_fn(self.runtime, memory_compressor_alias)
         initial_memory_context = hmem.build_context(
             root=self.root,
             project=memory_project,
-            agent_id=agent_name,
+            agent_id=effective_agent_id,
+            session_id=run_id,
             query=goal,
             budget_tokens=memory_budget_tokens,
             mode=memory_mode,
+            retrieval_scope=retrieval_scope,
+            exclude_memory_ids=memory_exclude_ids,
         )
 
         append_memory_event(
-            agent_name,
+            effective_agent_id,
             kind="goal",
             text=goal,
             root=self.root,
@@ -972,7 +1098,7 @@ class AgentRunner:
         hmem.observe_event(
             root=self.root,
             project=memory_project,
-            agent_id=agent_name,
+            agent_id=effective_agent_id,
             session_id=run_id,
             event_type="goal",
             content=goal,
@@ -993,6 +1119,9 @@ class AgentRunner:
             remote_model_ref=remote_model_ref,
             prefer_remote=prefer_remote,
             trust_remote_code=trust_remote_code,
+            planner_callback=planner_callback,
+            planner_name=planner_name,
+            allow_heuristic_fallback=allow_heuristic_fallback,
         )
 
         final_answer: str | None = None
@@ -1000,16 +1129,31 @@ class AgentRunner:
 
         for step_index in range(max_steps):
             memory_hits = self.search_memory(
-                agent_name,
+                effective_agent_id,
                 goal,
                 top_k=4,
+                memory_project=memory_project,
+                session_id=run_id,
+                retrieval_scope=retrieval_scope,
+                exclude_memory_ids=memory_exclude_ids,
             )["results"]
-            knowledge_hits = self.search_knowledge(agent_name, goal, top_k=4)["results"]
-            hybrid_hits = self.search_hybrid(agent_name, goal, top_k=4)["results"]
+            knowledge_hits = self.search_knowledge(effective_agent_id, goal, top_k=4)["results"]
+            hybrid_hits = self.search_hybrid(
+                effective_agent_id,
+                goal,
+                top_k=4,
+                memory_project=memory_project,
+                session_id=run_id,
+                retrieval_scope=retrieval_scope,
+                exclude_memory_ids=memory_exclude_ids,
+            )["results"]
             memory_context = self._build_step_memory_context(
                 goal=goal,
-                agent_name=agent_name,
+                agent_name=effective_agent_id,
                 memory_project=memory_project,
+                session_id=run_id,
+                retrieval_scope=retrieval_scope,
+                exclude_memory_ids=memory_exclude_ids,
                 memory_mode=memory_mode,
                 memory_budget_tokens=memory_budget_tokens,
                 tool_name="__planner__",
@@ -1031,6 +1175,11 @@ class AgentRunner:
                 "observations": observations,
                 "default_model_alias": default_model_alias,
                 "generation_max_new_tokens": generation_max_new_tokens,
+                "agent_id": effective_agent_id,
+                "session_id": run_id,
+                "memory_project": memory_project,
+                "tool_policy": tool_policy or {},
+                "retrieval_scope": retrieval_scope,
             }
 
             self._configure_local_kv_phase(
@@ -1054,7 +1203,7 @@ class AgentRunner:
                     errors.append(f"{planner.name}: {exc}")
             planner_attempts.append({"step_index": step_index, "errors": errors})
             if decision is None:
-                final_answer = "The agent could not produce a valid plan."
+                final_answer = f"The agent could not produce a valid plan. Errors: {' | '.join(errors)}" if errors else "The agent could not produce a valid plan."
                 final_planner = "none"
                 break
 
@@ -1082,8 +1231,11 @@ class AgentRunner:
             original_tool_arguments = decision.arguments or {}
             tool_arguments, active_tool_event, _active_tool_context = self._prepare_active_tool_arguments(
                 goal=goal,
-                agent_name=agent_name,
+                agent_name=effective_agent_id,
                 memory_project=memory_project,
+                session_id=run_id,
+                retrieval_scope=retrieval_scope,
+                exclude_memory_ids=memory_exclude_ids,
                 memory_mode=memory_mode,
                 memory_budget_tokens=memory_budget_tokens,
                 step_index=step_index,
@@ -1102,6 +1254,7 @@ class AgentRunner:
                 tool_arguments,
                 runtime_tools=runtime_tools,
                 agent_tools=agent_tools,
+                extra_tools=extra_tool_registry,
                 default_model_alias=default_model_alias,
                 step_index=step_index,
                 phase_trace=kv_phase_trace,
@@ -1116,8 +1269,8 @@ class AgentRunner:
             hmem_record = hmem.observe_tool_call(
                 root=self.root,
                 project=memory_project,
-                agent_id=agent_name,
-                run_id=run_id,
+                agent_id=effective_agent_id,
+                session_id=run_id,
                 step_index=step_index,
                 tool_name=tool_name,
                 arguments=recorded_tool_arguments,
@@ -1138,7 +1291,7 @@ class AgentRunner:
                 }
             )
             append_memory_event(
-                agent_name,
+                effective_agent_id,
                 kind="tool_observation",
                 text=(
                     f"Goal: {goal}\nTool: {tool_name}\n"
@@ -1158,7 +1311,7 @@ class AgentRunner:
                 final_planner = "fallback-empty"
 
         append_memory_event(
-            agent_name,
+            effective_agent_id,
             kind="final_answer",
             text=final_answer,
             root=self.root,
@@ -1167,7 +1320,7 @@ class AgentRunner:
         hmem.observe_event(
             root=self.root,
             project=memory_project,
-            agent_id=agent_name,
+            agent_id=effective_agent_id,
             session_id=run_id,
             event_type="final_answer",
             content=final_answer,
@@ -1180,7 +1333,9 @@ class AgentRunner:
         )
 
         trace = {
-            "agent_name": agent_name,
+            "agent_name": effective_agent_id,
+            "agent_id": effective_agent_id,
+            "session_id": run_id,
             "run_id": run_id,
             "goal": goal,
             "default_model_alias": default_model_alias,
@@ -1188,6 +1343,8 @@ class AgentRunner:
             "remote_model_ref": remote_model_ref,
             "prefer_remote": prefer_remote,
             "max_steps": max_steps,
+            "tool_policy": tool_policy or {},
+            "retrieval_scope": retrieval_scope,
             "planner_attempts": planner_attempts,
             "kv_phase_trace": kv_phase_trace,
             "steps": scratchpad,
@@ -1201,7 +1358,7 @@ class AgentRunner:
             "knowledge_hits": knowledge_hits if "knowledge_hits" in locals() else [],
             "hybrid_hits": hybrid_hits if "hybrid_hits" in locals() else [],
         }
-        trace_path = save_run_trace(agent_name, run_id, trace, root=self.root)
+        trace_path = save_run_trace(effective_agent_id, run_id, trace, root=self.root)
         trace["trace_path"] = str(trace_path)
         return trace
 
@@ -1210,6 +1367,8 @@ class AgentRunner:
         *,
         goal: str,
         agent_name: str = "default-agent",
+        agent_id: str | None = None,
+        session_id: str | None = None,
         default_model_alias: str | None = None,
         local_planner_alias: str | None = None,
         remote_model_ref: str | None = None,
@@ -1221,23 +1380,41 @@ class AgentRunner:
         memory_mode: str = "search",
         memory_budget_tokens: int = 800,
         memory_compressor_alias: str | None = None,
+        extra_tools: ToolRegistry | None = None,
+        planner_callback: Callable[[dict[str, Any]], PlannerDecision] | None = None,
+        planner_name: str = "callback",
+        allow_heuristic_fallback: bool = True,
+        tool_policy: dict[str, Any] | None = None,
+        retrieval_scope: str = "workspace",
+        memory_exclude_ids: list[str] | None = None,
     ):
-        run_id = f"{slugify(agent_name)}-{int(time.time())}"
+        effective_agent_id = str(agent_id or agent_name)
+        run_id = str(session_id or f"{slugify(effective_agent_id)}-{int(time.time())}")
         runtime_tools = build_runtime_tool_registry(self.runtime)
-        agent_tools = self._agent_tool_registry(agent_name=agent_name)
-        tool_manifest = runtime_tools.manifest() + agent_tools.manifest()
+        agent_tools = self._agent_tool_registry(
+            agent_name=effective_agent_id,
+            memory_project=memory_project,
+            session_id=run_id,
+            retrieval_scope=retrieval_scope,
+            exclude_memory_ids=memory_exclude_ids,
+        )
+        extra_tool_registry = extra_tools or ToolRegistry([])
+        tool_manifest = runtime_tools.manifest() + agent_tools.manifest() + extra_tool_registry.manifest()
         memory_compress_fn = hmem.runtime_compress_fn(self.runtime, memory_compressor_alias)
         initial_memory_context = hmem.build_context(
             root=self.root,
             project=memory_project,
-            agent_id=agent_name,
+            agent_id=effective_agent_id,
+            session_id=run_id,
             query=goal,
             budget_tokens=memory_budget_tokens,
             mode=memory_mode,
+            retrieval_scope=retrieval_scope,
+            exclude_memory_ids=memory_exclude_ids,
         )
 
         append_memory_event(
-            agent_name,
+            effective_agent_id,
             kind="goal",
             text=goal,
             root=self.root,
@@ -1246,7 +1423,7 @@ class AgentRunner:
         hmem.observe_event(
             root=self.root,
             project=memory_project,
-            agent_id=agent_name,
+            agent_id=effective_agent_id,
             session_id=run_id,
             event_type="goal",
             content=goal,
@@ -1267,15 +1444,22 @@ class AgentRunner:
             remote_model_ref=remote_model_ref,
             prefer_remote=prefer_remote,
             trust_remote_code=trust_remote_code,
+            planner_callback=planner_callback,
+            planner_name=planner_name,
+            allow_heuristic_fallback=allow_heuristic_fallback,
         )
 
         yield {
             "event": "start",
-            "agent_name": agent_name,
+            "agent_name": effective_agent_id,
+            "agent_id": effective_agent_id,
+            "session_id": run_id,
             "run_id": run_id,
             "goal": goal,
             "default_model_alias": default_model_alias,
             "memory_context": initial_memory_context,
+            "tool_policy": tool_policy or {},
+            "retrieval_scope": retrieval_scope,
         }
 
         final_answer: str | None = None
@@ -1286,16 +1470,31 @@ class AgentRunner:
 
         for step_index in range(max_steps):
             memory_hits = self.search_memory(
-                agent_name,
+                effective_agent_id,
                 goal,
                 top_k=4,
+                memory_project=memory_project,
+                session_id=run_id,
+                retrieval_scope=retrieval_scope,
+                exclude_memory_ids=memory_exclude_ids,
             )["results"]
-            knowledge_hits = self.search_knowledge(agent_name, goal, top_k=4)["results"]
-            hybrid_hits = self.search_hybrid(agent_name, goal, top_k=4)["results"]
+            knowledge_hits = self.search_knowledge(effective_agent_id, goal, top_k=4)["results"]
+            hybrid_hits = self.search_hybrid(
+                effective_agent_id,
+                goal,
+                top_k=4,
+                memory_project=memory_project,
+                session_id=run_id,
+                retrieval_scope=retrieval_scope,
+                exclude_memory_ids=memory_exclude_ids,
+            )["results"]
             memory_context = self._build_step_memory_context(
                 goal=goal,
-                agent_name=agent_name,
+                agent_name=effective_agent_id,
                 memory_project=memory_project,
+                session_id=run_id,
+                retrieval_scope=retrieval_scope,
+                exclude_memory_ids=memory_exclude_ids,
                 memory_mode=memory_mode,
                 memory_budget_tokens=memory_budget_tokens,
                 tool_name="__planner__",
@@ -1317,6 +1516,11 @@ class AgentRunner:
                 "observations": observations,
                 "default_model_alias": default_model_alias,
                 "generation_max_new_tokens": generation_max_new_tokens,
+                "agent_id": effective_agent_id,
+                "session_id": run_id,
+                "memory_project": memory_project,
+                "tool_policy": tool_policy or {},
+                "retrieval_scope": retrieval_scope,
             }
 
             decision: PlannerDecision | None = None
@@ -1333,7 +1537,7 @@ class AgentRunner:
                     errors.append(f"{planner.name}: {exc}")
             planner_attempts.append({"step_index": step_index, "errors": errors})
             if decision is None:
-                final_answer = "The agent could not produce a valid plan."
+                final_answer = f"The agent could not produce a valid plan. Errors: {' | '.join(errors)}" if errors else "The agent could not produce a valid plan."
                 final_planner = "none"
                 break
 
@@ -1369,8 +1573,11 @@ class AgentRunner:
             original_tool_arguments = decision.arguments or {}
             tool_arguments, active_tool_event, _active_tool_context = self._prepare_active_tool_arguments(
                 goal=goal,
-                agent_name=agent_name,
+                agent_name=effective_agent_id,
                 memory_project=memory_project,
+                session_id=run_id,
+                retrieval_scope=retrieval_scope,
+                exclude_memory_ids=memory_exclude_ids,
                 memory_mode=memory_mode,
                 memory_budget_tokens=memory_budget_tokens,
                 step_index=step_index,
@@ -1424,6 +1631,7 @@ class AgentRunner:
                     tool_arguments,
                     runtime_tools=runtime_tools,
                     agent_tools=agent_tools,
+                    extra_tools=extra_tool_registry,
                     default_model_alias=default_model_alias,
                     step_index=step_index,
                     phase_trace=kv_phase_trace,
@@ -1439,8 +1647,8 @@ class AgentRunner:
             hmem_record = hmem.observe_tool_call(
                 root=self.root,
                 project=memory_project,
-                agent_id=agent_name,
-                run_id=run_id,
+                agent_id=effective_agent_id,
+                session_id=run_id,
                 step_index=step_index,
                 tool_name=tool_name,
                 arguments=recorded_tool_arguments,
@@ -1461,7 +1669,7 @@ class AgentRunner:
                 }
             )
             append_memory_event(
-                agent_name,
+                effective_agent_id,
                 kind="tool_observation",
                 text=(
                     f"Goal: {goal}\nTool: {tool_name}\n"
@@ -1492,7 +1700,7 @@ class AgentRunner:
             }
 
         append_memory_event(
-            agent_name,
+            effective_agent_id,
             kind="final_answer",
             text=final_answer,
             root=self.root,
@@ -1501,7 +1709,7 @@ class AgentRunner:
         hmem.observe_event(
             root=self.root,
             project=memory_project,
-            agent_id=agent_name,
+            agent_id=effective_agent_id,
             session_id=run_id,
             event_type="final_answer",
             content=final_answer,
@@ -1514,7 +1722,9 @@ class AgentRunner:
         )
 
         trace = {
-            "agent_name": agent_name,
+            "agent_name": effective_agent_id,
+            "agent_id": effective_agent_id,
+            "session_id": run_id,
             "run_id": run_id,
             "goal": goal,
             "default_model_alias": default_model_alias,
@@ -1522,6 +1732,8 @@ class AgentRunner:
             "remote_model_ref": remote_model_ref,
             "prefer_remote": prefer_remote,
             "max_steps": max_steps,
+            "tool_policy": tool_policy or {},
+            "retrieval_scope": retrieval_scope,
             "planner_attempts": planner_attempts,
             "kv_phase_trace": kv_phase_trace,
             "steps": scratchpad,
@@ -1535,7 +1747,7 @@ class AgentRunner:
             "knowledge_hits": knowledge_hits,
             "hybrid_hits": hybrid_hits,
         }
-        trace_path = save_run_trace(agent_name, run_id, trace, root=self.root)
+        trace_path = save_run_trace(effective_agent_id, run_id, trace, root=self.root)
         yield {
             "event": "done",
             "trace_path": str(trace_path),

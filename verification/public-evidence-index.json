@@ -1,6 +1,6 @@
 {
   "artifact": "public-evidence-index",
-  "generated_date_utc": "2026-04-19",
+  "generated_date_utc": "2026-04-20",
   "claim_boundary": "This index points to canonical public evidence artifacts and SHA-256 hashes. Artifact claim boundaries remain authoritative.",
   "reviewer_start_here": [
     "verification/README-reviewer.md",
@@ -128,6 +128,38 @@
       "bytes": 3800,
       "run_id": "v4-zero-day-backtest-2026-04-18",
       "note": "Fixture backtest; not a live product-performance claim."
+    },
+    {
+      "claim": "bounded-context-under-deep-memory-store",
+      "status": "mechanics_verified",
+      "path": "verification/nuclear-methodology/infinite-depth-memory/local-infinite-depth-memory-suite-infinite-depth-memory-20260420-133040.json",
+      "sha256": "6e3e148355746002637002360b4b94c1bfc02c0f5f48596f095ba3ed535b7aae",
+      "artifact_payload_sha256": "96a35f95b7d6826d54573344151d75981f4b3b45d94447f879d0d2b0351bd214",
+      "bytes": 8494,
+      "run_id": "infinite-depth-memory-20260420-133040",
+      "note": "Local deterministic suite; depth=5000, repeats=7. Supports bounded context construction under deep stores, not literal infinite memory or physical zero latency.",
+      "run_manifest": {
+        "path": "verification/nuclear-methodology/infinite-depth-memory/local-infinite-depth-memory-suite-20260420-133040-run.json",
+        "sha256": "5dedfc3d4699517144e8603ebbab7687641677245ceeb6a90d6d4b46e72f28b2",
+        "bytes": 2122
+      },
+      "companion_artifacts": [
+        {
+          "path": "verification/nuclear-methodology/infinite-depth-memory/local-infinite-depth-memory-suite-20260420-133040.log",
+          "sha256": "6a8ad57bc34e42566b09fa39b35f21d63741680d8976a2f45b1bfeb18392af62",
+          "bytes": 14556
+        },
+        {
+          "path": "verification/nuclear-methodology/infinite-depth-memory/local-infinite-depth-memory-suite-infinite-depth-memory-20260420-133040-transcripts.jsonl",
+          "sha256": "3bf7eb0009691948271e0d4486dfd19d019de62dc8b0a3567a419cef5db7c658",
+          "bytes": 5599
+        },
+        {
+          "path": "verification/nuclear-methodology/infinite-depth-memory/local-infinite-depth-memory-suite-infinite-depth-memory-20260420-133040-transcripts.md",
+          "sha256": "9634ad3105587f7e1f2646670d6fe48118088db54eccdc0c5d94e76b2f634d52",
+          "bytes": 5080
+        }
+      ]
     }
   ]
 }

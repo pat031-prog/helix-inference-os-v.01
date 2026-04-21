@@ -1,0 +1,81 @@
+{
+  "shape": [
+    64,
+    256
+  ],
+  "dtype": "float32",
+  "block_rows": 8,
+  "order": "C",
+  "extra": {
+    "tensor_name": "transformer.h.0.mlp.c_proj.weight",
+    "source": "huggingface",
+    "transpose_of": "transformer.h.0.mlp.c_proj.weight",
+    "original_dtype": "float32"
+  },
+  "blocks": [
+    {
+      "block_id": 0,
+      "row_start": 0,
+      "row_end": 8,
+      "sha256": "351fd9f8adfad1066ec90f22b2284b6a70d2fd42cf259ceb38a165571f1e7f5f",
+      "compressed_size": 7618,
+      "raw_size": 8192
+    },
+    {
+      "block_id": 1,
+      "row_start": 8,
+      "row_end": 16,
+      "sha256": "2027d6f600ea0a3f46b4dd5355f65266267c69bbeab8c578a92643092ad3e836",
+      "compressed_size": 7597,
+      "raw_size": 8192
+    },
+    {
+      "block_id": 2,
+      "row_start": 16,
+      "row_end": 24,
+      "sha256": "f718e25ea6b1e06ce19f2530c2fe7c8f96d75aaaec9748f29e77bcfaa4b84747",
+      "compressed_size": 7610,
+      "raw_size": 8192
+    },
+    {
+      "block_id": 3,
+      "row_start": 24,
+      "row_end": 32,
+      "sha256": "12544092a805eb07dcab5cbfe51a5e831cc1f0a3b611b234b5562675b851e84a",
+      "compressed_size": 7622,
+      "raw_size": 8192
+    },
+    {
+      "block_id": 4,
+      "row_start": 32,
+      "row_end": 40,
+      "sha256": "a95994ab43df9a4972dc3993cca7bfce6086539533bd6d2c09dbea9e7b1d6db2",
+      "compressed_size": 7612,
+      "raw_size": 8192
+    },
+    {
+      "block_id": 5,
+      "row_start": 40,
+      "row_end": 48,
+      "sha256": "1542bb0063ffaa05a525c126b83dc0b2209048653f60b0e40379dee4e5a85d01",
+      "compressed_size": 7615,
+      "raw_size": 8192
+    },
+    {
+      "block_id": 6,
+      "row_start": 48,
+      "row_end": 56,
+      "sha256": "c9e1ea02b0bf2f518fd91111f172288a68fbf4a49fd556bbf6bb1d9319e0a0cd",
+      "compressed_size": 7600,
+      "raw_size": 8192
+    },
+    {
+      "block_id": 7,
+      "row_start": 56,
+      "row_end": 64,
+      "sha256": "357129c0f67b430aff2865e5e8abd971b52a089aad85e565f77299eececb22b8",
+      "compressed_size": 7608,
+      "raw_size": 8192
+    }
+  ]
+}

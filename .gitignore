@@ -157,3 +157,13 @@ verification/local-hydrogen-table-drop-live-20260418-*
 verification/local-v4-memory-contamination-triad*
 verification/local-v4-provider-substitution-longitudinal*
 verification/provider-substitution-longitudinal/
+
+# Local pytest/temp sandboxes with Windows ACL churn.
+verification/**/_pytest*/
+verification/_pytest*/
+verification/cli-sessions/_test/
+_tmp_pytest_smoke/
+
+# Nested external repos are local references unless explicitly vendored.
+verification/substrate-test-gpt2/helix-online-kv-src/
+verification/turboquant-ref/

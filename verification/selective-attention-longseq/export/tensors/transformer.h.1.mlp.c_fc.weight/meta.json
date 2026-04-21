@@ -1,0 +1,80 @@
+{
+  "shape": [
+    64,
+    256
+  ],
+  "dtype": "float32",
+  "block_rows": 8,
+  "order": "C",
+  "extra": {
+    "tensor_name": "transformer.h.1.mlp.c_fc.weight",
+    "source": "huggingface",
+    "original_dtype": "float32"
+  },
+  "blocks": [
+    {
+      "block_id": 0,
+      "row_start": 0,
+      "row_end": 8,
+      "sha256": "f64290bd1a35e116ea032933d315b4966e4290283140c1de9380723a4f216672",
+      "compressed_size": 7629,
+      "raw_size": 8192
+    },
+    {
+      "block_id": 1,
+      "row_start": 8,
+      "row_end": 16,
+      "sha256": "8089aacddc9f061b8a453de82ac4e096378e98187b8ab1dea1ea9fe4b37269c7",
+      "compressed_size": 7604,
+      "raw_size": 8192
+    },
+    {
+      "block_id": 2,
+      "row_start": 16,
+      "row_end": 24,
+      "sha256": "3b76a973d9b400043fbc96ebeba89d5589f3048da59ecd4400357f1389c96991",
+      "compressed_size": 7618,
+      "raw_size": 8192
+    },
+    {
+      "block_id": 3,
+      "row_start": 24,
+      "row_end": 32,
+      "sha256": "e786dc5fbc934a7d9336879f2db017cfed43d97d8779b3952392b558b8842c92",
+      "compressed_size": 7600,
+      "raw_size": 8192
+    },
+    {
+      "block_id": 4,
+      "row_start": 32,
+      "row_end": 40,
+      "sha256": "f6b0af4e57026e6da690fbd11d5b4a2cd02a7932ea6b1a54cce20b8cb9a31fd5",
+      "compressed_size": 7617,
+      "raw_size": 8192
+    },
+    {
+      "block_id": 5,
+      "row_start": 40,
+      "row_end": 48,
+      "sha256": "ad350c5491efd44168da9533c3c20ade85702fccca7762beb4807a96c0d6828a",
+      "compressed_size": 7608,
+      "raw_size": 8192
+    },
+    {
+      "block_id": 6,
+      "row_start": 48,
+      "row_end": 56,
+      "sha256": "d77d3fc6fdb81245f99aeab4e98f8a90eab097e3c48cbaedcde450c48ea820e1",
+      "compressed_size": 7605,
+      "raw_size": 8192
+    },
+    {
+      "block_id": 7,
+      "row_start": 56,
+      "row_end": 64,
+      "sha256": "3d02437e80f313426cb8bc12c06101e1750ace98dc37065333ffea57aff8d0b1",
+      "compressed_size": 7609,
+      "raw_size": 8192
+    }
+  ]
+}

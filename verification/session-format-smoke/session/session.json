@@ -1,0 +1,34 @@
+{
+  "export_dir": "C:\\Users\\Big Duck\\proyectos\\helix-backend-repo\\verification\\session-format-smoke\\export",
+  "cache_mode": "session",
+  "generated_ids": [
+    3,
+    5,
+    8,
+    8,
+    8
+  ],
+  "num_layers": 1,
+  "session_format_version": 2,
+  "kv_cache_file": "kv_cache.npz",
+  "kv_cache_precision": "turbo-4bit",
+  "kv_quant_seed": 7,
+  "kv_rotation_mode": "hadamard",
+  "kv_hot_window": 2,
+  "kv_topk": 0,
+  "kv_session_payload": {
+    "format": "compressed-kv-v2",
+    "npz_compressed": true,
+    "stores_hot_window_exact_tail": true,
+    "rotation": {
+      "mode": "hadamard",
+      "original_dim": 16,
+      "rotated_dim": 16
+    },
+    "codebook": {
+      "bits": 4,
+      "dim": 16,
+      "levels": 16
+    }
+  }
+}

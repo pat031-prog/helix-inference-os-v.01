@@ -1,0 +1,1752 @@
+{
+  "model_id": "gpt2",
+  "format": "cdna_v2",
+  "codec": "brotli",
+  "block_rows": 64,
+  "tensors": {
+    "h.0.attn.bias": {
+      "format": "cdna_v2",
+      "file": "h_0_attn_bias.cdna2.hxz",
+      "original_shape": [
+        1,
+        1,
+        1024,
+        1024
+      ],
+      "cdna_shape": [
+        1024,
+        1024
+      ],
+      "original_bytes": 4194304,
+      "compressed_bytes": 4208,
+      "compression_ratio": 996.75
+    },
+    "h.0.attn.c_attn.bias": {
+      "format": "npy",
+      "shape": [
+        2304
+      ],
+      "dtype": "float32",
+      "bytes": 9216
+    },
+    "h.0.attn.c_attn.weight": {
+      "format": "cdna_v2",
+      "file": "h_0_attn_c_attn_weight.cdna2.hxz",
+      "original_shape": [
+        768,
+        2304
+      ],
+      "cdna_shape": [
+        768,
+        2304
+      ],
+      "original_bytes": 7077888,
+      "compressed_bytes": 1056631,
+      "compression_ratio": 6.7
+    },
+    "h.0.attn.c_proj.bias": {
+      "format": "npy",
+      "shape": [
+        768
+      ],
+      "dtype": "float32",
+      "bytes": 3072
+    },
+    "h.0.attn.c_proj.weight": {
+      "format": "cdna_v2",
+      "file": "h_0_attn_c_proj_weight.cdna2.hxz",
+      "original_shape": [
+        768,
+        768
+      ],
+      "cdna_shape": [
+        768,
+        768
+      ],
+      "original_bytes": 2359296,
+      "compressed_bytes": 275926,
+      "compression_ratio": 8.55
+    },
+    "h.0.ln_1.bias": {
+      "format": "npy",
+      "shape": [
+        768
+      ],
+      "dtype": "float32",
+      "bytes": 3072
+    },
+    "h.0.ln_1.weight": {
+      "format": "npy",
+      "shape": [
+        768
+      ],
+      "dtype": "float32",
+      "bytes": 3072
+    },
+    "h.0.ln_2.bias": {
+      "format": "npy",
+      "shape": [
+        768
+      ],
+      "dtype": "float32",
+      "bytes": 3072
+    },
+    "h.0.ln_2.weight": {
+      "format": "npy",
+      "shape": [
+        768
+      ],
+      "dtype": "float32",
+      "bytes": 3072
+    },
+    "h.0.mlp.c_fc.bias": {
+      "format": "npy",
+      "shape": [
+        3072
+      ],
+      "dtype": "float32",
+      "bytes": 12288
+    },
+    "h.0.mlp.c_fc.weight": {
+      "format": "cdna_v2",
+      "file": "h_0_mlp_c_fc_weight.cdna2.hxz",
+      "original_shape": [
+        768,
+        3072
+      ],
+      "cdna_shape": [
+        768,
+        3072
+      ],
+      "original_bytes": 9437184,
+      "compressed_bytes": 1285525,
+      "compression_ratio": 7.34
+    },
+    "h.0.mlp.c_proj.bias": {
+      "format": "npy",
+      "shape": [
+        768
+      ],
+      "dtype": "float32",
+      "bytes": 3072
+    },
+    "h.0.mlp.c_proj.weight": {
+      "format": "cdna_v2",
+      "file": "h_0_mlp_c_proj_weight.cdna2.hxz",
+      "original_shape": [
+        3072,
+        768
+      ],
+      "cdna_shape": [
+        3072,
+        768
+      ],
+      "original_bytes": 9437184,
+      "compressed_bytes": 850943,
+      "compression_ratio": 11.09
+    },
+    "h.1.attn.bias": {
+      "format": "cdna_v2",
+      "file": "h_1_attn_bias.cdna2.hxz",
+      "original_shape": [
+        1,
+        1,
+        1024,
+        1024
+      ],
+      "cdna_shape": [
+        1024,
+        1024
+      ],
+      "original_bytes": 4194304,
+      "compressed_bytes": 4208,
+      "compression_ratio": 996.75
+    },
+    "h.1.attn.c_attn.bias": {
+      "format": "npy",
+      "shape": [
+        2304
+      ],
+      "dtype": "float32",
+      "bytes": 9216
+    },
+    "h.1.attn.c_attn.weight": {
+      "format": "cdna_v2",
+      "file": "h_1_attn_c_attn_weight.cdna2.hxz",
+      "original_shape": [
+        768,
+        2304
+      ],
+      "cdna_shape": [
+        768,
+        2304
+      ],
+      "original_bytes": 7077888,
+      "compressed_bytes": 1293954,
+      "compression_ratio": 5.47
+    },
+    "h.1.attn.c_proj.bias": {
+      "format": "npy",
+      "shape": [
+        768
+      ],
+      "dtype": "float32",
+      "bytes": 3072
+    },
+    "h.1.attn.c_proj.weight": {
+      "format": "cdna_v2",
+      "file": "h_1_attn_c_proj_weight.cdna2.hxz",
+      "original_shape": [
+        768,
+        768
+      ],
+      "cdna_shape": [
+        768,
+        768
+      ],
+      "original_bytes": 2359296,
+      "compressed_bytes": 252288,
+      "compression_ratio": 9.35
+    },
+    "h.1.ln_1.bias": {
+      "format": "npy",
+      "shape": [
+        768
+      ],
+      "dtype": "float32",
+      "bytes": 3072
+    },
+    "h.1.ln_1.weight": {
+      "format": "npy",
+      "shape": [
+        768
+      ],
+      "dtype": "float32",
+      "bytes": 3072
+    },
+    "h.1.ln_2.bias": {
+      "format": "npy",
+      "shape": [
+        768
+      ],
+      "dtype": "float32",
+      "bytes": 3072
+    },
+    "h.1.ln_2.weight": {
+      "format": "npy",
+      "shape": [
+        768
+      ],
+      "dtype": "float32",
+      "bytes": 3072
+    },
+    "h.1.mlp.c_fc.bias": {
+      "format": "npy",
+      "shape": [
+        3072
+      ],
+      "dtype": "float32",
+      "bytes": 12288
+    },
+    "h.1.mlp.c_fc.weight": {
+      "format": "cdna_v2",
+      "file": "h_1_mlp_c_fc_weight.cdna2.hxz",
+      "original_shape": [
+        768,
+        3072
+      ],
+      "cdna_shape": [
+        768,
+        3072
+      ],
+      "original_bytes": 9437184,
+      "compressed_bytes": 1487797,
+      "compression_ratio": 6.34
+    },
+    "h.1.mlp.c_proj.bias": {
+      "format": "npy",
+      "shape": [
+        768
+      ],
+      "dtype": "float32",
+      "bytes": 3072
+    },
+    "h.1.mlp.c_proj.weight": {
+      "format": "cdna_v2",
+      "file": "h_1_mlp_c_proj_weight.cdna2.hxz",
+      "original_shape": [
+        3072,
+        768
+      ],
+      "cdna_shape": [
+        3072,
+        768
+      ],
+      "original_bytes": 9437184,
+      "compressed_bytes": 690492,
+      "compression_ratio": 13.67
+    },
+    "h.10.attn.bias": {
+      "format": "cdna_v2",
+      "file": "h_10_attn_bias.cdna2.hxz",
+      "original_shape": [
+        1,
+        1,
+        1024,
+        1024
+      ],
+      "cdna_shape": [
+        1024,
+        1024
+      ],
+      "original_bytes": 4194304,
+      "compressed_bytes": 4209,
+      "compression_ratio": 996.51
+    },
+    "h.10.attn.c_attn.bias": {
+      "format": "npy",
+      "shape": [
+        2304
+      ],
+      "dtype": "float32",
+      "bytes": 9216
+    },
+    "h.10.attn.c_attn.weight": {
+      "format": "cdna_v2",
+      "file": "h_10_attn_c_attn_weight.cdna2.hxz",
+      "original_shape": [
+        768,
+        2304
+      ],
+      "cdna_shape": [
+        768,
+        2304
+      ],
+      "original_bytes": 7077888,
+      "compressed_bytes": 1154467,
+      "compression_ratio": 6.13
+    },
+    "h.10.attn.c_proj.bias": {
+      "format": "npy",
+      "shape": [
+        768
+      ],
+      "dtype": "float32",
+      "bytes": 3072
+    },
+    "h.10.attn.c_proj.weight": {
+      "format": "cdna_v2",
+      "file": "h_10_attn_c_proj_weight.cdna2.hxz",
+      "original_shape": [
+        768,
+        768
+      ],
+      "cdna_shape": [
+        768,
+        768
+      ],
+      "original_bytes": 2359296,
+      "compressed_bytes": 311795,
+      "compression_ratio": 7.57
+    },
+    "h.10.ln_1.bias": {
+      "format": "npy",
+      "shape": [
+        768
+      ],
+      "dtype": "float32",
+      "bytes": 3072
+    },
+    "h.10.ln_1.weight": {
+      "format": "npy",
+      "shape": [
+        768
+      ],
+      "dtype": "float32",
+      "bytes": 3072
+    },
+    "h.10.ln_2.bias": {
+      "format": "npy",
+      "shape": [
+        768
+      ],
+      "dtype": "float32",
+      "bytes": 3072
+    },
+    "h.10.ln_2.weight": {
+      "format": "npy",
+      "shape": [
+        768
+      ],
+      "dtype": "float32",
+      "bytes": 3072
+    },
+    "h.10.mlp.c_fc.bias": {
+      "format": "npy",
+      "shape": [
+        3072
+      ],
+      "dtype": "float32",
+      "bytes": 12288
+    },
+    "h.10.mlp.c_fc.weight": {
+      "format": "cdna_v2",
+      "file": "h_10_mlp_c_fc_weight.cdna2.hxz",
+      "original_shape": [
+        768,
+        3072
+      ],
+      "cdna_shape": [
+        768,
+        3072
+      ],
+      "original_bytes": 9437184,
+      "compressed_bytes": 1435543,
+      "compression_ratio": 6.57
+    },
+    "h.10.mlp.c_proj.bias": {
+      "format": "npy",
+      "shape": [
+        768
+      ],
+      "dtype": "float32",
+      "bytes": 3072
+    },
+    "h.10.mlp.c_proj.weight": {
+      "format": "cdna_v2",
+      "file": "h_10_mlp_c_proj_weight.cdna2.hxz",
+      "original_shape": [
+        3072,
+        768
+      ],
+      "cdna_shape": [
+        3072,
+        768
+      ],
+      "original_bytes": 9437184,
+      "compressed_bytes": 961752,
+      "compression_ratio": 9.81
+    },
+    "h.11.attn.bias": {
+      "format": "cdna_v2",
+      "file": "h_11_attn_bias.cdna2.hxz",
+      "original_shape": [
+        1,
+        1,
+        1024,
+        1024
+      ],
+      "cdna_shape": [
+        1024,
+        1024
+      ],
+      "original_bytes": 4194304,
+      "compressed_bytes": 4209,
+      "compression_ratio": 996.51
+    },
+    "h.11.attn.c_attn.bias": {
+      "format": "npy",
+      "shape": [
+        2304
+      ],
+      "dtype": "float32",
+      "bytes": 9216
+    },
+    "h.11.attn.c_attn.weight": {
+      "format": "cdna_v2",
+      "file": "h_11_attn_c_attn_weight.cdna2.hxz",
+      "original_shape": [
+        768,
+        2304
+      ],
+      "cdna_shape": [
+        768,
+        2304
+      ],
+      "original_bytes": 7077888,
+      "compressed_bytes": 1076902,
+      "compression_ratio": 6.57
+    },
+    "h.11.attn.c_proj.bias": {
+      "format": "npy",
+      "shape": [
+        768
+      ],
+      "dtype": "float32",
+      "bytes": 3072
+    },
+    "h.11.attn.c_proj.weight": {
+      "format": "cdna_v2",
+      "file": "h_11_attn_c_proj_weight.cdna2.hxz",
+      "original_shape": [
+        768,
+        768
+      ],
+      "cdna_shape": [
+        768,
+        768
+      ],
+      "original_bytes": 2359296,
+      "compressed_bytes": 238567,
+      "compression_ratio": 9.89
+    },
+    "h.11.ln_1.bias": {
+      "format": "npy",
+      "shape": [
+        768
+      ],
+      "dtype": "float32",
+      "bytes": 3072
+    },
+    "h.11.ln_1.weight": {
+      "format": "npy",
+      "shape": [
+        768
+      ],
+      "dtype": "float32",
+      "bytes": 3072
+    },
+    "h.11.ln_2.bias": {
+      "format": "npy",
+      "shape": [
+        768
+      ],
+      "dtype": "float32",
+      "bytes": 3072
+    },
+    "h.11.ln_2.weight": {
+      "format": "npy",
+      "shape": [
+        768
+      ],
+      "dtype": "float32",
+      "bytes": 3072
+    },
+    "h.11.mlp.c_fc.bias": {
+      "format": "npy",
+      "shape": [
+        3072
+      ],
+      "dtype": "float32",
+      "bytes": 12288
+    },
+    "h.11.mlp.c_fc.weight": {
+      "format": "cdna_v2",
+      "file": "h_11_mlp_c_fc_weight.cdna2.hxz",
+      "original_shape": [
+        768,
+        3072
+      ],
+      "cdna_shape": [
+        768,
+        3072
+      ],
+      "original_bytes": 9437184,
+      "compressed_bytes": 1550723,
+      "compression_ratio": 6.09
+    },
+    "h.11.mlp.c_proj.bias": {
+      "format": "npy",
+      "shape": [
+        768
+      ],
+      "dtype": "float32",
+      "bytes": 3072
+    },
+    "h.11.mlp.c_proj.weight": {
+      "format": "cdna_v2",
+      "file": "h_11_mlp_c_proj_weight.cdna2.hxz",
+      "original_shape": [
+        3072,
+        768
+      ],
+      "cdna_shape": [
+        3072,
+        768
+      ],
+      "original_bytes": 9437184,
+      "compressed_bytes": 1036475,
+      "compression_ratio": 9.11
+    },
+    "h.2.attn.bias": {
+      "format": "cdna_v2",
+      "file": "h_2_attn_bias.cdna2.hxz",
+      "original_shape": [
+        1,
+        1,
+        1024,
+        1024
+      ],
+      "cdna_shape": [
+        1024,
+        1024
+      ],
+      "original_bytes": 4194304,
+      "compressed_bytes": 4208,
+      "compression_ratio": 996.75
+    },
+    "h.2.attn.c_attn.bias": {
+      "format": "npy",
+      "shape": [
+        2304
+      ],
+      "dtype": "float32",
+      "bytes": 9216
+    },
+    "h.2.attn.c_attn.weight": {
+      "format": "cdna_v2",
+      "file": "h_2_attn_c_attn_weight.cdna2.hxz",
+      "original_shape": [
+        768,
+        2304
+      ],
+      "cdna_shape": [
+        768,
+        2304
+      ],
+      "original_bytes": 7077888,
+      "compressed_bytes": 1222512,
+      "compression_ratio": 5.79
+    },
+    "h.2.attn.c_proj.bias": {
+      "format": "npy",
+      "shape": [
+        768
+      ],
+      "dtype": "float32",
+      "bytes": 3072
+    },
+    "h.2.attn.c_proj.weight": {
+      "format": "cdna_v2",
+      "file": "h_2_attn_c_proj_weight.cdna2.hxz",
+      "original_shape": [
+        768,
+        768
+      ],
+      "cdna_shape": [
+        768,
+        768
+      ],
+      "original_bytes": 2359296,
+      "compressed_bytes": 312005,
+      "compression_ratio": 7.56
+    },
+    "h.2.ln_1.bias": {
+      "format": "npy",
+      "shape": [
+        768
+      ],
+      "dtype": "float32",
+      "bytes": 3072
+    },
+    "h.2.ln_1.weight": {
+      "format": "npy",
+      "shape": [
+        768
+      ],
+      "dtype": "float32",
+      "bytes": 3072
+    },
+    "h.2.ln_2.bias": {
+      "format": "npy",
+      "shape": [
+        768
+      ],
+      "dtype": "float32",
+      "bytes": 3072
+    },
+    "h.2.ln_2.weight": {
+      "format": "npy",
+      "shape": [
+        768
+      ],
+      "dtype": "float32",
+      "bytes": 3072
+    },
+    "h.2.mlp.c_fc.bias": {
+      "format": "npy",
+      "shape": [
+        3072
+      ],
+      "dtype": "float32",
+      "bytes": 12288
+    },
+    "h.2.mlp.c_fc.weight": {
+      "format": "cdna_v2",
+      "file": "h_2_mlp_c_fc_weight.cdna2.hxz",
+      "original_shape": [
+        768,
+        3072
+      ],
+      "cdna_shape": [
+        768,
+        3072
+      ],
+      "original_bytes": 9437184,
+      "compressed_bytes": 922315,
+      "compression_ratio": 10.23
+    },
+    "h.2.mlp.c_proj.bias": {
+      "format": "npy",
+      "shape": [
+        768
+      ],
+      "dtype": "float32",
+      "bytes": 3072
+    },
+    "h.2.mlp.c_proj.weight": {
+      "format": "cdna_v2",
+      "file": "h_2_mlp_c_proj_weight.cdna2.hxz",
+      "original_shape": [
+        3072,
+        768
+      ],
+      "cdna_shape": [
+        3072,
+        768
+      ],
+      "original_bytes": 9437184,
+      "compressed_bytes": 727368,
+      "compression_ratio": 12.97
+    },
+    "h.3.attn.bias": {
+      "format": "cdna_v2",
+      "file": "h_3_attn_bias.cdna2.hxz",
+      "original_shape": [
+        1,
+        1,
+        1024,
+        1024
+      ],
+      "cdna_shape": [
+        1024,
+        1024
+      ],
+      "original_bytes": 4194304,
+      "compressed_bytes": 4208,
+      "compression_ratio": 996.75
+    },
+    "h.3.attn.c_attn.bias": {
+      "format": "npy",
+      "shape": [
+        2304
+      ],
+      "dtype": "float32",
+      "bytes": 9216
+    },
+    "h.3.attn.c_attn.weight": {
+      "format": "cdna_v2",
+      "file": "h_3_attn_c_attn_weight.cdna2.hxz",
+      "original_shape": [
+        768,
+        2304
+      ],
+      "cdna_shape": [
+        768,
+        2304
+      ],
+      "original_bytes": 7077888,
+      "compressed_bytes": 1179993,
+      "compression_ratio": 6.0
+    },
+    "h.3.attn.c_proj.bias": {
+      "format": "npy",
+      "shape": [
+        768
+      ],
+      "dtype": "float32",
+      "bytes": 3072
+    },
+    "h.3.attn.c_proj.weight": {
+      "format": "cdna_v2",
+      "file": "h_3_attn_c_proj_weight.cdna2.hxz",
+      "original_shape": [
+        768,
+        768
+      ],
+      "cdna_shape": [
+        768,
+        768
+      ],
+      "original_bytes": 2359296,
+      "compressed_bytes": 348140,
+      "compression_ratio": 6.78
+    },
+    "h.3.ln_1.bias": {
+      "format": "npy",
+      "shape": [
+        768
+      ],
+      "dtype": "float32",
+      "bytes": 3072
+    },
+    "h.3.ln_1.weight": {
+      "format": "npy",
+      "shape": [
+        768
+      ],
+      "dtype": "float32",
+      "bytes": 3072
+    },
+    "h.3.ln_2.bias": {
+      "format": "npy",
+      "shape": [
+        768
+      ],
+      "dtype": "float32",
+      "bytes": 3072
+    },
+    "h.3.ln_2.weight": {
+      "format": "npy",
+      "shape": [
+        768
+      ],
+      "dtype": "float32",
+      "bytes": 3072
+    },
+    "h.3.mlp.c_fc.bias": {
+      "format": "npy",
+      "shape": [
+        3072
+      ],
+      "dtype": "float32",
+      "bytes": 12288
+    },
+    "h.3.mlp.c_fc.weight": {
+      "format": "cdna_v2",
+      "file": "h_3_mlp_c_fc_weight.cdna2.hxz",
+      "original_shape": [
+        768,
+        3072
+      ],
+      "cdna_shape": [
+        768,
+        3072
+      ],
+      "original_bytes": 9437184,
+      "compressed_bytes": 1417999,
+      "compression_ratio": 6.66
+    },
+    "h.3.mlp.c_proj.bias": {
+      "format": "npy",
+      "shape": [
+        768
+      ],
+      "dtype": "float32",
+      "bytes": 3072
+    },
+    "h.3.mlp.c_proj.weight": {
+      "format": "cdna_v2",
+      "file": "h_3_mlp_c_proj_weight.cdna2.hxz",
+      "original_shape": [
+        3072,
+        768
+      ],
+      "cdna_shape": [
+        3072,
+        768
+      ],
+      "original_bytes": 9437184,
+      "compressed_bytes": 659664,
+      "compression_ratio": 14.31
+    },
+    "h.4.attn.bias": {
+      "format": "cdna_v2",
+      "file": "h_4_attn_bias.cdna2.hxz",
+      "original_shape": [
+        1,
+        1,
+        1024,
+        1024
+      ],
+      "cdna_shape": [
+        1024,
+        1024
+      ],
+      "original_bytes": 4194304,
+      "compressed_bytes": 4208,
+      "compression_ratio": 996.75
+    },
+    "h.4.attn.c_attn.bias": {
+      "format": "npy",
+      "shape": [
+        2304
+      ],
+      "dtype": "float32",
+      "bytes": 9216
+    },
+    "h.4.attn.c_attn.weight": {
+      "format": "cdna_v2",
+      "file": "h_4_attn_c_attn_weight.cdna2.hxz",
+      "original_shape": [
+        768,
+        2304
+      ],
+      "cdna_shape": [
+        768,
+        2304
+      ],
+      "original_bytes": 7077888,
+      "compressed_bytes": 1005654,
+      "compression_ratio": 7.04
+    },
+    "h.4.attn.c_proj.bias": {
+      "format": "npy",
+      "shape": [
+        768
+      ],
+      "dtype": "float32",
+      "bytes": 3072
+    },
+    "h.4.attn.c_proj.weight": {
+      "format": "cdna_v2",
+      "file": "h_4_attn_c_proj_weight.cdna2.hxz",
+      "original_shape": [
+        768,
+        768
+      ],
+      "cdna_shape": [
+        768,
+        768
+      ],
+      "original_bytes": 2359296,
+      "compressed_bytes": 347178,
+      "compression_ratio": 6.8
+    },
+    "h.4.ln_1.bias": {
+      "format": "npy",
+      "shape": [
+        768
+      ],
+      "dtype": "float32",
+      "bytes": 3072
+    },
+    "h.4.ln_1.weight": {
+      "format": "npy",
+      "shape": [
+        768
+      ],
+      "dtype": "float32",
+      "bytes": 3072
+    },
+    "h.4.ln_2.bias": {
+      "format": "npy",
+      "shape": [
+        768
+      ],
+      "dtype": "float32",
+      "bytes": 3072
+    },
+    "h.4.ln_2.weight": {
+      "format": "npy",
+      "shape": [
+        768
+      ],
+      "dtype": "float32",
+      "bytes": 3072
+    },
+    "h.4.mlp.c_fc.bias": {
+      "format": "npy",
+      "shape": [
+        3072
+      ],
+      "dtype": "float32",
+      "bytes": 12288
+    },
+    "h.4.mlp.c_fc.weight": {
+      "format": "cdna_v2",
+      "file": "h_4_mlp_c_fc_weight.cdna2.hxz",
+      "original_shape": [
+        768,
+        3072
+      ],
+      "cdna_shape": [
+        768,
+        3072
+      ],
+      "original_bytes": 9437184,
+      "compressed_bytes": 1491761,
+      "compression_ratio": 6.33
+    },
+    "h.4.mlp.c_proj.bias": {
+      "format": "npy",
+      "shape": [
+        768
+      ],
+      "dtype": "float32",
+      "bytes": 3072
+    },
+    "h.4.mlp.c_proj.weight": {
+      "format": "cdna_v2",
+      "file": "h_4_mlp_c_proj_weight.cdna2.hxz",
+      "original_shape": [
+        3072,
+        768
+      ],
+      "cdna_shape": [
+        3072,
+        768
+      ],
+      "original_bytes": 9437184,
+      "compressed_bytes": 1033673,
+      "compression_ratio": 9.13
+    },
+    "h.5.attn.bias": {
+      "format": "cdna_v2",
+      "file": "h_5_attn_bias.cdna2.hxz",
+      "original_shape": [
+        1,
+        1,
+        1024,
+        1024
+      ],
+      "cdna_shape": [
+        1024,
+        1024
+      ],
+      "original_bytes": 4194304,
+      "compressed_bytes": 4208,
+      "compression_ratio": 996.75
+    },
+    "h.5.attn.c_attn.bias": {
+      "format": "npy",
+      "shape": [
+        2304
+      ],
+      "dtype": "float32",
+      "bytes": 9216
+    },
+    "h.5.attn.c_attn.weight": {
+      "format": "cdna_v2",
+      "file": "h_5_attn_c_attn_weight.cdna2.hxz",
+      "original_shape": [
+        768,
+        2304
+      ],
+      "cdna_shape": [
+        768,
+        2304
+      ],
+      "original_bytes": 7077888,
+      "compressed_bytes": 1247752,
+      "compression_ratio": 5.67
+    },
+    "h.5.attn.c_proj.bias": {
+      "format": "npy",
+      "shape": [
+        768
+      ],
+      "dtype": "float32",
+      "bytes": 3072
+    },
+    "h.5.attn.c_proj.weight": {
+      "format": "cdna_v2",
+      "file": "h_5_attn_c_proj_weight.cdna2.hxz",
+      "original_shape": [
+        768,
+        768
+      ],
+      "cdna_shape": [
+        768,
+        768
+      ],
+      "original_bytes": 2359296,
+      "compressed_bytes": 351429,
+      "compression_ratio": 6.71
+    },
+    "h.5.ln_1.bias": {
+      "format": "npy",
+      "shape": [
+        768
+      ],
+      "dtype": "float32",
+      "bytes": 3072
+    },
+    "h.5.ln_1.weight": {
+      "format": "npy",
+      "shape": [
+        768
+      ],
+      "dtype": "float32",
+      "bytes": 3072
+    },
+    "h.5.ln_2.bias": {
+      "format": "npy",
+      "shape": [
+        768
+      ],
+      "dtype": "float32",
+      "bytes": 3072
+    },
+    "h.5.ln_2.weight": {
+      "format": "npy",
+      "shape": [
+        768
+      ],
+      "dtype": "float32",
+      "bytes": 3072
+    },
+    "h.5.mlp.c_fc.bias": {
+      "format": "npy",
+      "shape": [
+        3072
+      ],
+      "dtype": "float32",
+      "bytes": 12288
+    },
+    "h.5.mlp.c_fc.weight": {
+      "format": "cdna_v2",
+      "file": "h_5_mlp_c_fc_weight.cdna2.hxz",
+      "original_shape": [
+        768,
+        3072
+      ],
+      "cdna_shape": [
+        768,
+        3072
+      ],
+      "original_bytes": 9437184,
+      "compressed_bytes": 1532708,
+      "compression_ratio": 6.16
+    },
+    "h.5.mlp.c_proj.bias": {
+      "format": "npy",
+      "shape": [
+        768
+      ],
+      "dtype": "float32",
+      "bytes": 3072
+    },
+    "h.5.mlp.c_proj.weight": {
+      "format": "cdna_v2",
+      "file": "h_5_mlp_c_proj_weight.cdna2.hxz",
+      "original_shape": [
+        3072,
+        768
+      ],
+      "cdna_shape": [
+        3072,
+        768
+      ],
+      "original_bytes": 9437184,
+      "compressed_bytes": 1246880,
+      "compression_ratio": 7.57
+    },
+    "h.6.attn.bias": {
+      "format": "cdna_v2",
+      "file": "h_6_attn_bias.cdna2.hxz",
+      "original_shape": [
+        1,
+        1,
+        1024,
+        1024
+      ],
+      "cdna_shape": [
+        1024,
+        1024
+      ],
+      "original_bytes": 4194304,
+      "compressed_bytes": 4208,
+      "compression_ratio": 996.75
+    },
+    "h.6.attn.c_attn.bias": {
+      "format": "npy",
+      "shape": [
+        2304
+      ],
+      "dtype": "float32",
+      "bytes": 9216
+    },
+    "h.6.attn.c_attn.weight": {
+      "format": "cdna_v2",
+      "file": "h_6_attn_c_attn_weight.cdna2.hxz",
+      "original_shape": [
+        768,
+        2304
+      ],
+      "cdna_shape": [
+        768,
+        2304
+      ],
+      "original_bytes": 7077888,
+      "compressed_bytes": 1215848,
+      "compression_ratio": 5.82
+    },
+    "h.6.attn.c_proj.bias": {
+      "format": "npy",
+      "shape": [
+        768
+      ],
+      "dtype": "float32",
+      "bytes": 3072
+    },
+    "h.6.attn.c_proj.weight": {
+      "format": "cdna_v2",
+      "file": "h_6_attn_c_proj_weight.cdna2.hxz",
+      "original_shape": [
+        768,
+        768
+      ],
+      "cdna_shape": [
+        768,
+        768
+      ],
+      "original_bytes": 2359296,
+      "compressed_bytes": 374127,
+      "compression_ratio": 6.31
+    },
+    "h.6.ln_1.bias": {
+      "format": "npy",
+      "shape": [
+        768
+      ],
+      "dtype": "float32",
+      "bytes": 3072
+    },
+    "h.6.ln_1.weight": {
+      "format": "npy",
+      "shape": [
+        768
+      ],
+      "dtype": "float32",
+      "bytes": 3072
+    },
+    "h.6.ln_2.bias": {
+      "format": "npy",
+      "shape": [
+        768
+      ],
+      "dtype": "float32",
+      "bytes": 3072
+    },
+    "h.6.ln_2.weight": {
+      "format": "npy",
+      "shape": [
+        768
+      ],
+      "dtype": "float32",
+      "bytes": 3072
+    },
+    "h.6.mlp.c_fc.bias": {
+      "format": "npy",
+      "shape": [
+        3072
+      ],
+      "dtype": "float32",
+      "bytes": 12288
+    },
+    "h.6.mlp.c_fc.weight": {
+      "format": "cdna_v2",
+      "file": "h_6_mlp_c_fc_weight.cdna2.hxz",
+      "original_shape": [
+        768,
+        3072
+      ],
+      "cdna_shape": [
+        768,
+        3072
+      ],
+      "original_bytes": 9437184,
+      "compressed_bytes": 1574754,
+      "compression_ratio": 5.99
+    },
+    "h.6.mlp.c_proj.bias": {
+      "format": "npy",
+      "shape": [
+        768
+      ],
+      "dtype": "float32",
+      "bytes": 3072
+    },
+    "h.6.mlp.c_proj.weight": {
+      "format": "cdna_v2",
+      "file": "h_6_mlp_c_proj_weight.cdna2.hxz",
+      "original_shape": [
+        3072,
+        768
+      ],
+      "cdna_shape": [
+        3072,
+        768
+      ],
+      "original_bytes": 9437184,
+      "compressed_bytes": 1332404,
+      "compression_ratio": 7.08
+    },
+    "h.7.attn.bias": {
+      "format": "cdna_v2",
+      "file": "h_7_attn_bias.cdna2.hxz",
+      "original_shape": [
+        1,
+        1,
+        1024,
+        1024
+      ],
+      "cdna_shape": [
+        1024,
+        1024
+      ],
+      "original_bytes": 4194304,
+      "compressed_bytes": 4208,
+      "compression_ratio": 996.75
+    },
+    "h.7.attn.c_attn.bias": {
+      "format": "npy",
+      "shape": [
+        2304
+      ],
+      "dtype": "float32",
+      "bytes": 9216
+    },
+    "h.7.attn.c_attn.weight": {
+      "format": "cdna_v2",
+      "file": "h_7_attn_c_attn_weight.cdna2.hxz",
+      "original_shape": [
+        768,
+        2304
+      ],
+      "cdna_shape": [
+        768,
+        2304
+      ],
+      "original_bytes": 7077888,
+      "compressed_bytes": 1177975,
+      "compression_ratio": 6.01
+    },
+    "h.7.attn.c_proj.bias": {
+      "format": "npy",
+      "shape": [
+        768
+      ],
+      "dtype": "float32",
+      "bytes": 3072
+    },
+    "h.7.attn.c_proj.weight": {
+      "format": "cdna_v2",
+      "file": "h_7_attn_c_proj_weight.cdna2.hxz",
+      "original_shape": [
+        768,
+        768
+      ],
+      "cdna_shape": [
+        768,
+        768
+      ],
+      "original_bytes": 2359296,
+      "compressed_bytes": 358498,
+      "compression_ratio": 6.58
+    },
+    "h.7.ln_1.bias": {
+      "format": "npy",
+      "shape": [
+        768
+      ],
+      "dtype": "float32",
+      "bytes": 3072
+    },
+    "h.7.ln_1.weight": {
+      "format": "npy",
+      "shape": [
+        768
+      ],
+      "dtype": "float32",
+      "bytes": 3072
+    },
+    "h.7.ln_2.bias": {
+      "format": "npy",
+      "shape": [
+        768
+      ],
+      "dtype": "float32",
+      "bytes": 3072
+    },
+    "h.7.ln_2.weight": {
+      "format": "npy",
+      "shape": [
+        768
+      ],
+      "dtype": "float32",
+      "bytes": 3072
+    },
+    "h.7.mlp.c_fc.bias": {
+      "format": "npy",
+      "shape": [
+        3072
+      ],
+      "dtype": "float32",
+      "bytes": 12288
+    },
+    "h.7.mlp.c_fc.weight": {
+      "format": "cdna_v2",
+      "file": "h_7_mlp_c_fc_weight.cdna2.hxz",
+      "original_shape": [
+        768,
+        3072
+      ],
+      "cdna_shape": [
+        768,
+        3072
+      ],
+      "original_bytes": 9437184,
+      "compressed_bytes": 1779521,
+      "compression_ratio": 5.3
+    },
+    "h.7.mlp.c_proj.bias": {
+      "format": "npy",
+      "shape": [
+        768
+      ],
+      "dtype": "float32",
+      "bytes": 3072
+    },
+    "h.7.mlp.c_proj.weight": {
+      "format": "cdna_v2",
+      "file": "h_7_mlp_c_proj_weight.cdna2.hxz",
+      "original_shape": [
+        3072,
+        768
+      ],
+      "cdna_shape": [
+        3072,
+        768
+      ],
+      "original_bytes": 9437184,
+      "compressed_bytes": 1135501,
+      "compression_ratio": 8.31
+    },
+    "h.8.attn.bias": {
+      "format": "cdna_v2",
+      "file": "h_8_attn_bias.cdna2.hxz",
+      "original_shape": [
+        1,
+        1,
+        1024,
+        1024
+      ],
+      "cdna_shape": [
+        1024,
+        1024
+      ],
+      "original_bytes": 4194304,
+      "compressed_bytes": 4208,
+      "compression_ratio": 996.75
+    },
+    "h.8.attn.c_attn.bias": {
+      "format": "npy",
+      "shape": [
+        2304
+      ],
+      "dtype": "float32",
+      "bytes": 9216
+    },
+    "h.8.attn.c_attn.weight": {
+      "format": "cdna_v2",
+      "file": "h_8_attn_c_attn_weight.cdna2.hxz",
+      "original_shape": [
+        768,
+        2304
+      ],
+      "cdna_shape": [
+        768,
+        2304
+      ],
+      "original_bytes": 7077888,
+      "compressed_bytes": 1157502,
+      "compression_ratio": 6.11
+    },
+    "h.8.attn.c_proj.bias": {
+      "format": "npy",
+      "shape": [
+        768
+      ],
+      "dtype": "float32",
+      "bytes": 3072
+    },
+    "h.8.attn.c_proj.weight": {
+      "format": "cdna_v2",
+      "file": "h_8_attn_c_proj_weight.cdna2.hxz",
+      "original_shape": [
+        768,
+        768
+      ],
+      "cdna_shape": [
+        768,
+        768
+      ],
+      "original_bytes": 2359296,
+      "compressed_bytes": 344662,
+      "compression_ratio": 6.85
+    },
+    "h.8.ln_1.bias": {
+      "format": "npy",
+      "shape": [
+        768
+      ],
+      "dtype": "float32",
+      "bytes": 3072
+    },
+    "h.8.ln_1.weight": {
+      "format": "npy",
+      "shape": [
+        768
+      ],
+      "dtype": "float32",
+      "bytes": 3072
+    },
+    "h.8.ln_2.bias": {
+      "format": "npy",
+      "shape": [
+        768
+      ],
+      "dtype": "float32",
+      "bytes": 3072
+    },
+    "h.8.ln_2.weight": {
+      "format": "npy",
+      "shape": [
+        768
+      ],
+      "dtype": "float32",
+      "bytes": 3072
+    },
+    "h.8.mlp.c_fc.bias": {
+      "format": "npy",
+      "shape": [
+        3072
+      ],
+      "dtype": "float32",
+      "bytes": 12288
+    },
+    "h.8.mlp.c_fc.weight": {
+      "format": "cdna_v2",
+      "file": "h_8_mlp_c_fc_weight.cdna2.hxz",
+      "original_shape": [
+        768,
+        3072
+      ],
+      "cdna_shape": [
+        768,
+        3072
+      ],
+      "original_bytes": 9437184,
+      "compressed_bytes": 1670105,
+      "compression_ratio": 5.65
+    },
+    "h.8.mlp.c_proj.bias": {
+      "format": "npy",
+      "shape": [
+        768
+      ],
+      "dtype": "float32",
+      "bytes": 3072
+    },
+    "h.8.mlp.c_proj.weight": {
+      "format": "cdna_v2",
+      "file": "h_8_mlp_c_proj_weight.cdna2.hxz",
+      "original_shape": [
+        3072,
+        768
+      ],
+      "cdna_shape": [
+        3072,
+        768
+      ],
+      "original_bytes": 9437184,
+      "compressed_bytes": 1183457,
+      "compression_ratio": 7.97
+    },
+    "h.9.attn.bias": {
+      "format": "cdna_v2",
+      "file": "h_9_attn_bias.cdna2.hxz",
+      "original_shape": [
+        1,
+        1,
+        1024,
+        1024
+      ],
+      "cdna_shape": [
+        1024,
+        1024
+      ],
+      "original_bytes": 4194304,
+      "compressed_bytes": 4208,
+      "compression_ratio": 996.75
+    },
+    "h.9.attn.c_attn.bias": {
+      "format": "npy",
+      "shape": [
+        2304
+      ],
+      "dtype": "float32",
+      "bytes": 9216
+    },
+    "h.9.attn.c_attn.weight": {
+      "format": "cdna_v2",
+      "file": "h_9_attn_c_attn_weight.cdna2.hxz",
+      "original_shape": [
+        768,
+        2304
+      ],
+      "cdna_shape": [
+        768,
+        2304
+      ],
+      "original_bytes": 7077888,
+      "compressed_bytes": 1146787,
+      "compression_ratio": 6.17
+    },
+    "h.9.attn.c_proj.bias": {
+      "format": "npy",
+      "shape": [
+        768
+      ],
+      "dtype": "float32",
+      "bytes": 3072
+    },
+    "h.9.attn.c_proj.weight": {
+      "format": "cdna_v2",
+      "file": "h_9_attn_c_proj_weight.cdna2.hxz",
+      "original_shape": [
+        768,
+        768
+      ],
+      "cdna_shape": [
+        768,
+        768
+      ],
+      "original_bytes": 2359296,
+      "compressed_bytes": 393085,
+      "compression_ratio": 6.0
+    },
+    "h.9.ln_1.bias": {
+      "format": "npy",
+      "shape": [
+        768
+      ],
+      "dtype": "float32",
+      "bytes": 3072
+    },
+    "h.9.ln_1.weight": {
+      "format": "npy",
+      "shape": [
+        768
+      ],
+      "dtype": "float32",
+      "bytes": 3072
+    },
+    "h.9.ln_2.bias": {
+      "format": "npy",
+      "shape": [
+        768
+      ],
+      "dtype": "float32",
+      "bytes": 3072
+    },
+    "h.9.ln_2.weight": {
+      "format": "npy",
+      "shape": [
+        768
+      ],
+      "dtype": "float32",
+      "bytes": 3072
+    },
+    "h.9.mlp.c_fc.bias": {
+      "format": "npy",
+      "shape": [
+        3072
+      ],
+      "dtype": "float32",
+      "bytes": 12288
+    },
+    "h.9.mlp.c_fc.weight": {
+      "format": "cdna_v2",
+      "file": "h_9_mlp_c_fc_weight.cdna2.hxz",
+      "original_shape": [
+        768,
+        3072
+      ],
+      "cdna_shape": [
+        768,
+        3072
+      ],
+      "original_bytes": 9437184,
+      "compressed_bytes": 1415619,
+      "compression_ratio": 6.67
+    },
+    "h.9.mlp.c_proj.bias": {
+      "format": "npy",
+      "shape": [
+        768
+      ],
+      "dtype": "float32",
+      "bytes": 3072
+    },
+    "h.9.mlp.c_proj.weight": {
+      "format": "cdna_v2",
+      "file": "h_9_mlp_c_proj_weight.cdna2.hxz",
+      "original_shape": [
+        3072,
+        768
+      ],
+      "cdna_shape": [
+        3072,
+        768
+      ],
+      "original_bytes": 9437184,
+      "compressed_bytes": 1184784,
+      "compression_ratio": 7.97
+    },
+    "ln_f.bias": {
+      "format": "npy",
+      "shape": [
+        768
+      ],
+      "dtype": "float32",
+      "bytes": 3072
+    },
+    "ln_f.weight": {
+      "format": "npy",
+      "shape": [
+        768
+      ],
+      "dtype": "float32",
+      "bytes": 3072
+    },
+    "wpe.weight": {
+      "format": "cdna_v2",
+      "file": "wpe_weight.cdna2.hxz",
+      "original_shape": [
+        1024,
+        768
+      ],
+      "cdna_shape": [
+        1024,
+        768
+      ],
+      "original_bytes": 3145728,
+      "compressed_bytes": 159497,
+      "compression_ratio": 19.72
+    },
+    "wte.weight": {
+      "format": "cdna_v2",
+      "file": "wte_weight.cdna2.hxz",
+      "original_shape": [
+        50257,
+        768
+      ],
+      "cdna_shape": [
+        50257,
+        768
+      ],
+      "original_bytes": 154389504,
+      "compressed_bytes": 27290858,
+      "compression_ratio": 5.66
+    }
+  },
+  "stats": {
+    "tensor_count": 62,
+    "original_bytes": 548090880,
+    "compressed_bytes": 74952293,
+    "overall_ratio": 7.31
+  }
+}

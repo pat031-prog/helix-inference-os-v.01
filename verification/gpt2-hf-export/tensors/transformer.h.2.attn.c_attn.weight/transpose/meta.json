@@ -1,0 +1,89 @@
+{
+  "shape": [
+    2304,
+    768
+  ],
+  "dtype": "float32",
+  "block_rows": 256,
+  "order": "C",
+  "extra": {
+    "tensor_name": "transformer.h.2.attn.c_attn.weight",
+    "source": "huggingface",
+    "transpose_of": "transformer.h.2.attn.c_attn.weight",
+    "original_dtype": "float32"
+  },
+  "blocks": [
+    {
+      "block_id": 0,
+      "row_start": 0,
+      "row_end": 256,
+      "sha256": "648d847068cbdabbd493f4903d26d5fa6c02da2ee44d2567b77d520db400a7f5",
+      "compressed_size": 729256,
+      "raw_size": 786432
+    },
+    {
+      "block_id": 1,
+      "row_start": 256,
+      "row_end": 512,
+      "sha256": "042b4e27d7aad4ce53f6d81fef59335ea5cae149c6be7756d307ed3eed804904",
+      "compressed_size": 730045,
+      "raw_size": 786432
+    },
+    {
+      "block_id": 2,
+      "row_start": 512,
+      "row_end": 768,
+      "sha256": "b2fdf96e4638f79fd4dd76638f31635357fe38aa2ab5650e5efaa23d8ff3c776",
+      "compressed_size": 730139,
+      "raw_size": 786432
+    },
+    {
+      "block_id": 3,
+      "row_start": 768,
+      "row_end": 1024,
+      "sha256": "c37aecceb84fe1e3bf91f8cbcb937111ead603500e018969fd99f0ec254288e1",
+      "compressed_size": 730552,
+      "raw_size": 786432
+    },
+    {
+      "block_id": 4,
+      "row_start": 1024,
+      "row_end": 1280,
+      "sha256": "8cbcd22e1ee047d78a7b140ba467a5dceec4a4d9b4ba71e9e995a1e24bb8d178",
+      "compressed_size": 731055,
+      "raw_size": 786432
+    },
+    {
+      "block_id": 5,
+      "row_start": 1280,
+      "row_end": 1536,
+      "sha256": "b2bd49ba72ec12cb9fe302fb4702cb100467f088e399c7f3666d962725349df6",
+      "compressed_size": 731327,
+      "raw_size": 786432
+    },
+    {
+      "block_id": 6,
+      "row_start": 1536,
+      "row_end": 1792,
+      "sha256": "a13fd07c6113e3e6f86cab1962b1e90525c59c676df40ab23787025358484d49",
+      "compressed_size": 731635,
+      "raw_size": 786432
+    },
+    {
+      "block_id": 7,
+      "row_start": 1792,
+      "row_end": 2048,
+      "sha256": "37aaf5f031c3a68a2914a6b452d6250844aa409be50e0a1d4c2edbd27ec0020b",
+      "compressed_size": 731680,
+      "raw_size": 786432
+    },
+    {
+      "block_id": 8,
+      "row_start": 2048,
+      "row_end": 2304,
+      "sha256": "3a547d03884cee4e18b390d4f3ed1a454e9687aef4631c5c8257cb1899d5dd4f",
+      "compressed_size": 731549,
+      "raw_size": 786432
+    }
+  ]
+}

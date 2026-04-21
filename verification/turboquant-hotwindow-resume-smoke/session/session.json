@@ -1,0 +1,16 @@
+{
+  "export_dir": "C:\\Users\\Big Duck\\proyectos\\helix-backend-repo\\verification\\turboquant-hotwindow-resume-smoke\\export",
+  "cache_mode": "session",
+  "generated_ids": [
+    3,
+    5,
+    8,
+    8,
+    8
+  ],
+  "num_layers": 2,
+  "kv_cache_precision": "turbo-4bit",
+  "kv_quant_seed": 7,
+  "kv_rotation_mode": "hadamard",
+  "kv_hot_window": 2
+}

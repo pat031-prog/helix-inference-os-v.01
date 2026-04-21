@@ -1,0 +1,100 @@
+{
+  "artifact": "helix-osint-oracle-audit-run",
+  "schema_version": 1,
+  "run_id": "osint-oracle-audit-20260420-164436",
+  "audited_by": "Claude Opus 4.7 (claude-code session)",
+  "audit_purpose": "Independent execution of HeliX OSINT zero-day oracle with full chain-of-custody: code hash, config, outputs, and claim boundary.",
+  "run_started_utc": "2026-04-20T16:45:02.237Z",
+  "run_ended_utc": "2026-04-20T16:45:04.200Z",
+  "run_duration_s_wallclock": 1.963,
+  "exit_code": 0,
+  "passed": true,
+  "host": {
+    "platform": "win32",
+    "python_version": "3.13.9",
+    "timezone": "America/Buenos_Aires"
+  },
+  "git": {
+    "head_sha": "569c45f88b90f5307c5780e98c4aac67ae63adf4",
+    "source_tree_clean_for_audited_files": true,
+    "audited_files": [
+      "src/helix_proto/osint_oracle.py",
+      "tools/run_live_zero_day_oracle.py",
+      "verification/fixtures/zero_day_osint_2025_cves.json"
+    ]
+  },
+  "invocation": {
+    "command": "python tools/run_live_zero_day_oracle.py --fixture-only --llm-mode synthetic --output-dir verification/audit-runs/osint-oracle-20260420-164436",
+    "mode": "fixture",
+    "llm_mode": "synthetic",
+    "profile": "public-light",
+    "live_network_access": false,
+    "deepinfra_token_used": false,
+    "api_key_persisted": false
+  },
+  "code_under_test_sha256": {
+    "src/helix_proto/osint_oracle.py": {
+      "sha256": "d3a49a5edce2979a07dc53251d995722e171e645efe79336c1915bb5a02ce9f6",
+      "bytes": 28521
+    },
+    "tools/run_live_zero_day_oracle.py": {
+      "sha256": "1d0665575aea086caf57a52b52e95705719ccea150f7fe914c73c578e22a9904",
+      "bytes": 7911
+    },
+    "verification/fixtures/zero_day_osint_2025_cves.json": {
+      "sha256": "ed18fdf079153bdf68bb63fc16d323cc62445f3e7a5f455d90c0776956a0a657",
+      "bytes": 4597
+    }
+  },
+  "outputs_sha256": {
+    "oracle.log": {
+      "sha256": "1758d85b5744043e36643c535ceb8263bbdba3e69220db3d3f0e20c00b4b4017",
+      "bytes": 461
+    },
+    "local-zero-day-osint-oracle.json": {
+      "sha256": "887d0ff1345577fd0c7b3fb4c33c3b52b28ab72e4fe56a1e35d3a88bcefeb01f",
+      "bytes": 1609
+    },
+    "local-zero-day-osint-oracle-sources.json": {
+      "sha256": "18fad706ee589495c1390c1238478dadce79bd653b7cd0cbeb9116871f0d0c63",
+      "bytes": 334
+    }
+  },
+  "observed_results": {
+    "signals_seen": 4,
+    "signals_ingested": 4,
+    "deduped_count": 4,
+    "alerts_count": 0,
+    "source_errors": 0,
+    "state_server_node_count": 4,
+    "search_ms_p50": null,
+    "pipeline_duration_s_internal": 0.48698960000183433,
+    "noise_floor_report_components": ["v8"],
+    "noise_floor_eligible": false,
+    "noise_floor_claim_level": "needs_human_review",
+    "noise_floor_caveats_present": true
+  },
+  "interpretation": {
+    "what_this_run_shows": [
+      "The pipeline ingests 4 fixture signals deterministically and produces a schema-valid artifact.",
+      "Correlation gating fires: 0 alerts because min_independent_sources=2 was not met within correlation_window_hours=24 in this fixture slice.",
+      "The noise_floor_report nonetheless surfaces the v8 component as a below-threshold observation with claim_level=needs_human_review, demonstrating the claim-ladder discipline at the artifact layer.",
+      "Every output caveat required by the oracle is present: 'not a confirmed vulnerability', 'no CVE or vendor advisory is asserted', 'human review required'."
+    ],
+    "what_this_run_does_not_show": [
+      "This run does not prove zero-day predictive capability.",
+      "This run does not execute against live network sources (no GitHub / HackerNews / RSS fetch).",
+      "This run does not exercise the DeepInfra LLM path (llm_mode=synthetic).",
+      "This run does not compute lead_time_hours / precision / recall — those metrics live in the separate preregistered backtest (zero-day-osint-ground-truth-backtest).",
+      "A passing run with 0 alerts is consistent with either correct noise-floor gating or a fixture that is too thin to alert; it is not evidence of predictive power."
+    ]
+  },
+  "claim_boundary": "Conservative OSINT correlation only. This audit run confirms the oracle executes deterministically end-to-end against a hashed fixture, produces the required caveats, and enforces the claim ladder; it does not confirm zero-day prediction.",
+  "chain_of_custody": {
+    "fixture_hash": "ed18fdf079153bdf68bb63fc16d323cc62445f3e7a5f455d90c0776956a0a657",
+    "artifact_hash": "887d0ff1345577fd0c7b3fb4c33c3b52b28ab72e4fe56a1e35d3a88bcefeb01f",
+    "log_hash": "1758d85b5744043e36643c535ceb8263bbdba3e69220db3d3f0e20c00b4b4017",
+    "note": "Given the same code hashes and fixture hash, a re-run in fixture mode should reproduce the ingested counts and noise_floor_report structure. Absolute timings and generated_ms will differ."
+  },
+  "reproduction_command": "cd C:\\Users\\Big Duck\\proyectos\\helix-backend-repo && python tools\\run_live_zero_day_oracle.py --fixture-only --llm-mode synthetic --output-dir <new-dir>"
+}

@@ -1,0 +1,73 @@
+{
+  "date": "2026-03-30",
+  "source_reports": {
+    "before": "verification/remote-tinyllama-1.1b.json",
+    "after": "verification/remote-tinyllama-1.1b-opt2.json"
+  },
+  "focus": [
+    "hybrid dense-matrix Hadamard path for small head dimensions",
+    "terminal-layer protection in adaptive per-layer compression",
+    "key-favored asymmetric benchmark variants",
+    "Quest-style block bound scoring with wider block shortlist"
+  ],
+  "tinyllama_1_1b_real": {
+    "turbo-int8-hadamard": {
+      "before": {
+        "generated_match_vs_baseline": true,
+        "total_time_s": 30.038121338933706,
+        "kv_cache_ratio_vs_fp32": 3.522460542290571,
+        "session_size_ratio_vs_fp32": 3.294523051844927
+      },
+      "after": {
+        "generated_match_vs_baseline": true,
+        "total_time_s": 23.10727915293537,
+        "kv_cache_ratio_vs_fp32": 3.522460542290571,
+        "session_size_ratio_vs_fp32": 3.2949606988012696
+      }
+    },
+    "adaptive": {
+      "before": {
+        "generated_match_vs_baseline": false,
+        "total_time_s": 31.680323243839666,
+        "kv_cache_ratio_vs_fp32": 3.9563636363636365,
+        "session_size_ratio_vs_fp32": 3.6709258882096245
+      },
+      "after": {
+        "generated_match_vs_baseline": true,
+        "total_time_s": 23.0197517889319,
+        "kv_cache_ratio_vs_fp32": 3.522460542290571,
+        "session_size_ratio_vs_fp32": 3.2637105997961278
+      }
+    },
+    "turbo-int8k-4bitv": {
+      "after": {
+        "generated_match_vs_baseline": false,
+        "total_time_s": 25.770598115050234,
+        "kv_cache_ratio_vs_fp32": 4.512182477967859,
+        "session_size_ratio_vs_fp32": 8.559194045666478
+      }
+    },
+    "selective_family": {
+      "status": "still_mismatch_on_real_model",
+      "best_share_variant": "turbo-int8-topk8-refresh8-block16-share4",
+      "best_share_variant_time_s_after": 21.69456498301588,
+      "best_share_variant_mean_jaccard_after": 0.8856712710546831
+    }
+  },
+  "conclusion": {
+    "stable_default": [
+      "turbo-int8-qr",
+      "turbo-int8-hadamard",
+      "adaptive (now effectively conservative int8 on TinyLlama 1.1B)"
+    ],
+    "promising_but_experimental": [
+      "turbo-int8k-4bitv",
+      "Quest-style block scoring + layer share selective paths"
+    ],
+    "not_promotable_yet": [
+      "turbo-4bit as a default on real 1.1B",
+      "turbo-4bitk-int8v",
+      "selective variants as default on TinyLlama 1.1B"
+    ]
+  }
+}

@@ -1,0 +1,86 @@
+{
+  "name": "local_assistant_prompts",
+  "description": "Suite breve para comparar modelos locales en roles general, codigo y juridico con prompts en espanol.",
+  "prompts": [
+    {
+      "id": "general_rest_api",
+      "role": "general",
+      "prompt": "Respondé en español. Explicá qué es una API REST, cuándo conviene usarla y cerrá con 3 ejemplos concretos en viñetas.",
+      "checks": {
+        "keyword_groups": [["api", "rest"], ["http", "endpoint"], ["cliente", "servidor"], ["ejemplo", "ejemplos"]],
+        "min_bullets": 3
+      }
+    },
+    {
+      "id": "general_python_plan",
+      "role": "general",
+      "prompt": "Respondé en español. Armá un plan simple de 3 días para aprender Python desde cero, con foco en práctica y ejercicios cortos.",
+      "checks": {
+        "keyword_groups": [["python"], ["práctica", "practica", "ejercicio", "ejercicios"], ["día", "dias", "días"], ["variables", "funciones", "sintaxis"]],
+        "min_bullets": 3
+      }
+    },
+    {
+      "id": "general_ram_vs_disk",
+      "role": "general",
+      "prompt": "Respondé breve en español. ¿Cuál es la diferencia entre memoria RAM y almacenamiento en disco? Incluí un ejemplo cotidiano.",
+      "checks": {
+        "keyword_groups": [["ram", "memoria"], ["disco", "almacenamiento"], ["ejemplo", "ejemplos"]]
+      }
+    },
+    {
+      "id": "code_python_group_extensions",
+      "role": "code",
+      "prompt": "Respondé en español. Escribí una función de Python que reciba una lista de nombres de archivos y devuelva un diccionario con la cantidad por extensión. Mostrá un ejemplo de uso.",
+      "checks": {
+        "keyword_groups": [["python", "def"], ["diccionario", "dict"], ["extensión", "extension"], ["return", "devuelve"]],
+        "requires_code_block": true
+      }
+    },
+    {
+      "id": "code_js_async_bug",
+      "role": "code",
+      "prompt": "Respondé en español. Detectá el bug en este código JavaScript y proponé una versión corregida con una explicación breve:\n```js\nasync function loadUser(id) {\n  const res = fetch(`/api/users/${id}`)\n  const data = res.json()\n  return data.name\n}\n```",
+      "checks": {
+        "keyword_groups": [["await"], ["fetch"], ["json"], ["async"]],
+        "requires_code_block": true
+      }
+    },
+    {
+      "id": "code_pytest_even",
+      "role": "code",
+      "prompt": "Respondé en español. Escribí 3 tests de pytest para una función `is_even(n)` y explicá muy breve qué cubre cada caso.",
+      "checks": {
+        "keyword_groups": [["pytest"], ["assert"], ["is_even"], ["caso", "casos"]],
+        "requires_code_block": true
+      }
+    },
+    {
+      "id": "legal_consumer_argentina",
+      "role": "legal",
+      "prompt": "Respondé en español de Argentina. Una persona compró online un electrodoméstico y quiere arrepentirse a los 7 días. Explicá en términos generales qué conviene revisar y qué pasos prácticos seguir. Aclará que no reemplaza asesoramiento profesional.",
+      "checks": {
+        "keyword_groups": [["argentina", "argentina"], ["consumidor", "consumo", "defensa del consumidor"], ["arrepentimiento", "arrepentirse", "10 días", "diez dias", "diez días"], ["asesoramiento profesional", "abogado"]],
+        "min_bullets": 3
+      }
+    },
+    {
+      "id": "legal_salary_issue",
+      "role": "legal",
+      "prompt": "Respondé en español de Argentina. Un trabajador no cobró parte del sueldo del mes. Explicá en términos generales qué evidencia conviene guardar y qué pasos suele evaluarse seguir. Aclará límites y que no reemplaza asesoramiento jurídico.",
+      "checks": {
+        "keyword_groups": [["sueldo", "salario", "haberes"], ["recibo", "comprobante", "documentar"], ["empleador", "intimación", "telegrama"], ["asesoramiento jurídico", "abogado"]],
+        "min_bullets": 3
+      }
+    },
+    {
+      "id": "legal_contract_risks",
+      "role": "legal",
+      "prompt": "Respondé en español de Argentina. Si vas a firmar un contrato de servicios, ¿qué cláusulas conviene revisar primero para detectar riesgos? Respuesta estructurada en viñetas.",
+      "checks": {
+        "keyword_groups": [["plazo"], ["precio", "honorarios", "pago"], ["rescisión", "penalidad", "multa"], ["jurisdicción", "confidencialidad", "responsabilidad"]],
+        "min_bullets": 4
+      }
+    }
+  ]
+}

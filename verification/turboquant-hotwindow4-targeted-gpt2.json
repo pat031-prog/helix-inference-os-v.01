@@ -1,0 +1,134 @@
+{
+  "prompt_ids": [
+    3,
+    5,
+    8,
+    13,
+    21,
+    34
+  ],
+  "max_new_tokens": 4,
+  "kv_quant_seed": 7,
+  "baseline_variant": "fp32",
+  "variants": {
+    "fp32": {
+      "kv_cache_precision": "fp32",
+      "kv_rotation_mode": "qr",
+      "kv_hot_window": 4,
+      "prompt_perplexity": 1543.8382992148956,
+      "total_time_s": 91.79705489997286,
+      "avg_step_ms": 9179.336579993833,
+      "kv_cache_bytes": 737280,
+      "generated_ids": [
+        3,
+        5,
+        8,
+        13,
+        21,
+        34,
+        3,
+        5,
+        13,
+        21
+      ],
+      "cache_lengths": [
+        10,
+        10,
+        10,
+        10,
+        10,
+        10,
+        10,
+        10,
+        10,
+        10,
+        10,
+        10
+      ],
+      "logit_comparison_vs_baseline": null,
+      "generated_match_vs_baseline": true
+    },
+    "turbo-4bit-hot4": {
+      "kv_cache_precision": "turbo-4bit",
+      "kv_rotation_mode": "hadamard",
+      "kv_hot_window": 4,
+      "prompt_perplexity": 1543.8382992148956,
+      "total_time_s": 79.34926930000074,
+      "avg_step_ms": 7934.732779994374,
+      "kv_cache_bytes": 353664,
+      "generated_ids": [
+        3,
+        5,
+        8,
+        13,
+        21,
+        34,
+        3,
+        5,
+        5,
+        5
+      ],
+      "cache_lengths": [
+        10,
+        10,
+        10,
+        10,
+        10,
+        10,
+        10,
+        10,
+        10,
+        10,
+        10,
+        10
+      ],
+      "logit_comparison_vs_baseline": {
+        "max_abs_err": 10.511428833007812,
+        "mean_abs_err": 5.024920463562012,
+        "cosine_similarity": 0.9999176859855652
+      },
+      "generated_match_vs_baseline": false
+    },
+    "turbo-qjl-hot4": {
+      "kv_cache_precision": "turbo-qjl",
+      "kv_rotation_mode": "hadamard",
+      "kv_hot_window": 4,
+      "prompt_perplexity": 1543.8382992148956,
+      "total_time_s": 79.3457739999867,
+      "avg_step_ms": 7934.304909990169,
+      "kv_cache_bytes": 370944,
+      "generated_ids": [
+        3,
+        5,
+        8,
+        13,
+        21,
+        34,
+        3,
+        5,
+        5,
+        5
+      ],
+      "cache_lengths": [
+        10,
+        10,
+        10,
+        10,
+        10,
+        10,
+        10,
+        10,
+        10,
+        10,
+        10,
+        10
+      ],
+      "logit_comparison_vs_baseline": {
+        "max_abs_err": 10.457145690917969,
+        "mean_abs_err": 4.9736409187316895,
+        "cosine_similarity": 0.9999175071716309
+      },
+      "generated_match_vs_baseline": false
+    }
+  }
+}

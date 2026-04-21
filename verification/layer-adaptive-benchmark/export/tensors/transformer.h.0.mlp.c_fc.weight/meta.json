@@ -1,0 +1,48 @@
+{
+  "shape": [
+    32,
+    128
+  ],
+  "dtype": "float32",
+  "block_rows": 8,
+  "order": "C",
+  "extra": {
+    "tensor_name": "transformer.h.0.mlp.c_fc.weight",
+    "source": "huggingface",
+    "original_dtype": "float32"
+  },
+  "blocks": [
+    {
+      "block_id": 0,
+      "row_start": 0,
+      "row_end": 8,
+      "sha256": "10be74698d97df02d3ccca1734da190b62b2c614952dfd1fa488345c00ffbd6f",
+      "compressed_size": 3838,
+      "raw_size": 4096
+    },
+    {
+      "block_id": 1,
+      "row_start": 8,
+      "row_end": 16,
+      "sha256": "8f023c4dfab143060d81515aeb806c3e4d95282c9d1d0d0f79e98c211b3af10e",
+      "compressed_size": 3841,
+      "raw_size": 4096
+    },
+    {
+      "block_id": 2,
+      "row_start": 16,
+      "row_end": 24,
+      "sha256": "e3850043dbfa9423e880b88e147092df4f025b3a2d7f1ad6964b9a97ae8afd0a",
+      "compressed_size": 3831,
+      "raw_size": 4096
+    },
+    {
+      "block_id": 3,
+      "row_start": 24,
+      "row_end": 32,
+      "sha256": "5d7dd9209821e7f7b9afc96f0938e72b3d76519e7340572159e6f2ae7c737331",
+      "compressed_size": 3843,
+      "raw_size": 4096
+    }
+  ]
+}

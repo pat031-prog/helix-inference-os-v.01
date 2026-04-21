@@ -1,0 +1,424 @@
+{
+  "schema_version": 1,
+  "title": "HeliX Claims Matrix",
+  "generated_from": "verification artifacts",
+  "claim_statuses": [
+    "verified",
+    "promising",
+    "blocked"
+  ],
+  "claims": [
+    {
+      "id": "transformer-kv-gpu",
+      "status": "verified",
+      "public_wording": "HeliX compresses Transformer KV cache on the verified GPU suite while preserving generated-token match against the baseline.",
+      "evidence_artifacts": [
+        "remote-transformers-gpu-summary.json"
+      ],
+      "headline_metrics": {
+        "variant": "turbo-int8k-4bitv",
+        "reason": "Delivered the strongest real compression against native bf16 across all primary GPU models while keeping generated match true."
+      },
+      "caveat": "This claim is limited to the measured Qwen/SmolLM Transformer suite and does not cover hybrid recurrent state."
+    },
+    {
+      "id": "hybrid-runtime-cache",
+      "status": "verified",
+      "public_wording": "On local Zamba2, the strongest hybrid runtime result is architecture-aware: KV compression where KV exists plus recurrent-state compression where Mamba dominates.",
+      "evidence_artifacts": [
+        "hybrid-memory-frontier-summary.json",
+        "local-zamba2-hxq-vs-vanilla-summary.json"
+      ],
+      "headline_metrics": {
+        "baseline_variant": "native-dense",
+        "target_variant": "turbo-int8-hadamard+q-mamba-dsq-int4",
+        "speedup_vs_native": 1.4952353797959292,
+        "kv_cache_ratio_vs_native": 1.6035372144436257,
+        "mamba_state_runtime_ratio_vs_native": 3.761673286853143,
+        "hybrid_total_runtime_cache_ratio_vs_native": 3.5740320761391167,
+        "prompt_perplexity_delta_pct_vs_native": 6.449445891785935,
+        "generated_match_vs_baseline": true
+      },
+      "caveat": "This is a CPU-local Zamba2-1.2B result; GPU hybrid validation remains a next milestone."
+    },
+    {
+      "id": "hybrid-session-integrity",
+      "status": "verified",
+      "public_wording": "HeliX can serialize and restore a complete hybrid Zamba2 session with bit-perfect SHA-256 snapshot integrity.",
+      "evidence_artifacts": [
+        "local-zamba2-stress-state-juggler.json",
+        "local-zamba2-stress-state-juggler-session.json"
+      ],
+      "headline_metrics": {
+        "hash_match": true,
+        "session_total_bytes": 41287089,
+        "save_time_ms": 3585.856599995168,
+        "load_time_ms": 748.6088000005111
+      },
+      "caveat": "Hash matching proves serialized/restored snapshot integrity; by itself it does not prove semantic understanding after restore."
+    },
+    {
+      "id": "restore-equivalence",
+      "status": "verified",
+      "public_wording": "Under the local restore-equivalence probe, deterministic continuation from the restored hybrid state matched the pre-restore continuation.",
+      "evidence_artifacts": [
+        "local-zamba2-stress-restore-equivalence.json",
+        "local-zamba2-stress-restore-equivalence-session.json"
+      ],
+      "headline_metrics": {
+        "hash_match": true,
+        "generated_ids_match": true,
+        "top1_match_all": true,
+        "max_abs_logit_delta": 0.0,
+        "mean_abs_logit_delta": 0.0,
+        "finite_before": true,
+        "finite_after": true,
+        "session_total_bytes": 28421420,
+        "save_time_ms": 2921.736999996938,
+        "load_time_ms": 510.57099999161437
+      },
+      "caveat": "This is a short deterministic probe, not a broad semantic evaluation or long-context benchmark."
+    },
+    {
+      "id": "adaptive-promotion-safety",
+      "status": "verified",
+      "public_wording": "On an adversarial context-switch prompt, HeliX promoted blocks to higher precision and kept logits finite instead of forcing INT4 at all costs.",
+      "evidence_artifacts": [
+        "local-zamba2-stress-context-switcher.json",
+        "local-zamba2-stress-context-switcher.jsonl.gz"
+      ],
+      "headline_metrics": {
+        "speedup_vs_native": 0.806095584309679,
+        "hybrid_total_runtime_cache_ratio_vs_native": 1.4274943453128928,
+        "promoted_block_total": 8040800,
+        "logits_finite": true
+      },
+      "caveat": "The runtime-cache ratio dropped during this stress case, which is expected graceful degradation rather than maximum compression."
+    },
+    {
+      "id": "rust-tui-playback",
+      "status": "verified",
+      "public_wording": "helix-watch provides a Rust terminal playback surface for mission telemetry and compact receipts.",
+      "evidence_artifacts": [
+        "local-zamba2-stress-dashboard.json"
+      ],
+      "headline_metrics": {
+        "mission_count": 4,
+        "playback_mode": "artifact-only"
+      },
+      "caveat": "The TUI is playback-only in v1; it does not run inference or stream live sockets."
+    },
+    {
+      "id": "long-context-coder-quality",
+      "status": "promising",
+      "public_wording": "The staged Long-Context Coder mission showed compression and a marginal speedup, but did not recover hidden identifiers.",
+      "evidence_artifacts": [
+        "local-zamba2-stress-long-context.json"
+      ],
+      "headline_metrics": {
+        "identifier_recall_passes": 0,
+        "task_count": 2,
+        "best_runtime_ratio": 1.4219835710957007,
+        "best_speedup_vs_native": 1.0362253837453674
+      },
+      "caveat": "Identifier recall was 0/2, so this should not be used as a quality claim yet."
+    },
+    {
+      "id": "agentic-code-prompts",
+      "status": "promising",
+      "public_wording": "The local prompt suite suggests code/agentic prompts may be a useful evaluation lane for hybrid memory compression.",
+      "evidence_artifacts": [
+        "local-zamba2-prompt-suite-code-daily.json",
+        "local-zamba2-stress-long-context.json"
+      ],
+      "headline_metrics": {
+        "code_lane": "exploratory"
+      },
+      "caveat": "The current evidence is small and local; it is not a general agent benchmark."
+    },
+    {
+      "id": "hxq-zamba2-local",
+      "status": "blocked",
+      "public_wording": "HXQ Zamba2 remains a separate weight-compression lane under reproduction, not a verified HeliX runtime claim.",
+      "evidence_artifacts": [
+        "local-zamba2-hxq-finiteness.json",
+        "local-zamba2-hxq-direct-diagnostics.json"
+      ],
+      "headline_metrics": {
+        "logits_finite": false
+      },
+      "caveat": "Local runs have shown loader/runtime or non-finite-logit issues; HXQ is not included in public quality claims yet."
+    },
+    {
+      "id": "zamba2-27b-local",
+      "status": "blocked",
+      "public_wording": "Zamba2-2.7B is intentionally out of local scope for this 12GB RAM laptop profile.",
+      "evidence_artifacts": [
+        "local-zamba2-stress-dashboard.json"
+      ],
+      "headline_metrics": {
+        "local_profile": "laptop-12gb"
+      },
+      "caveat": "This is a hardware budget boundary, not an architectural limitation."
+    },
+    {
+      "id": "agent-memory-ttft-restore",
+      "status": "verified",
+      "public_wording": "HeliX now reports cold-prefill TTFT versus warm restored-session TTFT for local agent-memory evidence.",
+      "evidence_artifacts": [
+        "local-ttft-cold-warm-summary.json",
+        "agent-memory-comparison-summary.json"
+      ],
+      "headline_metrics": {
+        "best_ttft_speedup_including_restore": 8.254087144665668,
+        "best_ttft_speedup_compute_only": 8.372054729281581,
+        "best_model_ref": "Qwen/Qwen2.5-1.5B-Instruct"
+      },
+      "caveat": "This is a local CPU evidence sprint on small cached models; it is not a larger-model TTFT claim like Shkolnikov's Apple Silicon suite."
+    },
+    {
+      "id": "agent-memory-capacity-budget",
+      "status": "verified",
+      "public_wording": "HeliX now reports how many measured or projected agent sessions fit inside a fixed memory budget.",
+      "evidence_artifacts": [
+        "local-agent-capacity-budget.json"
+      ],
+      "headline_metrics": {
+        "budget_bytes": 10737418240
+      },
+      "caveat": "Rows marked projection=true are linear projections from the measured context length, not direct 4K-context runs."
+    },
+    {
+      "id": "session-os-catalog",
+      "status": "verified",
+      "public_wording": "HeliX has a local Session OS catalog that indexes model/agent sessions with audit status, token hashes and parent-chain metadata.",
+      "evidence_artifacts": [
+        "local-session-catalog-smoke.json"
+      ],
+      "headline_metrics": {
+        "catalog": "sqlite-stdlib",
+        "process_table_fields": [
+          "model_id",
+          "agent_id",
+          "token_hash",
+          "audit_status",
+          "parent_session_id"
+        ]
+      },
+      "caveat": "This is the local Session OS control plane; it does not imply semantic quality by itself."
+    },
+    {
+      "id": "session-os-prefix-reuse-transformer",
+      "status": "promising",
+      "public_wording": "HeliX can resolve exact-prefix Transformer sessions and compute only new follow-up tokens in the local prefix-reuse path.",
+      "evidence_artifacts": [
+        "local-prefix-reuse-ttft-summary.json"
+      ],
+      "headline_metrics": {
+        "scope": "transformer_exact_prefix_v0",
+        "claim_variant": "turbo-int8-hadamard",
+        "prefix_match_tokens": 64,
+        "new_tokens_computed": 8,
+        "top1_match_all": true,
+        "max_abs_logit_delta": 0.1152496337890625
+      },
+      "caveat": "Prefix reuse v0 is Transformer-only and exact-prefix. The compressed claim is top-1 stable with finite logits; the native-dense diagnostic is not bit-exact in the current local artifact."
+    },
+    {
+      "id": "session-os-openai-api",
+      "status": "promising",
+      "public_wording": "HeliX exposes a local OpenAI-shaped chat completions response with HeliX session lifecycle metadata.",
+      "evidence_artifacts": [
+        "local-openai-compatible-smoke.json"
+      ],
+      "headline_metrics": {
+        "endpoint": "/v1/chat/completions",
+        "streaming": false
+      },
+      "caveat": "The first endpoint is non-streaming and local; broader client compatibility still needs external framework tests."
+    },
+    {
+      "id": "hybrid-prefix-checkpoint-v0",
+      "status": "verified",
+      "public_wording": "HeliX can reuse an exact saved prefix checkpoint for Zamba2 hybrid sessions by restoring Transformer KV plus Mamba recurrent state, then computing only the suffix.",
+      "evidence_artifacts": [
+        "local-hybrid-prefix-checkpoint-summary.json"
+      ],
+      "headline_metrics": {
+        "prefix_kind": "hybrid_checkpoint_v0",
+        "prefix_match_tokens": 64,
+        "new_tokens_computed": 8,
+        "best_speedup": 6.210988560178347,
+        "top1_match_all": true,
+        "finite_all": true,
+        "session_total_bytes": 44631984
+      },
+      "caveat": "Hybrid prefix v0 restores only exact saved checkpoints; partial Mamba prefix slicing remains unsupported, and the local artifact proves top-1/finitude rather than bit-exact logits."
+    },
+    {
+      "id": "session-branching-git-for-llms",
+      "status": "promising",
+      "public_wording": "HeliX can represent shared base sessions plus per-agent deltas as a verified parent-chain, a first step toward Git-like LLM session branching.",
+      "evidence_artifacts": [
+        "local-session-branching-summary.json"
+      ],
+      "headline_metrics": {
+        "scope": "branching_metadata_v1"
+      },
+      "caveat": "Branching v1 is metadata plus avoided-rewrite estimate; physical token-slice storage is not implemented yet."
+    },
+    {
+      "id": "agent-framework-openai-showcase",
+      "status": "promising",
+      "public_wording": "A standard OpenAI-compatible client can call HeliX's local chat completions surface and receive session lifecycle metadata.",
+      "evidence_artifacts": [
+        "local-agent-framework-showcase.json",
+        "local-openai-compatible-smoke.json"
+      ],
+      "headline_metrics": {
+        "client": "openai",
+        "endpoint": "/v1/chat/completions"
+      },
+      "caveat": "The showcase validates client plumbing; real LangChain/CrewAI workflows and streaming remain future work."
+    },
+    {
+      "id": "session-os-agent-recall",
+      "status": "verified",
+      "public_wording": "HeliX now has a local agent-recall catalog that stores observations and distilled memories beside verified session state, without adding a vector database or external memory server.",
+      "evidence_artifacts": [
+        "local-agent-memory-catalog-smoke.json",
+        "local-memory-augmented-openai-smoke.json"
+      ],
+      "headline_metrics": {
+        "storage": "sqlite-stdlib",
+        "fts_enabled": true,
+        "memory_context_injected": true
+      },
+      "caveat": "This proves dependency-light recall plumbing and bounded context injection; it does not claim vector-search quality comparable to AgentMemory's embedding path."
+    },
+    {
+      "id": "hmem-agent-wiring",
+      "status": "verified",
+      "public_wording": "HeliX agents can now automatically observe tool calls into hmem, inject bounded memory context at session start, and query memory plus knowledge through one hybrid search surface.",
+      "evidence_artifacts": [
+        "local-hmem-wiring-smoke.json"
+      ],
+      "headline_metrics": {
+        "auto_tool_observe": true,
+        "startup_context_injected": true,
+        "hybrid_search_returns_memory_and_knowledge": true,
+        "memory_graph_populated": true
+      },
+      "caveat": "This is local wiring evidence with heuristic/model-optional observation compression; it does not claim embedding-grade retrieval or external framework orchestration quality."
+    },
+    {
+      "id": "blueprint-meta-microsite-demo",
+      "status": "promising",
+      "public_wording": "HeliX can run a Blueprint workload that coordinates agents, private .hlx state, shared hmem and a scheduler to produce a quality-first Meta Microsite artifact.",
+      "evidence_artifacts": [
+        "local-blueprint-meta-microsite-demo.json",
+        "local-inference-os-architecture-summary.json",
+        "local-blueprint-stack-catalog.json"
+      ],
+      "headline_metrics": {
+        "blueprint_id": "meta-microsite",
+        "html_output": "site-dist/meta-demo.html",
+        "claim_level": "orchestration-and-renderer"
+      },
+      "caveat": "Fallback or mixed mode proves orchestration, hmem, .hlx private state and renderer quality; it does not prove model generation quality."
+    },
+    {
+      "id": "hlx-layer-slice-bridge",
+      "status": "verified",
+      "public_wording": "HeliX can address .hlx cache payloads by layer metadata and load a requested layer slice without loading unrelated logical cache arrays.",
+      "evidence_artifacts": [
+        "local-hlx-layer-slice-smoke.json"
+      ],
+      "headline_metrics": {
+        "read_mode": "direct-selected",
+        "selected_array_count": 2,
+        "unrelated_array_loaded": false,
+        "tamper_detected": true
+      },
+      "caveat": "Layer-slice v1 returns CPU arrays and does not use raw pointer injection into PyTorch tensors."
+    },
+    {
+      "id": "airllm-bridge-seam",
+      "status": "promising",
+      "public_wording": "HeliX has a dependency-free AirLLM-style bridge seam that activates a layer, injects only that layer's cache slice, runs a mock layer, and unloads it.",
+      "evidence_artifacts": [
+        "local-airllm-bridge-smoke.json",
+        "docs/agentmemory-airllm-integration.md"
+      ],
+      "headline_metrics": {
+        "airllm_dependency_required": false,
+        "all_layer_injections_hit": true,
+        "total_injected_arrays": 6
+      },
+      "caveat": "This is not a real AirLLM giant-model run and no AirLLM fork is vendored into the main repo yet."
+    },
+    {
+      "id": "session-os-memory-concurrency",
+      "status": "verified",
+      "public_wording": "HeliX MemoryCatalog can preserve local concurrent agent observations and memories under the SQLite WAL pattern.",
+      "evidence_artifacts": [
+        "local-memory-catalog-concurrency.json"
+      ],
+      "headline_metrics": {
+        "lost_observations": 0,
+        "write_errors": 0,
+        "catalog": "sqlite-wal"
+      },
+      "caveat": "This is a local single-process/threaded stress test with one SQLite connection per worker; it is not a distributed database claim."
+    },
+    {
+      "id": "session-os-memory-decay-selection",
+      "status": "verified",
+      "public_wording": "Under a tight recall budget, HeliX keeps high-importance memories ahead of low-priority scratch memories.",
+      "evidence_artifacts": [
+        "local-memory-decay-selection.json"
+      ],
+      "headline_metrics": {
+        "critical_retained_all": true
+      },
+      "caveat": "This validates deterministic lexical and priority-based selection; it does not claim embedding-quality semantic retrieval."
+    },
+    {
+      "id": "hlx-layer-chaos-integrity",
+      "status": "verified",
+      "public_wording": "HeliX full verification blocks a corrupted .hlx layer slice before the injector returns it for layer execution.",
+      "evidence_artifacts": [
+        "local-hlx-layer-chaos.json"
+      ],
+      "headline_metrics": {
+        "tamper_detected": true,
+        "full_verify_blocked_injection": true
+      },
+      "caveat": "The fast receipt-only path is intentionally not an integrity claim; full verification or completed deferred audit is required for cryptographic safety claims."
+    },
+    {
+      "id": "rust-python-layer-slice-soak",
+      "status": "promising",
+      "public_wording": "HeliX now has a local Rust/Python layer-slice soak to watch for obvious hot-path RSS drift over repeated save/load cycles.",
+      "evidence_artifacts": [
+        "local-rust-python-layer-slice-soak.json"
+      ],
+      "headline_metrics": {
+        "soak": "short-local"
+      },
+      "caveat": "A short soak is a regression guard, not a formal proof that long-running FFI memory management is leak-free."
+    },
+    {
+      "id": "airllm-real-smoke",
+      "status": "blocked",
+      "public_wording": "A real AirLLM end-to-end smoke is available as an optional gate, but it is not a verified HeliX claim unless AirLLM and a local compatible model are already present.",
+      "evidence_artifacts": [
+        "local-airllm-real-smoke.json"
+      ],
+      "headline_metrics": {
+        "dependency_policy": "no-install-no-download"
+      },
+      "caveat": "The default local run may skip cleanly because AirLLM is not installed or no local model path was provided."
+    }
+  ]
+}

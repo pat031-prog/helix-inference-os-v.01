@@ -1,0 +1,286 @@
+# HeliX — Tres Hitos Arquitectónicos
+**Roadmap de implementación: Cross-Arch → Rollback/Retry → Concurrencia**
+
+---
+
+## Contexto de partida
+
+Tenemos probado y funcionando:
+- Blueprint orchestration secuencial ✅
+- `.hlx` private state (save/restore) ✅
+- `hmem` como tejido semántico cross-model ✅
+- Hybrid cloud dispatch con DeepInfra ✅
+
+Zamba2 disponible localmente: **`Zyphra/Zamba2-1.2B-Instruct-v2`** (HF cache confirmado, receipts de Phase A/B exitosos con `hash_chain_ok: true`).
+
+---
+
+## Fase 1 — Cross-Architecture Semantic Migration
+
+**"Live Migration" — El claim más fuerte**
+
+### El concepto
+
+Un Transformer (Qwen-1.5B) construye contexto largo y el scheduler detecta **presión de memoria** (token budget superado). En lugar de truncar o abortar: HeliX serializa el estado semántico al hmem como un **"semantic bridge"** y lo hace disponible para una arquitectura Mamba.
+
+Zamba2-1.2B (Mamba hybrid, 38/54 layers son SSM — **cero KV budget para esas capas**) despierta, lee el bridge desde hmem, y **continúa el trabajo sin pérdida de continuidad**.
+
+Lo que hace esto único: las `.hlx` son incompatibles entre arquitecturas. Pero el `hmem` es arquitectura-agnóstico. HeliX usa esa asimetría como puente.
+
+### Archivos nuevos
+
+| Archivo | Descripción |
+|---|---|
+| `blueprints/cross-arch-migration.json` | Blueprint de 4 tasks con campo `arch_pressure_threshold` por modelo |
+| `tools/run_cross_arch_migration.py` | Runner con detector de presión, migration event logger |
+| `src/helix_proto/blueprints.py` | Agrega `render_cross_arch_site()` |
+| `site-dist/cross-arch-migration-demo.html` | Output visual |
+
+### Flujo de las 4 tareas
+
+```
+Task 1: context-build      → Qwen-1.5B (local, transformer)
+        "Build an extended technical analysis of the HeliX KV-cache strategy.
+         Use all available context. Be exhaustive."
+        → Genera contexto largo → scheduler detecta budget ≥ threshold
+        → MIGRATION TRIGGER: scheduler decide migrate
+
+Task 2: semantic-bridge    → Scheduler Event (no model)
+        → Extrae los key concepts del output de Qwen
+        → Escribe un "migration packet" estructurado en hmem
+        → Registra: migration_reason, source_arch, target_arch,
+                    semantic_tokens_preserved, migration_time_ms
+
+Task 3: mamba-continuation → Zamba2-1.2B (local, mamba-hybrid)
+        "You are taking over from a Transformer session that hit memory limits.
+         Read the semantic bridge from memory and continue the analysis.
+         Focus on what the Transformer could NOT finish due to context limits."
+        → Zamba2 es estructuralmente superior para contextos largos
+        → Registra: arch_advantage_tokens (tokens que Zamba2 puede ver que Qwen no podía)
+
+Task 4: migration-proof    → Qwen-1.5B (restore + verify)
+        Restaura el estado hlx original, lee el output de Zamba2 desde hmem,
+        y emite una "continuity certificate":  confirma que la información
+        que había en el Qwen original está presente en el output de Zamba2.
+```
+
+### Nuevos campos en el artifact
+
+```json
+"migration_events": [
+  {
+    "event": "pressure_detected",
+    "model_id": "qwen-1.5b",
+    "arch": "transformer",
+    "token_budget": 512,
+    "tokens_used": 512,
+    "pressure_ratio": 1.0,
+    "decision": "migrate",
+    "migration_time_ms": 0.0
+  },
+  {
+    "event": "semantic_bridge_written",
+    "source_arch": "transformer",
+    "target_arch": "mamba-hybrid",
+    "bridge_memory_id": "mem-xxxx",
+    "semantic_tokens_preserved": 87,
+    "migration_time_ms": 12.4
+  },
+  {
+    "event": "mamba_boot",
+    "model_id": "zamba2-1.2b",
+    "arch": "mamba-hybrid",
+    "bridge_tokens_injected": 87,
+    "arch_advantage": "SSM layers consume 0 KV budget — 38 of 54 layers are SSM"
+  },
+  {
+    "event": "continuity_verified",
+    "verifier_model": "qwen-1.5b",
+    "key_concepts_found": 4,
+    "key_concepts_expected": 4,
+    "continuity_score": 1.0
+  }
+],
+"architecture_stats": {
+  "source_arch": "transformer",
+  "source_kv_layers": 28,
+  "target_arch": "mamba-hybrid",
+  "target_kv_layers": 16,
+  "target_ssm_layers": 38,
+  "kv_reduction_at_target": "57%"
+},
+"public_claim_level": "cross-architecture-live-migration"
+```
+
+### Renderer HTML
+
+Dark theme. Secciones:
+- **Migration Timeline**: visualización horizontal del momento del trigger
+- **Architecture Comparison**: tabla Transformer vs Mamba-Hybrid (KV layers, SSM layers, KV budget)
+- **Semantic Bridge**: contenido del migration packet en hmem
+- **Continuity Certificate**: score de continuidad (key concepts found/expected)
+- Mismo scheduler table y footer log
+
+---
+
+## Fase 2 — Session Rollback + Auto-Retry
+
+**"Fault Tolerance" — El Inference OS se recupera solo**
+
+### El concepto
+
+El scheduler tiene **quality gates** configurables por tarea. Si el output no pasa el gate, hace rollback al snapshot `.hlx` anterior, swapea a un modelo alternativo y reintenta. El artifact registra cada decisión de retry como evidencia.
+
+### Archivos nuevos
+
+| Archivo | Descripción |
+|---|---|
+| `blueprints/resilient-pipeline.json` | Blueprint con campo `quality_gate` por task |
+| `tools/run_resilient_blueprint_demo.py` | Runner con retry loop y rollback logic |
+| `src/helix_proto/blueprints.py` | Agrega `render_resilient_pipeline_site()` |
+
+### Nuevos campos en blueprint (quality_gate por task)
+
+```json
+"tasks": [
+  {
+    "task_id": "initial-draft",
+    "agent": "writer",
+    "slot": "draft",
+    "quality_gate": {
+      "min_chars": 80,
+      "forbidden_patterns": ["TODO", "lorem", "..."],
+      "must_end_sentence": true,
+      "max_retries": 2,
+      "fallback_model": "gpt2-fast"
+    }
+  }
+]
+```
+
+### Flujo
+
+```
+Task → Generate → Quality Gate CHECK
+  ├── PASS → continue to next task
+  └── FAIL → rollback_event logged
+              → restore previous .hlx snapshot
+              → swap to fallback_model (si existe)
+              → retry (hasta max_retries)
+              → if all retries fail → use deterministic fallback
+```
+
+### Nuevos campos en artifact
+
+```json
+"rollback_events": [
+  {
+    "task_id": "initial-draft",
+    "attempt": 1,
+    "quality_gate_result": {
+      "min_chars": "FAIL (got 12, need 80)",
+      "must_end_sentence": "FAIL"
+    },
+    "action": "rollback_and_retry",
+    "restored_session_hash": "abc123",
+    "next_model": "gpt2-fast"
+  }
+],
+"retry_decisions": [...],
+"quality_gate_summary": {
+  "tasks_passed_first_try": 2,
+  "tasks_required_retry": 1,
+  "tasks_required_fallback": 0,
+  "total_rollbacks": 1
+}
+```
+
+---
+
+## Fase 3 — Concurrent Blueprint Execution
+
+**"Preemptive Multitasking" — El scheduler como process manager**
+
+### El concepto
+
+Las tareas sin dependencia entre sí se ejecutan en **hilos paralelos** (Python `ThreadPoolExecutor`). El scheduler gestiona locks de escritura sobre hmem, monitorea el estado de cada thread, y cuando todas las ramas terminan hace un **merge** de resultados consolidando los slots en un output final.
+
+### Archivos nuevos
+
+| Archivo | Descripción |
+|---|---|
+| `blueprints/concurrent-research.json` | Blueprint con campo `depends_on` por task |
+| `tools/run_concurrent_blueprint_demo.py` | Runner con ThreadPoolExecutor + hmem write locks |
+| `src/helix_proto/blueprints.py` | Agrega `render_concurrent_pipeline_site()` |
+
+### Nuevo campo en blueprint
+
+```json
+"tasks": [
+  {"task_id": "context-A", "depends_on": []},       // puede correr inmediatamente
+  {"task_id": "context-B", "depends_on": []},       // puede correr en paralelo con A
+  {"task_id": "synthesis", "depends_on": ["context-A", "context-B"]}  // espera a A y B
+]
+```
+
+### Nuevos campos en artifact
+
+```json
+"dependency_graph": {
+  "nodes": ["context-A", "context-B", "synthesis"],
+  "edges": [
+    {"from": "context-A", "to": "synthesis"},
+    {"from": "context-B", "to": "synthesis"}
+  ],
+  "critical_path": ["context-B", "synthesis"],
+  "parallel_lanes": [["context-A"], ["context-B"]]
+},
+"parallel_execution_events": [
+  {"event": "lane_start", "tasks": ["context-A", "context-B"], "wall_time_ms": 0},
+  {"event": "task_done", "task_id": "context-A", "wall_time_ms": 265000},
+  {"event": "task_done", "task_id": "context-B", "wall_time_ms": 285000},
+  {"event": "merge_start", "wall_time_ms": 285000}
+],
+"merge_event": {
+  "merged_slots": ["context-A.output", "context-B.output"],
+  "merge_strategy": "sequential-by-completion",
+  "total_wall_time_ms": 285000,
+  "vs_sequential_ms": 550000,
+  "speedup_ratio": 1.93
+}
+```
+
+---
+
+## Orden de ejecución y dependencias
+
+```
+Fase 1 (Cross-Arch)  →  Fase 2 (Rollback)  →  Fase 3 (Concurrencia)
+   ↑ Zamba2 cache OK       ↑ Reutiliza runner           ↑ Reutiliza todo
+   ↑ No dep. externa        pattern de F1                + threading
+```
+
+Cada fase es **aditiva**: no rompe lo anterior, solo agrega un runner nuevo y nuevas funciones en `blueprints.py`.
+
+---
+
+## Criterios de éxito por fase
+
+### Fase 1: Cross-Arch Migration
+- [ ] `migration_events` contiene los 4 eventos (pressure → bridge → boot → verify)
+- [ ] `architecture_stats.target_ssm_layers: 38`
+- [ ] `continuity_score: 1.0` (o >0.75 si el modelo no menciona todos los concepts)
+- [ ] `public_claim_level: "cross-architecture-live-migration"`
+- [ ] HTML con "Migration Timeline", "Continuity Certificate" y "Architecture Comparison"
+
+### Fase 2: Rollback + Retry
+- [ ] Al menos 1 `rollback_event` registrado (se diseña el pipeline para garantizarlo)
+- [ ] `tasks_required_retry ≥ 1`
+- [ ] `final_audit_status: "verified"` (el pipeline terminó exitosamente después del retry)
+- [ ] El snapshot `.hlx` pre-fail y post-retry tienen hashes distintos
+
+### Fase 3: Concurrencia
+- [ ] `speedup_ratio > 1.0` (el paralelo fue más rápido que secuencial)
+- [ ] `dependency_graph.parallel_lanes` tiene al menos 2 lanes
+- [ ] `merge_event` registrado con `merged_slots`
+- [ ] `final_audit_status: "verified"`

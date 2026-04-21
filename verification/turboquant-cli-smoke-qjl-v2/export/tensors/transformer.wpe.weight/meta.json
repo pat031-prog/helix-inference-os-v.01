@@ -1,0 +1,32 @@
+{
+  "shape": [
+    16,
+    32
+  ],
+  "dtype": "float32",
+  "block_rows": 8,
+  "order": "C",
+  "extra": {
+    "tensor_name": "transformer.wpe.weight",
+    "source": "huggingface",
+    "original_dtype": "float32"
+  },
+  "blocks": [
+    {
+      "block_id": 0,
+      "row_start": 0,
+      "row_end": 8,
+      "sha256": "437eabff276e083f0a08787bcfae96ad68a02b7bf98e37fab1ea25f50dd6dc53",
+      "compressed_size": 1014,
+      "raw_size": 1024
+    },
+    {
+      "block_id": 1,
+      "row_start": 8,
+      "row_end": 16,
+      "sha256": "a3218ec2167071f2452646bf87ce46cb60c9f0617bce0e83f66c4ec950285a8d",
+      "compressed_size": 1012,
+      "raw_size": 1024
+    }
+  ]
+}

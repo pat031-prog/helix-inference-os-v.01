@@ -1,0 +1,37 @@
+[    0.000000] Linux version 6.8.4-helix (builder@labbox) #1 SMP PREEMPT_DYNAMIC
+[    0.018112] Command line: BOOT_IMAGE=/vmlinuz root=/dev/nvme0n1p2 ro quiet splash
+[    0.028245] Kernel panic fixture: replayed from local stress mission
+[    0.112220] pci 0000:01:00.0: enabling device (0000 -> 0002)
+[    0.145903] nvme nvme0: pci function 0000:01:00.0
+[    0.160074] nvme nvme0: allocated 32 MiB host memory buffer
+[    0.211908] EXT4-fs (nvme0n1p2): mounted filesystem 0d3aef4b-77e2-4ffc-aa1a-0d0e991dcd0a
+[    1.025441] helix-agent[442]: boot sequence started for receipt replay
+[    1.330451] systemd[1]: Started Local HeliX Session Warmup.
+[    2.782240] backup-agent[2191]: starting incremental snapshot for /srv/archive
+[    4.119003] thermal thermal_zone0: critical temperature reached, cooling pressure high
+[    4.552100] watchdog: BUG: soft lockup - CPU#3 stuck for 22s! [backup-agent:2191]
+[    4.552111] Modules linked in: nvme nvme_core i2c_piix4 dm_mod
+[    4.552126] CPU: 3 PID: 2191 Comm: backup-agent Tainted: G        W
+[    4.552139] Hardware name: HeliX Local Bench Rig / Stress Fixture
+[    4.552152] RIP: 0010:blk_mq_get_tag+0x121/0x280
+[    4.552164] RSP: 0018:ffffb29bc0fa3d88 EFLAGS: 00000246
+[    4.552179] Call Trace:
+[    4.552189]  <TASK>
+[    4.552199]  submit_bio_noacct+0x1de/0x5e0
+[    4.552211]  ext4_map_blocks+0x34f/0x870
+[    4.552220]  ext4_writepages+0x6c0/0xa20
+[    4.552231]  do_writepages+0xbe/0x210
+[    4.552242]  filemap_fdatawrite_wbc+0x7a/0xa0
+[    4.552255]  __filemap_fdatawrite_range+0x64/0xa0
+[    4.552268]  sync_inode_metadata+0xaa/0x120
+[    4.552279]  ovl_sync_fs+0x58/0xb0
+[    4.552291]  sync_filesystem+0x66/0xb0
+[    4.552302]  ksys_sync+0x5f/0x90
+[    4.552313]  __x64_sys_sync+0x10/0x20
+[    4.552324]  do_syscall_64+0x82/0x170
+[    4.552337]  entry_SYSCALL_64_after_hwframe+0x78/0x80
+[    4.871200] journalctl[3011]: warning: IO latency spike on /dev/nvme0n1
+[    5.012404] smartd[993]: Device: /dev/nvme0n1, percentage used endurance indicator: 7%
+[    5.220115] mdadm[777]: no degraded arrays found
+[    5.550441] kernel: note: intended questions target subsystem, process, CPU core, and device
+[    5.990111] kernel: replay marker complete

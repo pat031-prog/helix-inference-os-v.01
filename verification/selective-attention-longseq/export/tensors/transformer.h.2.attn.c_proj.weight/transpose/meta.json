@@ -1,0 +1,81 @@
+{
+  "shape": [
+    64,
+    64
+  ],
+  "dtype": "float32",
+  "block_rows": 8,
+  "order": "C",
+  "extra": {
+    "tensor_name": "transformer.h.2.attn.c_proj.weight",
+    "source": "huggingface",
+    "transpose_of": "transformer.h.2.attn.c_proj.weight",
+    "original_dtype": "float32"
+  },
+  "blocks": [
+    {
+      "block_id": 0,
+      "row_start": 0,
+      "row_end": 8,
+      "sha256": "e3418d32ea751dc300a37affddfdc413d02d88997fffb7b5123cf5b18c3a441f",
+      "compressed_size": 1949,
+      "raw_size": 2048
+    },
+    {
+      "block_id": 1,
+      "row_start": 8,
+      "row_end": 16,
+      "sha256": "b712760b4501b168c109344f8ae8e9b7c43f628ad650b0ea0a3584655cd79a2d",
+      "compressed_size": 1954,
+      "raw_size": 2048
+    },
+    {
+      "block_id": 2,
+      "row_start": 16,
+      "row_end": 24,
+      "sha256": "d8fd5d004c733edf04884914bd5855fe14832734ccd325b6e6e00568fcd239d0",
+      "compressed_size": 1951,
+      "raw_size": 2048
+    },
+    {
+      "block_id": 3,
+      "row_start": 24,
+      "row_end": 32,
+      "sha256": "a42bcb78e6c1d7ed5d6d6f4439766e25f9c7390e0c25fe5341ae71671420ba0f",
+      "compressed_size": 1947,
+      "raw_size": 2048
+    },
+    {
+      "block_id": 4,
+      "row_start": 32,
+      "row_end": 40,
+      "sha256": "8db41d6cd8789193ed5b2c3c95b7e2d66ff7fbc9f01b82fe84351728cd9d2361",
+      "compressed_size": 1951,
+      "raw_size": 2048
+    },
+    {
+      "block_id": 5,
+      "row_start": 40,
+      "row_end": 48,
+      "sha256": "fbee74d56b533de8aa8114b3871c16be914124615c3c85a229691aa150c9842c",
+      "compressed_size": 1953,
+      "raw_size": 2048
+    },
+    {
+      "block_id": 6,
+      "row_start": 48,
+      "row_end": 56,
+      "sha256": "de73b59468493dbf9ad3c866e3420c9a5a52adbc6f9387f2a5e2b5c7865e0d56",
+      "compressed_size": 1945,
+      "raw_size": 2048
+    },
+    {
+      "block_id": 7,
+      "row_start": 56,
+      "row_end": 64,
+      "sha256": "06a034ff29609682c2f54fc2354ae931266b851a324542d0434bd80903831b02",
+      "compressed_size": 1941,
+      "raw_size": 2048
+    }
+  ]
+}

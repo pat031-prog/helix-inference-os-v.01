@@ -1,0 +1,59 @@
+{
+  "export_dir": "C:\\Users\\Big Duck\\proyectos\\helix-backend-repo\\verification\\gpt-kv-policy-benchmark\\export",
+  "cache_mode": "session",
+  "generated_ids": [
+    3,
+    5,
+    8,
+    13,
+    21,
+    34,
+    10,
+    10,
+    17,
+    17
+  ],
+  "num_layers": 2,
+  "session_format_version": 2,
+  "kv_cache_file": "kv_cache.npz",
+  "kv_cache_precision": "turbo-4bit",
+  "kv_key_precision": null,
+  "kv_value_precision": null,
+  "kv_quant_seed": 7,
+  "kv_rotation_mode": "hadamard",
+  "kv_hot_window": 4,
+  "kv_topk": 0,
+  "kv_index_refresh_interval": 8,
+  "kv_block_size": 0,
+  "kv_layer_share_stride": 0,
+  "kv_calibration_tokens": 128,
+  "kv_adaptive_high_kurtosis": 10.0,
+  "kv_adaptive_medium_kurtosis": 3.0,
+  "kv_tokens_profiled": 10,
+  "kv_layer_modes": null,
+  "kv_kurtosis_profile": null,
+  "kv_kurtosis_state": null,
+  "kv_session_payload": {
+    "format": "compressed-kv-v2",
+    "npz_compressed": true,
+    "stores_hot_window_exact_tail": true,
+    "rotation": {
+      "mode": "hadamard",
+      "original_dim": 8,
+      "rotated_dim": 8
+    },
+    "codebook": {
+      "bits": 4,
+      "dim": 8,
+      "levels": 16
+    }
+  },
+  "kv_current_mode": "turbo-4bit",
+  "kv_mode_trace": [
+    "turbo-4bit"
+  ],
+  "kv_switch_events": [],
+  "kv_policy_phase": null,
+  "kv_policy_allowed_modes": [],
+  "kv_policy_state": null
+}

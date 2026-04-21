@@ -94,6 +94,15 @@ def _safe_scope(value: str, *, field: str) -> str:
     return text
 
 
+def _resolve_retrieval_scope(scope: str | None) -> str:
+    selected = str(scope or "workspace").strip().lower()
+    if selected in {"global", "workspace-global"}:
+        return "workspace"
+    if selected not in {"workspace", "session"}:
+        raise ValueError(f"unsupported retrieval_scope: {selected}")
+    return selected
+
+
 def _tokenize(text: str) -> list[str]:
     return [item.lower() for item in re.findall(r"[A-Za-z0-9_][A-Za-z0-9_\-]{1,}", text)]
 
@@ -201,6 +210,11 @@ class MemoryCatalog:
         
         # Track the latest node hash per session to build the parent_hash chains
         self._session_heads: dict[str, str] = {}
+        self._journal_enabled = os.environ.get("HELIX_MEMORY_JOURNAL", "1").lower() not in {"0", "false", "off", "no"}
+        self._journal_path = self.db_path.with_name("memory.journal.jsonl")
+        self._journal_error: str | None = None
+        self._replaying_journal = False
+        self._load_journal()
 
     @classmethod
     def open(
@@ -217,6 +231,96 @@ class MemoryCatalog:
 
     def close(self) -> None:
         pass
+
+    def _append_journal(self, entry: dict[str, Any]) -> None:
+        if not self._journal_enabled or self._replaying_journal:
+            return
+        payload = {
+            "journal_version": "helix-memory-journal-v1",
+            "created_utc": _utc_now(),
+            **entry,
+        }
+        try:
+            self._journal_path.parent.mkdir(parents=True, exist_ok=True)
+            with self._journal_path.open("a", encoding="utf-8") as handle:
+                handle.write(json.dumps(payload, ensure_ascii=False, sort_keys=True) + "\n")
+        except Exception as exc:  # noqa: BLE001
+            self._journal_error = str(exc)
+
+    def _load_journal(self) -> None:
+        if not self._journal_enabled or not self._journal_path.exists():
+            return
+        self._replaying_journal = True
+        try:
+            with self._journal_path.open("r", encoding="utf-8-sig") as handle:
+                for line_number, line in enumerate(handle, start=1):
+                    raw = line.strip()
+                    if not raw:
+                        continue
+                    try:
+                        entry = json.loads(raw)
+                        self._replay_journal_entry(entry)
+                    except Exception as exc:  # noqa: BLE001
+                        self._journal_error = f"{self._journal_path}:{line_number}: {exc}"
+        finally:
+            self._replaying_journal = False
+
+    def _replay_journal_entry(self, entry: dict[str, Any]) -> None:
+        op = str(entry.get("op") or "")
+        if op == "observe":
+            payload = dict(entry["payload"])
+            content_dump = str(entry["content_dump"])
+            parent_hash = entry.get("parent_hash")
+            node = self.dag._insert_unlocked(content_dump, parent_hash=parent_hash)
+            stored_hash = entry.get("node_hash")
+            if stored_hash and stored_hash != node.hash:
+                raise ValueError(f"observation node hash mismatch: {stored_hash} != {node.hash}")
+            self._insert_rust_indexed(
+                content_dump=content_dump,
+                parent_hash=parent_hash,
+                metadata={
+                    **payload,
+                    "record_kind": "observation",
+                    "index_content": payload.get("content") or "",
+                    "content_available": True,
+                    "audit_status": "verified",
+                },
+            )
+            session_id = payload.get("session_id")
+            if session_id:
+                self._session_heads[str(session_id)] = node.hash
+            self._observations[str(payload["observation_id"])] = payload
+            return
+        if op == "remember":
+            payload = dict(entry["payload"])
+            item = MemoryItem(**payload)
+            content_dump = str(entry["content_dump"])
+            parent_hash = entry.get("parent_hash")
+            node = self.dag._insert_unlocked(content_dump, parent_hash=parent_hash)
+            stored_hash = entry.get("node_hash")
+            if stored_hash and stored_hash != node.hash:
+                raise ValueError(f"memory node hash mismatch: {stored_hash} != {node.hash}")
+            self._insert_rust_indexed(
+                content_dump=content_dump,
+                parent_hash=parent_hash,
+                metadata={
+                    **item.to_dict(),
+                    "record_kind": "memory",
+                    "index_content": item.content,
+                    "content_available": True,
+                    "audit_status": "verified",
+                },
+            )
+            if item.session_id:
+                self._session_heads[item.session_id] = node.hash
+            self._memories[item.memory_id] = item
+            self._memory_node_hashes[item.memory_id] = node.hash
+            self._memory_receipts[item.memory_id] = dict(entry.get("receipt") or {})
+            self._index_router_item_unlocked(item)
+            return
+        if op == "link_session_memory":
+            self._links.append(dict(entry["payload"]))
+            return
 
     def observe(
         self,
@@ -277,6 +381,15 @@ class MemoryCatalog:
                 self._session_heads[session_id] = node.hash
 
             self._observations[obs_id] = payload
+            self._append_journal(
+                {
+                    "op": "observe",
+                    "payload": payload,
+                    "content_dump": content_dump,
+                    "parent_hash": parent,
+                    "node_hash": node.hash,
+                }
+            )
 
         return {
             "observation_id": obs_id,
@@ -361,6 +474,16 @@ class MemoryCatalog:
             self._memory_node_hashes[mem_id] = node.hash
             self._memory_receipts[mem_id] = receipt
             self._index_router_item_unlocked(item)
+            self._append_journal(
+                {
+                    "op": "remember",
+                    "payload": item.to_dict(),
+                    "content_dump": content_dump,
+                    "parent_hash": parent,
+                    "node_hash": node.hash,
+                    "receipt": receipt,
+                }
+            )
             
         return item
 
@@ -437,13 +560,24 @@ class MemoryCatalog:
                     self._session_heads[item.session_id] = node.hash
                 self._memories[item.memory_id] = item
                 self._memory_node_hashes[item.memory_id] = node.hash
-                self._memory_receipts[item.memory_id] = self._build_receipt(
+                receipt = self._build_receipt(
                     item=item,
                     node_hash=node.hash,
                     parent_hash=parent,
                     llm_call_id=llm_call_id,
                 )
+                self._memory_receipts[item.memory_id] = receipt
                 self._index_router_item_unlocked(item)
+                self._append_journal(
+                    {
+                        "op": "remember",
+                        "payload": item.to_dict(),
+                        "content_dump": content_dump,
+                        "parent_hash": parent,
+                        "node_hash": node.hash,
+                        "receipt": receipt,
+                    }
+                )
 
             # Rust batch insert (one cross-boundary call)
             if self._rust_index is not None and rust_batch_payload is not None:
@@ -545,6 +679,7 @@ class MemoryCatalog:
                 "created_ms": now,
             }
             self._links.append(payload)
+            self._append_journal({"op": "link_session_memory", "payload": payload})
             return payload
 
     def search(
@@ -552,6 +687,7 @@ class MemoryCatalog:
         *,
         project: str,
         agent_id: str | None,
+        session_id: str | None = None,
         query: str,
         limit: int = 5,
         memory_types: Iterable[str] | None = None,
@@ -559,9 +695,12 @@ class MemoryCatalog:
         route_query: bool | None = None,
         signature_enforcement: str | None = None,
         rerank_mode: str | None = None,
+        retrieval_scope: str = "workspace",
     ) -> list[dict[str, Any]]:
         project = _safe_scope(project, field="project")
         agent_filter = None if agent_id is None else _safe_scope(agent_id, field="agent_id")
+        session_filter = None if session_id is None else _safe_scope(session_id, field="session_id")
+        selected_scope = _resolve_retrieval_scope(retrieval_scope)
         tokens = _tokenize(query)
         if not tokens:
             return []
@@ -581,6 +720,8 @@ class MemoryCatalog:
             recent_results = self._search_recent_fallback(
                 project=project,
                 agent_filter=agent_filter,
+                session_filter=session_filter,
+                retrieval_scope=selected_scope,
                 limit=limit,
                 type_filter=type_filter,
                 exclude_ids=exclude_ids,
@@ -604,6 +745,8 @@ class MemoryCatalog:
             results = self._search_rust_index(
                 project=project,
                 agent_filter=agent_filter,
+                session_filter=session_filter,
+                retrieval_scope=selected_scope,
                 query=effective_query,
                 limit=effective_limit,
                 type_filter=type_filter,
@@ -622,6 +765,8 @@ class MemoryCatalog:
         results = self._search_python_scan(
             project=project,
             agent_filter=agent_filter,
+            session_filter=session_filter,
+            retrieval_scope=selected_scope,
             tokens=effective_tokens,
             limit=effective_limit,
             type_filter=type_filter,
@@ -731,6 +876,7 @@ class MemoryCatalog:
                 "receipt_payload_version": "helix-memory-receipt-payload-v1",
             }
             receipt = attach_verification(unsigned_legacy_receipt(legacy_payload))
+        payload["node_hash"] = payload.get("node_hash") or self._memory_node_hashes.get(memory_id)
         payload["signed_receipt"] = receipt
         payload["receipt"] = receipt
         payload["signature_verified"] = bool(receipt.get("signature_verified"))
@@ -831,6 +977,8 @@ class MemoryCatalog:
         *,
         project: str,
         agent_filter: str | None,
+        session_filter: str | None,
+        retrieval_scope: str,
         query: str,
         limit: int,
         type_filter: set[str],
@@ -871,6 +1019,8 @@ class MemoryCatalog:
                     continue
                 if agent_filter is not None and item.agent_id != agent_filter:
                     continue
+                if retrieval_scope == "session" and item.session_id != session_filter:
+                    continue
                 if type_filter and item.memory_type not in type_filter:
                     continue
                 updated_item = MemoryItem(**{**item.to_dict(), "last_access_ms": now})
@@ -880,17 +1030,28 @@ class MemoryCatalog:
                 payload["node_hash"] = hit_dict.get("node_hash")
                 payload["matched_terms"] = hit_dict.get("matched_terms") or []
                 payload["search_backend"] = "rust_bm25"
+                payload["thread_id"] = updated_item.session_id
+                payload["thread_match"] = bool(session_filter and updated_item.session_id == session_filter)
+                if payload["thread_match"] and retrieval_scope == "workspace":
+                    payload["score"] = float(payload["score"]) + 1000.0
                 self._attach_router_payload(payload, routed)
                 results.append(payload)
-                if len(results) >= int(limit):
-                    break
-        return results
+        results.sort(
+            key=lambda item: (
+                -float(item.get("score") or 0.0),
+                -(1 if item.get("thread_match") else 0),
+                -float(item.get("created_ms") or 0.0),
+            )
+        )
+        return results[: int(limit)]
 
     def _search_recent_fallback(
         self,
         *,
         project: str,
         agent_filter: str | None,
+        session_filter: str | None,
+        retrieval_scope: str,
         limit: int,
         type_filter: set[str],
         exclude_ids: set[str],
@@ -905,6 +1066,8 @@ class MemoryCatalog:
                 item = self._memories.get(mem_id)
                 if item is None:
                     continue
+                if retrieval_scope == "session" and item.session_id != session_filter:
+                    continue
                 if type_filter and item.memory_type not in type_filter:
                     continue
                 if exclude_ids and mem_id in exclude_ids:
@@ -916,12 +1079,21 @@ class MemoryCatalog:
                         continue
                     if agent_filter is not None and item.agent_id != agent_filter:
                         continue
+                    if retrieval_scope == "session" and item.session_id != session_filter:
+                        continue
                     if type_filter and item.memory_type not in type_filter:
                         continue
                     if exclude_ids and mem_id in exclude_ids:
                         continue
                     candidates.append(item)
-                candidates.sort(key=lambda item: ((item.importance * item.decay_score), item.last_access_ms), reverse=True)
+                candidates.sort(
+                    key=lambda item: (
+                        1 if session_filter and item.session_id == session_filter else 0,
+                        (item.importance * item.decay_score),
+                        item.last_access_ms,
+                    ),
+                    reverse=True,
+                )
             results = []
             for item in candidates[: int(limit)]:
                 updated_item = MemoryItem(**{**item.to_dict(), "last_access_ms": now})
@@ -930,8 +1102,19 @@ class MemoryCatalog:
                 payload["score"] = float(item.importance) * float(item.decay_score)
                 payload["matched_terms"] = []
                 payload["search_backend"] = "semantic_router_recent_fallback"
+                payload["thread_id"] = updated_item.session_id
+                payload["thread_match"] = bool(session_filter and updated_item.session_id == session_filter)
+                if payload["thread_match"] and retrieval_scope == "workspace":
+                    payload["score"] = float(payload["score"]) + 1000.0
                 self._attach_router_payload(payload, routed)
                 results.append(payload)
+            results.sort(
+                key=lambda item: (
+                    -float(item.get("score") or 0.0),
+                    -(1 if item.get("thread_match") else 0),
+                    -float(item.get("created_ms") or 0.0),
+                )
+            )
             return results
 
     def _search_python_scan(
@@ -939,6 +1122,8 @@ class MemoryCatalog:
         *,
         project: str,
         agent_filter: str | None,
+        session_filter: str | None,
+        retrieval_scope: str,
         tokens: list[str],
         limit: int,
         type_filter: set[str],
@@ -993,6 +1178,8 @@ class MemoryCatalog:
                     continue
                 if agent_filter is not None and item.agent_id != agent_filter:
                     continue
+                if retrieval_scope == "session" and item.session_id != session_filter:
+                    continue
                 if type_filter and item.memory_type not in type_filter:
                     continue
                 if exclude_ids and mem_id in exclude_ids:
@@ -1039,9 +1226,18 @@ class MemoryCatalog:
                 # Quality boost matching Rust: importance/10 * 0.20 + decay * 0.10
                 quality = 1.0 + (max(float(item.importance), 0.0) / 10.0) * 0.20 + max(float(item.decay_score), 0.0) * 0.10
                 score *= quality
+                if session_filter and item.session_id == session_filter and retrieval_scope == "workspace":
+                    score += 1000.0
                 scored.append((score, item))
 
-            scored.sort(key=lambda x: (-x[0], -x[1].created_ms, x[1].source_hash))
+            scored.sort(
+                key=lambda x: (
+                    -x[0],
+                    -(1 if session_filter and x[1].session_id == session_filter else 0),
+                    -x[1].created_ms,
+                    x[1].source_hash,
+                )
+            )
 
             now = _now_ms()
             results = []
@@ -1051,6 +1247,8 @@ class MemoryCatalog:
                 payload = updated_item.to_dict()
                 payload["score"] = float(score)
                 payload["search_backend"] = "python_bm25_fallback"
+                payload["thread_id"] = updated_item.session_id
+                payload["thread_match"] = bool(session_filter and updated_item.session_id == session_filter)
                 self._attach_router_payload(payload, routed)
                 results.append(payload)
 
@@ -1094,11 +1292,15 @@ class MemoryCatalog:
         *,
         project: str | None = None,
         agent_id: str | None = None,
+        session_id: str | None = None,
         limit: int = 20,
         exclude_memory_ids: Iterable[str] | None = None,
+        retrieval_scope: str = "workspace",
     ) -> list[dict[str, Any]]:
         proj_filter = None if project is None else _safe_scope(project, field="project")
         agent_filter = None if agent_id is None else _safe_scope(agent_id, field="agent_id")
+        session_filter = None if session_id is None else _safe_scope(session_id, field="session_id")
+        selected_scope = _resolve_retrieval_scope(retrieval_scope)
         exclude_ids = {str(item) for item in (exclude_memory_ids or [])}
         
         with self._lock:
@@ -1108,31 +1310,113 @@ class MemoryCatalog:
                     continue
                 if agent_filter is not None and item.agent_id != agent_filter:
                     continue
+                if selected_scope == "session" and item.session_id != session_filter:
+                    continue
                 if exclude_ids and mem_id in exclude_ids:
                     continue
                 candidates.append(item)
                 
-            candidates.sort(key=lambda x: ((x.importance * x.decay_score), x.last_access_ms), reverse=True)
-            return [item.to_dict() for item in candidates[:int(limit)]]
+            candidates.sort(
+                key=lambda x: (
+                    1 if session_filter and x.session_id == session_filter else 0,
+                    (x.importance * x.decay_score),
+                    x.last_access_ms,
+                ),
+                reverse=True,
+            )
+            results: list[dict[str, Any]] = []
+            for item in candidates[: int(limit)]:
+                payload = item.to_dict()
+                payload["thread_id"] = item.session_id
+                payload["thread_match"] = bool(session_filter and item.session_id == session_filter)
+                results.append(self._attach_receipt(payload))
+            return results
 
-    def graph(self, *, project: str | None = None, agent_id: str | None = None, limit: int = 50) -> dict[str, Any]:
+    def list_sessions(
+        self,
+        *,
+        project: str | None = None,
+        agent_id: str | None = None,
+        limit: int = 50,
+    ) -> list[dict[str, Any]]:
         proj_filter = None if project is None else _safe_scope(project, field="project")
         agent_filter = None if agent_id is None else _safe_scope(agent_id, field="agent_id")
+
+        with self._lock:
+            sessions: dict[str, dict[str, Any]] = {}
+
+            def _touch(session_value: str | None, created_ms: float, kind: str) -> None:
+                if not session_value:
+                    return
+                payload = sessions.setdefault(
+                    session_value,
+                    {
+                        "session_id": session_value,
+                        "thread_id": session_value,
+                        "memory_count": 0,
+                        "observation_count": 0,
+                        "last_seen_ms": created_ms,
+                    },
+                )
+                payload["last_seen_ms"] = max(float(payload.get("last_seen_ms") or 0.0), float(created_ms or 0.0))
+                counter_key = "memory_count" if kind == "memory" else "observation_count"
+                payload[counter_key] = int(payload.get(counter_key) or 0) + 1
+
+            for item in self._memories.values():
+                if proj_filter is not None and item.project != proj_filter:
+                    continue
+                if agent_filter is not None and item.agent_id != agent_filter:
+                    continue
+                _touch(item.session_id, item.created_ms, "memory")
+            for raw in self._observations.values():
+                if proj_filter is not None and raw["project"] != proj_filter:
+                    continue
+                if agent_filter is not None and raw["agent_id"] != agent_filter:
+                    continue
+                _touch(raw.get("session_id"), float(raw.get("created_ms") or 0.0), "observation")
+
+            ordered = sorted(
+                sessions.values(),
+                key=lambda item: (-float(item.get("last_seen_ms") or 0.0), str(item.get("session_id") or "")),
+            )
+            return ordered[: int(limit)]
+
+    def graph(
+        self,
+        *,
+        project: str | None = None,
+        agent_id: str | None = None,
+        session_id: str | None = None,
+        limit: int = 50,
+        retrieval_scope: str = "workspace",
+    ) -> dict[str, Any]:
+        proj_filter = None if project is None else _safe_scope(project, field="project")
+        agent_filter = None if agent_id is None else _safe_scope(agent_id, field="agent_id")
+        session_filter = None if session_id is None else _safe_scope(session_id, field="session_id")
+        selected_scope = _resolve_retrieval_scope(retrieval_scope)
         
         with self._lock:
             items = []
             for item in self._memories.values():
                 if proj_filter is not None and item.project != proj_filter: continue
                 if agent_filter is not None and item.agent_id != agent_filter: continue
+                if selected_scope == "session" and item.session_id != session_filter: continue
                 items.append(item)
                 
             obs = []
             for item in self._observations.values():
                 if proj_filter is not None and item["project"] != proj_filter: continue
                 if agent_filter is not None and item["agent_id"] != agent_filter: continue
+                if selected_scope == "session" and item.get("session_id") != session_filter: continue
                 obs.append(item)
                 
-            items.sort(key=lambda x: x.last_access_ms, reverse=True)
+            items.sort(
+                key=lambda x: (
+                    1 if session_filter and x.session_id == session_filter else 0,
+                    x.last_access_ms,
+                ),
+                reverse=True,
+            )
             obs.sort(key=lambda x: x["last_access_ms"], reverse=True)
             items = items[:limit]
             obs = obs[:limit]
@@ -1167,7 +1451,7 @@ class MemoryCatalog:
                     
             return {
                 "nodes": nodes, "edges": edges, "node_count": len(nodes), "edge_count": len(edges),
-                "project": project, "agent_id": agent_id
+                "project": project, "agent_id": agent_id, "session_id": session_id, "retrieval_scope": selected_scope
             }
 
     def build_context(
@@ -1175,12 +1459,14 @@ class MemoryCatalog:
         *,
         project: str,
         agent_id: str | None,
+        session_id: str | None = None,
         query: str | None = None,
         budget_tokens: int = 2000,
         mode: str = "search",
         limit: int = 5,
         exclude_memory_ids: Iterable[str] | None = None,
         signature_enforcement: str | None = None,
+        retrieval_scope: str = "workspace",
     ) -> dict[str, Any]:
         mode = str(mode or "off")
         if mode not in {"off", "summary", "search"}:
@@ -1192,13 +1478,22 @@ class MemoryCatalog:
             items = self.search(
                 project=project,
                 agent_id=agent_id,
+                session_id=session_id,
                 query=query,
                 limit=limit,
                 exclude_memory_ids=exclude_ids,
                 signature_enforcement=signature_enforcement,
+                retrieval_scope=retrieval_scope,
             )
         else:
-            items = self.list_memories(project=project, agent_id=agent_id, limit=limit, exclude_memory_ids=exclude_ids)
+            items = self.list_memories(
+                project=project,
+                agent_id=agent_id,
+                session_id=session_id,
+                limit=limit,
+                exclude_memory_ids=exclude_ids,
+                retrieval_scope=retrieval_scope,
+            )
         selected: list[str] = []
         selected_items: list[dict[str, Any]] = []
         used = _estimate_tokens("<helix-memory-context></helix-memory-context>")
@@ -1221,6 +1516,8 @@ class MemoryCatalog:
             "memory_ids": [str(item["memory_id"]) for item in selected_items],
             "items": selected_items,
             "excluded_memory_ids": exclude_ids,
+            "session_id": session_id,
+            "retrieval_scope": _resolve_retrieval_scope(retrieval_scope),
         }
 
     def stats(self) -> dict[str, Any]:
@@ -1237,6 +1534,9 @@ class MemoryCatalog:
                 "link_count": len(self._links),
                 "fts_enabled": self.fts_enabled,
                 "journal_mode": self.journal_mode,
+                "memory_journal_enabled": self._journal_enabled,
+                "memory_journal_path": str(self._journal_path),
+                "memory_journal_error": self._journal_error,
                 "busy_timeout_ms": self.busy_timeout_ms,
                 "dag_node_count": len(self.dag._nodes),
                 "memory_backend": "in_memory_dag",

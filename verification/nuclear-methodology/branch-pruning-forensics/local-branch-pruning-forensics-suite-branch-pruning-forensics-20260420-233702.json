@@ -1,0 +1,102 @@
+{
+  "artifact": "local-branch-pruning-forensics-suite-v1",
+  "schema_version": 1,
+  "run_id": "branch-pruning-forensics-20260420-233702",
+  "run_started_utc": "2026-04-21T02:37:02.507Z",
+  "run_ended_utc": "2026-04-21T02:37:35Z",
+  "status": "completed",
+  "case_count": 5,
+  "depth": 5000,
+  "branch_depth": 4,
+  "bytes_per_node": 2048,
+  "repeats": 7,
+  "deepinfra_enabled": true,
+  "models": {
+    "solver_requested": "Qwen/Qwen3.6-35B-A3B",
+    "auditor_requested": "anthropic/claude-4-sonnet"
+  },
+  "claim_boundary": "Defensible result is policy-layer branch pruning over native Merkle DAG topology, not automatic descendant tombstoning or deletion.",
+  "cases": [
+    {
+      "case_id": "poison-branch-descendant-closure",
+      "status": "completed",
+      "score": 1.0,
+      "artifact_path": "C:\\Users\\Big Duck\\proyectos\\helix-backend-repo\\verification\\nuclear-methodology\\branch-pruning-forensics\\poison-branch-descendant-closure\\local-branch-pruning-forensics-poison-branch-descendant-closure-branch-pruning-forensics-20260420-233702.json",
+      "artifact_payload_sha256": "be7ffe3017b0687debd0839a639c59a350efabb4dec4e097d1bd3e7c1ddc1b7f",
+      "transcript_exports": {
+        "jsonl_path": "C:\\Users\\Big Duck\\proyectos\\helix-backend-repo\\verification\\nuclear-methodology\\branch-pruning-forensics\\poison-branch-descendant-closure\\local-branch-pruning-forensics-poison-branch-descendant-closure-branch-pruning-forensics-20260420-233702-transcript.jsonl",
+        "md_path": "C:\\Users\\Big Duck\\proyectos\\helix-backend-repo\\verification\\nuclear-methodology\\branch-pruning-forensics\\poison-branch-descendant-closure\\local-branch-pruning-forensics-poison-branch-descendant-closure-branch-pruning-forensics-20260420-233702-transcript.md",
+        "event_count": 3
+      }
+    },
+    {
+      "case_id": "pre-prompt-subtree-pruning",
+      "status": "completed",
+      "score": 1.0,
+      "artifact_path": "C:\\Users\\Big Duck\\proyectos\\helix-backend-repo\\verification\\nuclear-methodology\\branch-pruning-forensics\\pre-prompt-subtree-pruning\\local-branch-pruning-forensics-pre-prompt-subtree-pruning-branch-pruning-forensics-20260420-233702.json",
+      "artifact_payload_sha256": "289a0ff5edc3d8771943541ab075212b16d889c5981275261743c35ab36dc42d",
+      "transcript_exports": {
+        "jsonl_path": "C:\\Users\\Big Duck\\proyectos\\helix-backend-repo\\verification\\nuclear-methodology\\branch-pruning-forensics\\pre-prompt-subtree-pruning\\local-branch-pruning-forensics-pre-prompt-subtree-pruning-branch-pruning-forensics-20260420-233702-transcript.jsonl",
+        "md_path": "C:\\Users\\Big Duck\\proyectos\\helix-backend-repo\\verification\\nuclear-methodology\\branch-pruning-forensics\\pre-prompt-subtree-pruning\\local-branch-pruning-forensics-pre-prompt-subtree-pruning-branch-pruning-forensics-20260420-233702-transcript.md",
+        "event_count": 3
+      }
+    },
+    {
+      "case_id": "cold-audit-branch-preservation",
+      "status": "completed",
+      "score": 1.0,
+      "artifact_path": "C:\\Users\\Big Duck\\proyectos\\helix-backend-repo\\verification\\nuclear-methodology\\branch-pruning-forensics\\cold-audit-branch-preservation\\local-branch-pruning-forensics-cold-audit-branch-preservation-branch-pruning-forensics-20260420-233702.json",
+      "artifact_payload_sha256": "50486ae8944fe40f1e14609283ce41e8431521da582fa7f639700b23ffdf8877",
+      "transcript_exports": {
+        "jsonl_path": "C:\\Users\\Big Duck\\proyectos\\helix-backend-repo\\verification\\nuclear-methodology\\branch-pruning-forensics\\cold-audit-branch-preservation\\local-branch-pruning-forensics-cold-audit-branch-preservation-branch-pruning-forensics-20260420-233702-transcript.jsonl",
+        "md_path": "C:\\Users\\Big Duck\\proyectos\\helix-backend-repo\\verification\\nuclear-methodology\\branch-pruning-forensics\\cold-audit-branch-preservation\\local-branch-pruning-forensics-cold-audit-branch-preservation-branch-pruning-forensics-20260420-233702-transcript.md",
+        "event_count": 3
+      }
+    },
+    {
+      "case_id": "real-hash-wrong-branch-attack",
+      "status": "completed",
+      "score": 1.0,
+      "artifact_path": "C:\\Users\\Big Duck\\proyectos\\helix-backend-repo\\verification\\nuclear-methodology\\branch-pruning-forensics\\real-hash-wrong-branch-attack\\local-branch-pruning-forensics-real-hash-wrong-branch-attack-branch-pruning-forensics-20260420-233702.json",
+      "artifact_payload_sha256": "b6c25a156b0bdd630910f87c8163906f72a0a4b4ea4057d07459c01c238a66dd",
+      "transcript_exports": {
+        "jsonl_path": "C:\\Users\\Big Duck\\proyectos\\helix-backend-repo\\verification\\nuclear-methodology\\branch-pruning-forensics\\real-hash-wrong-branch-attack\\local-branch-pruning-forensics-real-hash-wrong-branch-attack-branch-pruning-forensics-20260420-233702-transcript.jsonl",
+        "md_path": "C:\\Users\\Big Duck\\proyectos\\helix-backend-repo\\verification\\nuclear-methodology\\branch-pruning-forensics\\real-hash-wrong-branch-attack\\local-branch-pruning-forensics-real-hash-wrong-branch-attack-branch-pruning-forensics-20260420-233702-transcript.md",
+        "event_count": 3
+      }
+    },
+    {
+      "case_id": "deepinfra-branch-audit",
+      "status": "completed",
+      "score": 1.0,
+      "artifact_path": "C:\\Users\\Big Duck\\proyectos\\helix-backend-repo\\verification\\nuclear-methodology\\branch-pruning-forensics\\deepinfra-branch-audit\\local-branch-pruning-forensics-deepinfra-branch-audit-branch-pruning-forensics-20260420-233702.json",
+      "artifact_payload_sha256": "d6b2fbedb679893c1c257fe81449879428341574ae3bbaef9c56dfea84b4fe72",
+      "transcript_exports": {
+        "jsonl_path": "C:\\Users\\Big Duck\\proyectos\\helix-backend-repo\\verification\\nuclear-methodology\\branch-pruning-forensics\\deepinfra-branch-audit\\local-branch-pruning-forensics-deepinfra-branch-audit-branch-pruning-forensics-20260420-233702-transcript.jsonl",
+        "md_path": "C:\\Users\\Big Duck\\proyectos\\helix-backend-repo\\verification\\nuclear-methodology\\branch-pruning-forensics\\deepinfra-branch-audit\\local-branch-pruning-forensics-deepinfra-branch-audit-branch-pruning-forensics-20260420-233702-transcript.md",
+        "event_count": 3
+      }
+    }
+  ],
+  "transcript_exports": {
+    "jsonl_path": "C:\\Users\\Big Duck\\proyectos\\helix-backend-repo\\verification\\nuclear-methodology\\branch-pruning-forensics\\local-branch-pruning-forensics-suite-branch-pruning-forensics-20260420-233702-transcripts.jsonl",
+    "md_path": "C:\\Users\\Big Duck\\proyectos\\helix-backend-repo\\verification\\nuclear-methodology\\branch-pruning-forensics\\local-branch-pruning-forensics-suite-branch-pruning-forensics-20260420-233702-transcripts.md",
+    "case_count": 5
+  },
+  "artifact_path": "C:\\Users\\Big Duck\\proyectos\\helix-backend-repo\\verification\\nuclear-methodology\\branch-pruning-forensics\\local-branch-pruning-forensics-suite-branch-pruning-forensics-20260420-233702.json",
+  "artifact_payload_sha256": "a33b5146e6668f48d3104dbf8fe593507d42148edc4c3b91c2d56b8001eeaa9d",
+  "artifact_sha256": "a33b5146e6668f48d3104dbf8fe593507d42148edc4c3b91c2d56b8001eeaa9d",
+  "artifact_hash_kind": "canonical_payload_excluding_integrity",
+  "integrity": {
+    "self_hash_policy": "external_manifest_only",
+    "artifact_payload_sha256": "a33b5146e6668f48d3104dbf8fe593507d42148edc4c3b91c2d56b8001eeaa9d",
+    "artifact_payload_hash_excludes": [
+      "artifact_sha256",
+      "artifact_payload_sha256",
+      "artifact_hash_kind",
+      "integrity"
+    ],
+    "final_file_sha256_source": "run_manifest",
+    "note": "The run manifest records the final file SHA256. The artifact records a canonical payload hash excluding self-referential integrity fields."
+  }
+}

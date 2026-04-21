@@ -1,0 +1,135 @@
+{
+  "version": "1.0",
+  "truncation": null,
+  "padding": null,
+  "added_tokens": [
+    {
+      "id": 0,
+      "content": "<bos>",
+      "single_word": false,
+      "lstrip": false,
+      "rstrip": false,
+      "normalized": false,
+      "special": true
+    },
+    {
+      "id": 1,
+      "content": "<eos>",
+      "single_word": false,
+      "lstrip": false,
+      "rstrip": false,
+      "normalized": false,
+      "special": true
+    },
+    {
+      "id": 2,
+      "content": "<unk>",
+      "single_word": false,
+      "lstrip": false,
+      "rstrip": false,
+      "normalized": false,
+      "special": true
+    }
+  ],
+  "normalizer": null,
+  "pre_tokenizer": {
+    "type": "Whitespace"
+  },
+  "post_processor": {
+    "type": "TemplateProcessing",
+    "single": [
+      {
+        "Sequence": {
+          "id": "A",
+          "type_id": 0
+        }
+      }
+    ],
+    "pair": [
+      {
+        "Sequence": {
+          "id": "A",
+          "type_id": 0
+        }
+      },
+      {
+        "Sequence": {
+          "id": "B",
+          "type_id": 1
+        }
+      }
+    ],
+    "special_tokens": {}
+  },
+  "decoder": null,
+  "model": {
+    "type": "WordLevel",
+    "vocab": {
+      "<bos>": 0,
+      "<eos>": 1,
+      "<unk>": 2,
+      "tok0": 3,
+      "tok1": 4,
+      "tok2": 5,
+      "tok3": 6,
+      "tok4": 7,
+      "tok5": 8,
+      "tok6": 9,
+      "tok7": 10,
+      "tok8": 11,
+      "tok9": 12,
+      "tok10": 13,
+      "tok11": 14,
+      "tok12": 15,
+      "tok13": 16,
+      "tok14": 17,
+      "tok15": 18,
+      "tok16": 19,
+      "tok17": 20,
+      "tok18": 21,
+      "tok19": 22,
+      "tok20": 23,
+      "tok21": 24,
+      "tok22": 25,
+      "tok23": 26,
+      "tok24": 27,
+      "tok25": 28,
+      "tok26": 29,
+      "tok27": 30,
+      "tok28": 31,
+      "tok29": 32,
+      "tok30": 33,
+      "tok31": 34,
+      "tok32": 35,
+      "tok33": 36,
+      "tok34": 37,
+      "tok35": 38,
+      "tok36": 39,
+      "tok37": 40,
+      "tok38": 41,
+      "tok39": 42,
+      "tok40": 43,
+      "tok41": 44,
+      "tok42": 45,
+      "tok43": 46,
+      "tok44": 47,
+      "tok45": 48,
+      "tok46": 49,
+      "tok47": 50,
+      "tok48": 51,
+      "tok49": 52,
+      "tok50": 53,
+      "tok51": 54,
+      "tok52": 55,
+      "tok53": 56,
+      "tok54": 57,
+      "tok55": 58,
+      "tok56": 59,
+      "tok57": 60,
+      "tok58": 61,
+      "tok59": 62,
+      "tok60": 63
+    },
+    "unk_token": "<unk>"
+  }
+}

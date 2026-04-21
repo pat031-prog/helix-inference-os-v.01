@@ -1,0 +1,1 @@
+--- a/helix_kv/memory_catalog.py +++ b/helix_kv/memory_catalog.py @@ -1,4 +1,6 @@ +from helix_kv.merkle_dag import MemoryCatalogShim -class MemoryCatalog: +class MemoryCatalog(MemoryCatalogShim):

@@ -3,6 +3,9 @@ param(
     [string]$ContinuistModel = "Qwen/Qwen2.5-7B-Instruct",
     [int]$TokensPerRound = 320,
     [int]$LocalTokens = 16,
+    [switch]$CloudOnly,
+    [ValidateSet("standard", "nuclear")]
+    [string]$Scenario = "standard",
     [string]$OutputDir = "verification",
     [string]$RunId = ""
 )
@@ -87,6 +90,8 @@ try {
     Write-Host "[helix] Continuist model: $ContinuistModel"
     Write-Host "[helix] Tokens per round (cloud): $TokensPerRound"
     Write-Host "[helix] Local tokens (state proof): $LocalTokens"
+    Write-Host "[helix] Cloud only: $([bool]$CloudOnly)"
+    Write-Host "[helix] Scenario: $Scenario"
     Write-Host "[helix] Output dir: $verificationDir"
 
     $pyArgs = @(
@@ -96,8 +101,12 @@ try {
         "--local-tokens", [string]$LocalTokens,
         "--analyst-model", $AnalystModel,
         "--continuist-model", $ContinuistModel,
+        "--scenario", $Scenario,
         "--run-id", $RunId
     )
+    if ($CloudOnly) {
+        $pyArgs += "--cloud-only"
+    }
 
     $previousErrorActionPreference = $ErrorActionPreference
     $ErrorActionPreference = "Continue"
@@ -141,10 +150,12 @@ try {
         models = [ordered]@{
             analyst_requested = $AnalystModel
             continuist_requested = $ContinuistModel
-            local_state_proofs = @("gpt2 (transformer)", "Zyphra/Zamba2-1.2B-Instruct-v2 (hybrid-ssm)")
+            local_state_proofs = $(if ($CloudOnly) { @() } else { @("gpt2 (transformer)", "Zyphra/Zamba2-1.2B-Instruct-v2 (hybrid-ssm)") })
         }
         tokens_per_round = $TokensPerRound
         local_tokens = $LocalTokens
+        cloud_only = [bool]$CloudOnly
+        scenario = $Scenario
         exit_code = $exitCode
         passed = ($exitCode -eq 0)
         failure_reason = $(if ($suspiciousShortLog) { "suspicious_short_log" } else { $null })
@@ -162,7 +173,7 @@ try {
             api_key_persisted = $false
             headers_recorded = $false
         }
-        claim_boundary = "Claim-A (per_arch_bit_identity) uses local GPT-2 + Zamba2. Claim-B (cross_model_task_continuity) uses two heterogeneous DeepInfra cloud models with strict signed-memory retrieval and deterministic coverage/novelty/repetition gates. No bijective KV<->SSM transfer is claimed."
+        claim_boundary = $(if ($CloudOnly) { "Cloud-only run: local .hlx bit-identity evidence is skipped. Claim-B (cross_model_task_continuity) uses two heterogeneous DeepInfra cloud models with strict signed-memory retrieval and deterministic coverage/novelty/repetition gates. No bijective KV<->SSM transfer is claimed." } else { "Claim-A (per_arch_bit_identity) uses local GPT-2 + Zamba2. Claim-B (cross_model_task_continuity) uses two heterogeneous DeepInfra cloud models with strict signed-memory retrieval and deterministic coverage/novelty/repetition gates. No bijective KV<->SSM transfer is claimed." })
     }
     $manifest | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $manifestPath -Encoding UTF8
     Copy-Item -LiteralPath $manifestPath -Destination $stableManifestPath -Force

@@ -1,0 +1,80 @@
+{
+  "shape": [
+    128,
+    128
+  ],
+  "dtype": "float32",
+  "block_rows": 16,
+  "order": "C",
+  "extra": {
+    "tensor_name": "transformer.h.2.attn.c_proj.weight",
+    "source": "huggingface",
+    "original_dtype": "float32"
+  },
+  "blocks": [
+    {
+      "block_id": 0,
+      "row_start": 0,
+      "row_end": 16,
+      "sha256": "41c4f51431395aa0fb787d02cf16c4a5803b6f718bbe3ed91eaa5cdad76c5520",
+      "compressed_size": 7599,
+      "raw_size": 8192
+    },
+    {
+      "block_id": 1,
+      "row_start": 16,
+      "row_end": 32,
+      "sha256": "c13f852575661aae7dcee2fe752f763c3a933d2493a2c786c640713d00e57925",
+      "compressed_size": 7608,
+      "raw_size": 8192
+    },
+    {
+      "block_id": 2,
+      "row_start": 32,
+      "row_end": 48,
+      "sha256": "3675464a0d27981be06762af2bffa79156a5ee7aa4c5a5dea4f2aef578301849",
+      "compressed_size": 7614,
+      "raw_size": 8192
+    },
+    {
+      "block_id": 3,
+      "row_start": 48,
+      "row_end": 64,
+      "sha256": "1efac96d0cc3eb0e4c37d48112abdb9c107f515f550ead030c4ab31fe803ee64",
+      "compressed_size": 7621,
+      "raw_size": 8192
+    },
+    {
+      "block_id": 4,
+      "row_start": 64,
+      "row_end": 80,
+      "sha256": "d3ade3988298fa9498d14c47adc048f5de04354eaeb302a322e1b17358533bc3",
+      "compressed_size": 7622,
+      "raw_size": 8192
+    },
+    {
+      "block_id": 5,
+      "row_start": 80,
+      "row_end": 96,
+      "sha256": "5eedd5e8b339a4a3db7a9682b11ec07750eafb9f180ef8f4b95b1d504aa80ac1",
+      "compressed_size": 7616,
+      "raw_size": 8192
+    },
+    {
+      "block_id": 6,
+      "row_start": 96,
+      "row_end": 112,
+      "sha256": "f58ddd0464ee1ee58264af647dd20c08e139194209d95dab51b7880cf15428ee",
+      "compressed_size": 7616,
+      "raw_size": 8192
+    },
+    {
+      "block_id": 7,
+      "row_start": 112,
+      "row_end": 128,
+      "sha256": "0f45a3be5b27b5d05e8058c4be7a507b054529183766cb8de1d089bd3cab73c4",
+      "compressed_size": 7622,
+      "raw_size": 8192
+    }
+  ]
+}

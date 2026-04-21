@@ -275,11 +275,18 @@ def _status_message_panel(phase: str, message: str, elapsed_ms: float) -> Any:
     phase_title = str(phase or "thinking").upper().replace("_", " ")
     if Table is None or Panel is None or Spinner is None:
         return f"> {message} ({elapsed_ms:.0f}ms)"
+    inline = Table.grid(expand=True)
+    inline.add_column(width=2, no_wrap=True)
+    inline.add_column(ratio=1)
+    inline.add_row(
+        Spinner("dots", style="system"),
+        Text(message, style="system"),
+    )
     grid = Table.grid(expand=True)
     grid.add_column(ratio=1)
     grid.add_column(justify="right", no_wrap=True)
     grid.add_row(
-        Text.assemble((" ", "muted"), Spinner("dots", style="system"), ("  ", "muted"), (message, "system")),
+        inline,
         Text(f"{elapsed_ms:.0f}ms", style="latency"),
     )
     grid.add_row(f"[muted]{phase_title}[/muted]", "[hash]live[/hash]")

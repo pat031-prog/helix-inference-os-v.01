@@ -1,148 +1,325 @@
 # HeliX Inference OS
 
-**Verifiable memory and lineage infrastructure for multi-model agent pipelines.**
+**A cryptographic agent shell for multi-model inference, local memory, evidence
+replay, and certification suites.**
 
-HeliX wraps inference calls with a tamper-evident MerkleDAG, active external memory
-(BM25/WAND over SHA-256-chained nodes), and a per-call audit ledger. Prompts,
-outputs, provider-returned model metadata, retrieval events, and state transitions
-are recorded as bounded evidence artifacts.
+HeliX is not a single language model. It is the deterministic layer around
+models: a CLI, router, memory subsystem, audit ledger, Merkle DAG, verification
+tooling, and methodology suite runner. The goal is to make agent work inspectable
+instead of ephemeral: prompts, outputs, selected models, provider metadata,
+memory hits, artifacts, transcripts, and verification results become bounded
+evidence.
 
-## 5-line technical summary
+```text
+User / CLI
+  -> HeliX router
+       chooses local/cloud model profile by task type
+  -> model call or local agent loop
+       chat, research, code, audit, legal debate, RAG, tooling
+  -> memory and evidence layer
+       Merkle DAG nodes, signed/hashed receipts, JSONL/MD transcripts
+  -> verifier
+       artifact replay, claim boundaries, manifests, certification suites
+```
 
-1. Detector: provider model mismatch is `requested_model != actual_model` from the API response.
-2. HeliX does not infer hidden model identity; it preserves requested model, provider-returned model, digests, latency and lineage so mismatches are auditable.
-3. Reproduce: `python -m pytest -q tests/test_provider_integrity_observatory.py`.
-4. Limitation: mismatch evidence is not proof of bad-faith provider behavior or behavior outside the recorded run.
-5. Evidence: start with [`verification/public-evidence-index.json`](verification/public-evidence-index.json) and [`verification/README-reviewer.md`](verification/README-reviewer.md).
+## What Makes HeliX Different
 
-## Three bounded claims
+- **Model-agnostic shell**: routes between DeepInfra, OpenAI-compatible
+  endpoints, Anthropic-compatible profiles, Ollama, llama.cpp, and local runtime
+  paths where configured.
+- **Certified memory, not just chat history**: conversation turns and verified
+  artifacts can be ingested into local HeliX memory, searched, and tied back to
+  receipts instead of being treated as loose context.
+- **Merkle DAG lineage**: memory records and evidence artifacts are chained with
+  SHA-256-backed structure so integrity and provenance can be checked after the
+  run.
+- **Hard-anchor lane**: identity-critical references can travel as lightweight
+  anchors instead of lossy summaries, preserving exact IDs/hashes under long
+  horizon compression.
+- **Tombstone and branch-pruning methodology**: invalidated branches are pruned
+  before prompt injection. The model should not need to spend tokens reading old
+  "do not use this" records.
+- **Evidence-first test suites**: suite runs emit JSON artifacts, run manifests,
+  logs, and JSONL/Markdown transcripts. The claim boundary lives with the
+  artifact.
+- **Agent shell UX**: interactive terminal with themes, model routing, key
+  storage, evidence search, `/task` mode, and certification commands.
 
-Every public claim below points to a test and a JSON artifact. The artifact's
-`claim_boundary` or `public_claim_boundary` is part of the claim.
+## Current CLI
 
-### Claim 1 - Provider-returned model metadata is auditable
+Start the interactive shell from the repo root:
 
-HeliX records the model requested by the client and the model returned by an
-OpenAI-compatible API response. If they differ, the mismatch is preserved with
-call id, latency, prompt digest, output digest and run metadata.
+```cmd
+helix
+```
 
-| Requested model | Provider-returned model | Real run |
+or directly:
+
+```cmd
+python -m helix_proto.helix_cli interactive
+```
+
+Install a launcher into the active Python environment:
+
+```cmd
+tools\install_helix_cli.cmd
+```
+
+The generated launcher sets `PYTHONPATH` to this repo and runs:
+
+```cmd
+python -m helix_proto.helix_cli %*
+```
+
+### First Run
+
+```text
+Provider [deepinfra] (Enter = default):
+Model [auto] (Enter = default):
+[helix] DEEPINFRA_API_TOKEN loaded from HeliX config.
+* session: helix-interactive-...
+* transcript: C:\Users\...\AppData\Local\HeliX\sessions\...
+HeliX >
+```
+
+Tokens are read from environment variables, a hidden prompt, or optional HeliX
+user config. Transcripts redact token values.
+
+Save or remove a provider token:
+
+```cmd
+helix auth save deepinfra
+helix auth forget deepinfra
+```
+
+Inside the shell:
+
+```text
+/key save
+/key forget
+/config
+```
+
+### Useful Interactive Commands
+
+```text
+/help                         Show directives
+/status                       Show provider, model, workspace, transcript paths
+/provider NAME                Switch provider
+/model NAME                   Switch model or alias
+/model list                   List model aliases and router blueprints
+/route TEXT                   Explain model auto-routing for a prompt
+/router NAME                  Change routing policy
+/theme NAME                   industrial-brutalist, industrial-neon, xerox, brown-console
+/raw on|off                   Toggle raw model output after cleaned answer
+/evidence refresh [QUERY]     Verify and ingest artifacts from verification/
+/evidence latest [N]          Show latest certified evidence memories
+/evidence search QUERY        Search certified evidence memories
+/evidence show MEMORY_ID      Show receipt and chain status
+/verify PATH|latest|search Q  Verify or discover artifact JSONs
+/memory QUERY                 Search unified HeliX memory
+/task GOAL                    Run stronger agentic mode
+/tools                        List tools exposed to the runner
+/apply last                   Apply last proposed patch after confirmation
+/cert SUITE [-- args]         Run a registered certification suite
+/cert-dry SUITE [-- args]     Print suite command without running it
+/exit                         Leave the session
+```
+
+Natural language defaults to chat. Repo/debug/patch prompts route toward
+`/task`; suite/certification prompts route toward `/cert` when recognized.
+
+## Model Router
+
+The default router policy is `balanced`.
+
+| Intent | Default profile | Model ID |
 | --- | --- | --- |
-| `meta-llama/Llama-3.2-3B-Instruct` | `meta-llama/Llama-3.2-11B-Vision-Instruct` | `provider-integrity-observatory-20260418-154218` |
-| `mistralai/Mistral-7B-Instruct-v0.3` | `mistralai/Mistral-Small-3.2-24B-Instruct-2506` | `provider-integrity-observatory-20260418-154218` |
-| `Qwen/Qwen2.5-7B-Instruct` | `Qwen/Qwen3-14B` | `provider-integrity-observatory-20260418-154218` |
+| chat | `chat` | `mistralai/Mistral-Small-3.2-24B-Instruct-2506` |
+| reasoning | `reasoning` | `google/gemma-4-31B` |
+| research | `research` | `Qwen/Qwen3.5-122B-A10B` |
+| code | `code` | `Qwen/Qwen3-Coder-480B-A35B-Instruct-Turbo` |
+| agentic | `agentic` | `Qwen/Qwen3.5-122B-A10B` |
+| audit/legal/claims | `sonnet` | `anthropic/claude-4-sonnet` |
+| vision | `llama-vision` | `meta-llama/Llama-3.2-11B-Vision-Instruct` |
 
-```powershell
-python -m pytest -q tests/test_provider_integrity_observatory.py
-python -m pytest -q tests/test_v4_provider_substitution_longitudinal.py
+Other built-in router policies:
+
+- `current`: legacy HeliX behavior before the Qwen/Gemma/Mistral rebalance.
+- `qwen-gemma-mistral`: explicit hybrid stack.
+- `cheap`: lower-cost default path with code/audit escapes.
+- `premium`: stronger engineering and reasoning path.
+
+Inspect routing without making a model call:
+
+```cmd
+helix route "arregla este bug de pytest en el repo" --provider deepinfra
+helix models list
+helix providers list
 ```
 
-Evidence:
-[`verification/local-provider-integrity-observatory-20260418-154218.json`](verification/local-provider-integrity-observatory-20260418-154218.json),
-[`verification/local-provider-substitution-ledger-20260418-154218.json`](verification/local-provider-substitution-ledger-20260418-154218.json)
+## Evidence And Memory
 
-Caveat: this is a provider-returned metadata audit. It does not prove a hidden
-model identity, provider intent, or a contractual violation by itself.
+HeliX stores two different kinds of history:
 
-### Claim 2 - Valid chain integrity is not the same as authentic lineage
+1. **Session transcripts**: interactive CLI turns are written as JSONL under the
+   configured HeliX data directory, normally `AppData\Local\HeliX\sessions` on
+   Windows.
+2. **Verified evidence memories**: artifact JSONs under `verification/` can be
+   verified, ingested, searched, and tied back to chain status.
 
-`verify_chain` confirms parent-hash structure. It does not prove that a later
-node is the authentic continuation of a branch. HeliX records both structural
-integrity and lineage/authenticity checks.
+Examples:
 
-Forgery gauntlet fixture: 240 forged nodes plus 1,200 legitimate nodes across
-naive, schema-aware, hash-aware and signature-aware attack arms.
-
-| Attack arm | Precision | Recall | F1 | False positive rate | p95 detection |
-| --- | ---: | ---: | ---: | ---: | ---: |
-| naive | 1.0 | 1.0 | 1.0 | 0.0 | 0.040 ms |
-| schema-aware | 1.0 | 1.0 | 1.0 | 0.0 | 0.040 ms |
-| hash-aware | 1.0 | 1.0 | 1.0 | 0.0 | 0.040 ms |
-| signature-aware | 1.0 | 1.0 | 1.0 | 0.0 | 0.040 ms |
-
-```powershell
-python -m pytest -q tests/test_v4_lineage_forgery_gauntlet.py
+```text
+/evidence refresh
+/evidence latest 10
+/evidence search hard-anchor
+/verify latest
+/verify search branch-pruning
+/memory policy rag debate
 ```
 
-Evidence:
-[`verification/local-v4-lineage-forgery-gauntlet.json`](verification/local-v4-lineage-forgery-gauntlet.json)
+Offline verification:
 
-Caveat: this artifact is `mechanics_verified`; it is a local/fixture lane, not an
-external adversarial audit.
-
-### Claim 3 - External memory can improve task performance with low retrieval overhead
-
-In a real API run, HeliX external memory improved a 4-task battery while
-recording citations and rejecting fake memory. Retrieval was small relative to
-LLM latency in that run.
-
-| Metric | Value |
-| --- | ---: |
-| `ghost_signature_score` | 0.9603 |
-| `memory_on_win_rate` | 1.0 |
-| `false_memory_rejected` | true |
-| `shell_identity_anchor_rate` | 1.0 |
-| Context search average | 3.7 ms |
-| LLM latency average | 1,863 ms |
-| Retrieval overhead vs LLM | 0.1986% |
-
-```powershell
-python -m pytest -q tests/test_ghost_in_the_shell_live.py
-python -m pytest -q tests/test_v4_memory_contamination_triad.py
+```cmd
+python tools\helix_replay.py --mode verify-only --artifact verification\local-v4-lineage-forgery-gauntlet.json
+helix cert verify verification\local-v4-lineage-forgery-gauntlet.json
 ```
 
-Evidence:
-[`verification/local-ghost-in-the-shell-live-20260418-154420.json`](verification/local-ghost-in-the-shell-live-20260418-154420.json),
-[`verification/local-v4-memory-contamination-triad.json`](verification/local-v4-memory-contamination-triad.json)
+## Certification Suites
 
-Caveat: memory can also hurt when raw retrieval is contaminated. HeliX keeps
-negative findings visible. See the failed Ghost v2 run:
-[`verification/local-ghost-in-the-shell-live-v2-20260418-160448.json`](verification/local-ghost-in-the-shell-live-v2-20260418-160448.json).
+Registered suites can be run through the CLI:
+
+```cmd
+helix cert list
+helix cert run infinite-depth-memory
+helix cert run branch-pruning-forensics --provider deepinfra
+helix cert run policy-rag-legal-debate --provider deepinfra -- --tokens 1200
+```
+
+Direct Windows wrappers are also available:
+
+```cmd
+tools\run_nuclear_methodology_all.cmd
+tools\run_post_nuclear_methodology_all.cmd
+tools\run_long_horizon_checkpoint_all.cmd
+tools\run_recursive_architectural_integrity_audit_all.cmd
+tools\run_hard_anchor_utility_all.cmd
+tools\run_branch_pruning_forensics_all.cmd
+tools\run_infinite_depth_memory_all.cmd
+tools\run_policy_rag_legal_debate_all.cmd
+```
+
+Suite outputs normally include:
+
+- timestamped suite artifact JSON;
+- per-case artifact JSON;
+- run manifest JSON;
+- evidence log;
+- transcript exports as `.jsonl` and `.md`;
+- `artifact_payload_sha256` for canonical payload hashing;
+- external manifest hash policy when self-hashing would be circular.
+
+## Current Bounded Results
+
+The repo intentionally distinguishes product behavior from claim boundaries.
+Start with:
+
+- [`verification/public-evidence-index.json`](verification/public-evidence-index.json)
+- [`verification/README-reviewer.md`](verification/README-reviewer.md)
+- [`docs/claims-matrix.md`](docs/claims-matrix.md)
+
+Representative evidence currently committed:
+
+| Claim lane | Status | Evidence |
+| --- | --- | --- |
+| Provider-returned model metadata audit | `empirically_observed` | `verification/local-provider-integrity-observatory-20260418-154218.json` |
+| Lineage forgery mechanics | `mechanics_verified` | `verification/local-v4-lineage-forgery-gauntlet.json` |
+| External memory low overhead | `empirically_observed` | `verification/local-ghost-in-the-shell-live-20260418-154420.json` |
+| Raw contaminated retrieval negative finding | `falsification_preserved` | `verification/local-ghost-in-the-shell-live-v2-20260418-160448.json` |
+| Doppelganger war with receipt adjudication | `empirically_observed` | `verification/local-ghost-in-the-shell-live-v2-20260419-014000.json` |
+| Bounded context under deep store | `mechanics_verified` | `verification/nuclear-methodology/infinite-depth-memory/local-infinite-depth-memory-suite-infinite-depth-memory-20260420-133040.json` |
+
+Important boundary: HeliX does **not** claim literal infinite memory or physical
+zero latency. The deep-memory artifact supports bounded context construction
+under a 5,000-node local store. The historical `0.0 ms` wording is treated as
+rounded telemetry, not as a physics claim.
+
+## Latest Local Validation
+
+The CLI and router test suite currently passes:
+
+```cmd
+python -B -m pytest tests\test_helix_cli.py -q
+```
+
+Result from the current branch:
+
+```text
+51 passed in 36.61s
+```
+
+Focused methodology tests include:
+
+```cmd
+python -m pytest tests\test_infinite_depth_memory_suite.py -q
+python -m pytest tests\test_long_horizon_checkpoint_suite.py -q
+python -m pytest tests\test_hard_anchor_utility_suite.py -q
+python -m pytest tests\test_branch_pruning_forensics_suite.py -q
+python -m pytest tests\test_policy_rag_legal_debate_suite.py -q
+python -m pytest tests\test_architectural_recursion_audit.py -q
+```
+
+Native hard-anchor smoke:
+
+```cmd
+python tests\test_hard_anchors_rust.py
+```
+
+Observed local run:
+
+```text
+Legacy median latency:       73.4322 ms
+Hard anchors median latency: 2.5258 ms
+Speedup:                     29.0728x
+```
+
+Treat this as a local benchmark on one machine, not a universal performance
+claim.
 
 ## Architecture
 
-```text
-Inference call
-  -> HeliX audit ledger
-       records prompt_digest, output_digest, requested_model, actual_model
-  -> HeliX state server
-       stores MerkleDAG nodes and BM25/WAND retrieval index
-  -> Verification
-       verify_chain for structure
-       audit_chain / receipts / branch checks for authenticity claims
-```
+Rust/native layer:
 
-Rust crates:
-
-- `helix-merkle-dag` - lock-free SHA-256 MerkleDAG and PyO3 bindings.
-- `helix-state-core` - BM25/WAND retrieval over DAG nodes.
-- `helix-state-server` - IPC state server for concurrent agent writes.
-- `helix-watch` - terminal playback for telemetry and receipts.
+- `crates/helix-merkle-dag`: SHA-256 Merkle DAG and PyO3 bindings.
+- `crates/helix-state-core`: retrieval/indexing primitives.
+- `crates/helix-state-server`: IPC state server for concurrent agent writes.
+- `helix_kv`: Python/Rust bridge and memory catalog integration.
 
 Python layer:
 
-- `helix_proto` - ledger, call recording and state event pipeline.
-- `helix_substrate` - agent wiring, memory injection and session utilities.
+- `src/helix_proto/helix_cli.py`: CLI, router, auth, suites, memory commands.
+- `src/helix_proto/helix_cli_chrome.py`: terminal UI themes and rendering.
+- `src/helix_proto/helix_cli_agent_shell.py`: conservative agent shell loop.
+- `src/helix_proto/evidence_ingest.py`: verified evidence memory ingestion.
+- `src/helix_proto/artifact_replay.py`: offline artifact verification/replay.
+- `src/helix_proto/provider_audit.py`: provider metadata audit utilities.
+- `tools/transcript_exports.py`: JSONL/Markdown transcript sidecars.
+- `tools/artifact_integrity.py`: payload hashing without self-hash circularity.
 
-## Reviewer entry points
+## Product Shape
 
-- [`docs/provider-model-audit.md`](docs/provider-model-audit.md) - precise provider metadata audit wording.
-- [`docs/reddit-response-notes.md`](docs/reddit-response-notes.md) - short public replies to common critiques.
-- [`docs/claims-matrix.md`](docs/claims-matrix.md) - wording guardrails.
-- [`verification/README-reviewer.md`](verification/README-reviewer.md) - artifact interpretation rules.
-- [`verification/public-evidence-index.json`](verification/public-evidence-index.json) - canonical public evidence and SHA-256 hashes.
+HeliX is evolving into three connected surfaces:
 
-## Running tests
+1. **Interactive shell**: a Codex/Claude-Code-style terminal for chat, code,
+   research, evidence lookup, and task execution.
+2. **Certification lab**: repeatable methodology suites that produce artifacts,
+   manifests, logs, and transcripts.
+3. **Evidence browser/API substrate**: local artifact verification, memory
+   search, web viewer assets, and OpenAI-compatible integration points.
 
-```powershell
-python -m pytest -q tests/test_verification_hardening.py
-python -m pytest -q tests/test_v4_provider_substitution_longitudinal.py
-python tools/helix_claim_lint.py verification --scope batch-20260418
-```
-
-Real-cloud tests require a freshly rotated provider token and should be run
-through the secure PowerShell wrappers in `tools/`, which prompt with hidden
-input and do not persist tokens.
+The design principle is conservative: claims are only public when a runnable test
+or committed artifact supports them, and negative findings stay in the record.
 
 ## License
 

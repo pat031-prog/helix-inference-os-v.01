@@ -312,6 +312,16 @@ def test_boot_banner_and_session_ribbon_export_text() -> None:
     assert "helix-backend-repo" in output
 
 
+def test_run_with_status_renders_spinner_without_crashing() -> None:
+    if not helix_cli._HAS_UI:
+        return
+    from rich.console import Console
+
+    console = Console(theme=helix_cli._rich_theme("industrial-brutalist"), width=96, record=True)
+    result = helix_cli._run_with_status(console, lambda: {"text": "ok"}, phase="thinking")
+    assert result == {"text": "ok"}
+
+
 def test_agent_tool_call_parser_accepts_json_protocol() -> None:
     calls = helix_cli._parse_agent_tool_calls(
         '<tool_call>{"tool_calls":[{"tool":"search_text","arguments":{"query":"needle"}},'

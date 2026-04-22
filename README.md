@@ -1,14 +1,35 @@
 # HeliX Inference OS
 
-**A cryptographic agent shell for multi-model inference, local memory, evidence
-replay, and certification suites.**
+**HeliX is an evidence-first agent shell: a deterministic layer for routing
+models, storing certified memory, replaying artifacts, and running verification
+suites.**
 
-HeliX is not a single language model. It is the deterministic layer around
-models: a CLI, router, memory subsystem, audit ledger, Merkle DAG, verification
-tooling, and methodology suite runner. The goal is to make agent work inspectable
-instead of ephemeral: prompts, outputs, selected models, provider metadata,
-memory hits, artifacts, transcripts, and verification results become bounded
-evidence.
+HeliX is not a single language model and not just a chat wrapper. It is a
+cryptographic shell around probabilistic models: a CLI, router, memory
+subsystem, audit ledger, Merkle DAG, verification runner, and local evidence
+substrate. The goal is to make agent work inspectable instead of ephemeral:
+prompts, outputs, selected models, provider metadata, memory hits, artifacts,
+transcripts, and verification results become bounded evidence.
+
+The unusual bet is operational: hard anchors preserve exact references through
+long-horizon compression; tombstones and branch pruning keep invalidated memory
+out of prompts; Merkle DAG lineage ties claims back to receipts; and negative
+suite findings remain first-class evidence instead of being polished away.
+
+The repo exposes HeliX through three connected surfaces:
+
+1. **Interactive shell**: a terminal interface for chat, research, code, local
+   file inspection, memory lookup, evidence lookup, and read-only task loops.
+2. **Certification lab**: repeatable suites that emit artifacts, manifests,
+   logs, transcripts, and explicit claim boundaries.
+3. **Evidence browser/API substrate**: local artifact verification, certified
+   memory search, transcript replay, and integration points for higher-level
+   tools.
+
+The "Inference OS" name is intentional but bounded: HeliX behaves like an
+OS-like substrate for model routing, memory, receipts, replay, and verification.
+It does not claim kernel isolation, hard scheduling semantics, or universal
+system guarantees.
 
 ```text
 User / CLI
@@ -24,9 +45,11 @@ User / CLI
 
 ## What Makes HeliX Different
 
-- **Model-agnostic shell**: routes between DeepInfra, OpenAI-compatible
-  endpoints, Anthropic-compatible profiles, Ollama, llama.cpp, and local runtime
-  paths where configured.
+- **Evidence-first agent shell**: turns chat, research, code, audit, and suite
+  runs into replayable local evidence instead of disposable model turns.
+- **Model-agnostic routing**: routes between DeepInfra, OpenAI-compatible
+  endpoints, Anthropic-compatible profiles, Gemini, Ollama, llama.cpp, and local
+  runtime paths where configured.
 - **Certified memory, not just chat history**: conversation turns and verified
   artifacts can be ingested into local HeliX memory, searched, and tied back to
   receipts instead of being treated as loose context.
@@ -42,8 +65,11 @@ User / CLI
 - **Evidence-first test suites**: suite runs emit JSON artifacts, run manifests,
   logs, and JSONL/Markdown transcripts. The claim boundary lives with the
   artifact.
+- **Negative findings preserved**: falsified or bounded results stay in the
+  evidence record instead of being edited into a success story.
 - **Agent shell UX**: interactive terminal with themes, model routing, key
-  storage, evidence search, `/task` mode, and certification commands.
+  storage, evidence search, explicit local file inspection, `/task` mode, agent
+  blueprints, and certification commands.
 
 ## Current CLI
 
@@ -107,18 +133,30 @@ Inside the shell:
 /status                       Show provider, model, workspace, transcript paths
 /provider NAME                Switch provider
 /model NAME                   Switch model or alias
-/model list                   List model aliases and router blueprints
+/model list                   List model aliases
+/models                       List model aliases and router blueprints
 /route TEXT                   Explain model auto-routing for a prompt
-/router NAME                  Change routing policy
+/router NAME                  Change routing policy/blueprint
 /theme NAME                   industrial-brutalist, industrial-neon, xerox, brown-console
+/style NAME                   balanced, technical, forensic, vivid, terse
 /raw on|off                   Toggle raw model output after cleaned answer
+/web QUERY                    Search the public web and print raw metadata
+/file PATH                    Inspect a local file or directory under allowed HeliX roots
 /evidence refresh [QUERY]     Verify and ingest artifacts from verification/
 /evidence latest [N]          Show latest certified evidence memories
 /evidence search QUERY        Search certified evidence memories
 /evidence show MEMORY_ID      Show receipt and chain status
 /verify PATH|latest|search Q  Verify or discover artifact JSONs
+/suites                       Compact catalog of local verification suites
+/suite latest SUITE           Show latest artifact, manifest and transcript paths
+/suite transcripts SUITE      List suite transcript exports
+/suite search QUERY           Search local suite artifacts/transcripts
+/suite read PATH_OR_NAME      Read a bounded local artifact/transcript excerpt
 /memory QUERY                 Search unified HeliX memory
 /task GOAL                    Run stronger agentic mode
+/agents                       List agentic blueprints
+/agent suggest GOAL           Read-only Codex-like planning mode
+/agent use BLUEPRINT GOAL     Run a specific blueprint, e.g. suite-run-analyst
 /tools                        List tools exposed to the runner
 /apply last                   Apply last proposed patch after confirmation
 /cert SUITE [-- args]         Run a registered certification suite
@@ -128,6 +166,9 @@ Inside the shell:
 
 Natural language defaults to chat. Repo/debug/patch prompts route toward
 `/task`; suite/certification prompts route toward `/cert` when recognized.
+Explicit local file or directory paths route through `file.inspect` before the
+model answers, with secret files, credential directories, keys, certs, and local
+token-bearing config blocked.
 
 ## Model Router
 
@@ -137,14 +178,16 @@ The default router policy is `balanced`.
 | --- | --- | --- |
 | chat | `chat` | `mistralai/Mistral-Small-3.2-24B-Instruct-2506` |
 | reasoning | `reasoning` | `google/gemma-4-31B` |
-| research | `research` | `Qwen/Qwen3.5-122B-A10B` |
+| research | `qwen-big` | `Qwen/Qwen3.5-122B-A10B` |
 | code | `code` | `Qwen/Qwen3-Coder-480B-A35B-Instruct-Turbo` |
-| agentic | `agentic` | `Qwen/Qwen3.5-122B-A10B` |
+| agentic | `qwen-big` | `Qwen/Qwen3.5-122B-A10B` |
 | audit/legal/claims | `sonnet` | `anthropic/claude-4-sonnet` |
 | vision | `llama-vision` | `meta-llama/Llama-3.2-11B-Vision-Instruct` |
 
 Other built-in router policies:
 
+- `qwen-heavy`: Qwen-first policy for HeliX self-questions, research, and
+  synthesis, with code/audit escapes.
 - `current`: legacy HeliX behavior before the Qwen/Gemma/Mistral rebalance.
 - `qwen-gemma-mistral`: explicit hybrid stack.
 - `cheap`: lower-cost default path with code/audit escapes.
@@ -223,6 +266,8 @@ Suite outputs normally include:
 ## Current Bounded Results
 
 The repo intentionally distinguishes product behavior from claim boundaries.
+Claims are only public when a runnable test or committed artifact supports them,
+and negative findings stay in the record.
 Start with:
 
 - [`verification/public-evidence-index.json`](verification/public-evidence-index.json)
@@ -247,7 +292,8 @@ rounded telemetry, not as a physics claim.
 
 ## Latest Local Validation
 
-The CLI and router test suite currently passes:
+The CLI, router, evidence, local file inspection, and agent-shell tests currently
+pass:
 
 ```cmd
 python -B -m pytest tests\test_helix_cli.py -q
@@ -256,7 +302,19 @@ python -B -m pytest tests\test_helix_cli.py -q
 Result from the current branch:
 
 ```text
-51 passed in 36.61s
+92 passed in 281.11s
+```
+
+CLI smoke validation:
+
+```cmd
+python -B -m pytest tests\test_cli_smoke.py -q
+```
+
+Observed local run:
+
+```text
+12 passed, 14 warnings in 28.10s
 ```
 
 Focused methodology tests include:
@@ -309,7 +367,7 @@ Python layer:
 
 ## Product Shape
 
-HeliX is evolving into three connected surfaces:
+HeliX is intentionally shaped as three connected surfaces:
 
 1. **Interactive shell**: a Codex/Claude-Code-style terminal for chat, code,
    research, evidence lookup, and task execution.
@@ -318,8 +376,8 @@ HeliX is evolving into three connected surfaces:
 3. **Evidence browser/API substrate**: local artifact verification, memory
    search, web viewer assets, and OpenAI-compatible integration points.
 
-The design principle is conservative: claims are only public when a runnable test
-or committed artifact supports them, and negative findings stay in the record.
+That triad is the product boundary: shell for operators, certification lab for
+researchers/reviewers, and evidence substrate for audit and trust workflows.
 
 ## License
 

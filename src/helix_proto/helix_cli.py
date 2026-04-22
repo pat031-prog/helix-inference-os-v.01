@@ -3,6 +3,8 @@ from __future__ import annotations
 import argparse
 import fnmatch
 import getpass
+import hashlib
+import html
 import json
 import os
 import re
@@ -16,6 +18,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 from urllib import error, request
+from urllib import parse as urlparse
 
 from helix_proto.helix_cli_chrome import Console
 from helix_proto.helix_cli_chrome import PromptSession
@@ -218,6 +221,355 @@ def _goal_requests_memory_lookup(text: str) -> bool:
     return any(term in lowered for term in memory_terms) and any(term in lowered for term in lookup_terms)
 
 
+_HASH_REF_RE = re.compile(r"\b[0-9a-fA-F]{8,64}\b")
+_LOCAL_FILE_SUFFIX_RE = r"(?:jsonl?|md|txt|log|py|rs|toml|ya?ml|csv|html?|css|js|ts|tsx|jsx|ini|cfg)"
+_UNQUOTED_LOCAL_PATH_RE = re.compile(
+    rf"(?i)\b[A-Z]:[\\/][^\r\n\"'`<>|]+?\.{_LOCAL_FILE_SUFFIX_RE}\b"
+)
+_UNQUOTED_WINDOWS_PATH_LINE_RE = re.compile(r"(?i)\b[A-Z]:[\\/][^\r\n\"'`<>|]+(?=$|[\r\n])")
+
+
+def _extract_hash_prefixes(text: str) -> list[str]:
+    """Extract plausible HeliX node hash prefixes without treating plain dates as hashes."""
+    refs: list[str] = []
+    seen: set[str] = set()
+    for match in _HASH_REF_RE.finditer(str(text or "")):
+        value = match.group(0).lower()
+        if not any(char in "abcdef" for char in value):
+            continue
+        if value not in seen:
+            refs.append(value)
+            seen.add(value)
+    return refs
+
+
+def _latest_hash_reference(text: str, history: list[dict[str, str]] | None = None) -> str | None:
+    current = _extract_hash_prefixes(text)
+    if current:
+        return current[-1]
+    for item in reversed(history or []):
+        refs = _extract_hash_prefixes(str(item.get("content") or ""))
+        if refs:
+            return refs[-1]
+    return None
+
+
+def _is_hash_recovery_request(text: str, history: list[dict[str, str]] | None = None) -> bool:
+    lowered = " ".join(str(text or "").lower().split())
+    if _extract_local_path_refs(text):
+        explicit_hash_terms = (
+            "hash",
+            "node_hash",
+            "node hash",
+            "memory_id",
+            "memory id",
+            "este hash",
+            "ese hash",
+            "este node",
+            "ese node",
+        )
+        if not any(term in lowered for term in explicit_hash_terms):
+            return False
+    current_refs = _extract_hash_prefixes(text)
+    if current_refs:
+        if _looks_like_pasted_suite_evidence(text):
+            suite_hash_terms = ("recuper", "donde", "completo", "contenido", "literal", "este hash", "ese hash", "node_hash")
+            return any(term in lowered for term in suite_hash_terms)
+        explicit_terms = (
+            "hash",
+            "node_hash",
+            "node hash",
+            "memoria",
+            "memory",
+            "donde",
+            "esta",
+            "recuper",
+            "completo",
+            "contenido",
+            "texto",
+            "literal",
+            "en realidad",
+            "esto",
+            "ese",
+            "ancla",
+        )
+        return any(term in lowered for term in explicit_terms)
+    if not _latest_hash_reference("", history):
+        return False
+    followup_terms = (
+        "recuper",
+        "completo",
+        "contenido",
+        "texto",
+        "donde esta",
+        "donde quedo",
+        "mostramelo",
+        "mostrame eso",
+        "lee eso",
+        "traelo",
+    )
+    return any(term in lowered for term in followup_terms)
+
+
+def _format_memory_resolve_answer(result: dict[str, Any]) -> str:
+    status = str(result.get("status") or "")
+    ref = str(result.get("ref") or "").strip()
+    if status == "not_found":
+        return (
+            f"No pude resolver `{ref}` contra la memoria HeliX ni contra las transcripciones locales. "
+            "No voy a reconstruir ese texto de memoria porque eso seria alucinarlo; necesito un hash mas largo, "
+            "un `memory_id`, o que el registro exista en el workspace/transcripts activos."
+        )
+    if status == "ambiguous":
+        rows = []
+        for item in result.get("matches", [])[:8]:
+            rows.append(
+                f"- `{item.get('node_hash') or item.get('memory_id')}` | `{item.get('memory_id')}` | "
+                f"{str(item.get('summary') or item.get('content') or '')[:140]}"
+            )
+        return (
+            f"`{ref}` coincide con mas de una memoria. Necesito un prefijo mas largo o un `memory_id` exacto.\n\n"
+            + "\n".join(rows)
+        )
+    if status != "ok":
+        return f"No pude resolver `{ref}`: {result.get('error') or 'estado desconocido'}"
+
+    record = (result.get("matches") or [{}])[0]
+    content = str(record.get("content") or "")
+    truncated = bool(record.get("content_truncated"))
+    source = str(record.get("source") or "memory")
+    chain = record.get("chain") if isinstance(record.get("chain"), dict) else {}
+    lines = [
+        f"Encontré `{ref}` en HeliX sin reconstruirlo con el modelo.",
+        "",
+        f"- Source: `{source}`",
+        f"- Memory ID: `{record.get('memory_id') or 'n/a'}`",
+        f"- Node hash: `{record.get('node_hash') or 'n/a'}`",
+        f"- Chain status: `{chain.get('status') or record.get('chain_status') or 'n/a'}`",
+    ]
+    if record.get("path"):
+        lines.append(f"- Path: `{record.get('path')}`")
+    if record.get("created_utc") or record.get("created_ms"):
+        lines.append(f"- Created: `{record.get('created_utc') or record.get('created_ms')}`")
+    lines.extend(["", "Contenido exacto:", "", "```text", content, "```"])
+    if truncated:
+        lines.append("\n[helix] El contenido existe pero fue truncado por limite de salida de `memory.resolve`.")
+    return "\n".join(lines)
+
+
+def _normalise_local_path_ref(ref: str) -> str:
+    value = str(ref or "").strip().strip("\"'`“”").rstrip(".,;:")
+    if value.lower().startswith("file://"):
+        parsed = urlparse.urlparse(value)
+        value = urlparse.unquote(parsed.path or "")
+        if re.match(r"^/[A-Za-z]:/", value):
+            value = value[1:]
+        value = value.replace("/", "\\") if os.name == "nt" else value
+    if re.search(r"[A-Za-z]:[\\/]", value):
+        value = re.sub(r"\s*[\r\n]+\s*", "", value)
+    else:
+        value = re.sub(r"[\r\n]+", " ", value)
+    return value.strip()
+
+
+def _extract_local_path_refs(text: str) -> list[str]:
+    raw = str(text or "")
+    refs: list[str] = []
+    seen: set[str] = set()
+
+    def _add(candidate: str) -> None:
+        path_ref = _normalise_local_path_ref(candidate)
+        lowered = path_ref.lower()
+        if not path_ref or lowered.startswith(("http://", "https://")):
+            return
+        markers = (
+            re.search(r"[A-Za-z]:[\\/]", path_ref) is not None,
+            lowered.startswith(("~\\", "~/", ".\\", "./", "..\\", "../")),
+            bool(Path(path_ref).suffix and ("\\" in path_ref or "/" in path_ref)),
+        )
+        if any(markers) and path_ref not in seen:
+            refs.append(path_ref)
+            seen.add(path_ref)
+
+    for match in re.finditer(r'["`“](.+?)["`”]', raw, flags=re.DOTALL):
+        _add(match.group(1))
+    for match in _UNQUOTED_LOCAL_PATH_RE.finditer(raw):
+        _add(match.group(0))
+    for match in _UNQUOTED_WINDOWS_PATH_LINE_RE.finditer(raw):
+        _add(match.group(0))
+    return refs
+
+
+def _is_local_file_request(text: str) -> bool:
+    refs = _extract_local_path_refs(text)
+    if not refs:
+        return False
+    lowered = " ".join(str(text or "").lower().split())
+    read_terms = (
+        "lee",
+        "leer",
+        "leas",
+        "abrir",
+        "abri",
+        "abrime",
+        "mostrar",
+        "mostra",
+        "mostrame",
+        "quiero este",
+        "quiero esta",
+        "me interesa",
+        "me interesan",
+        "archivo",
+        "carpeta",
+        "directorio",
+        "ruta",
+        "path",
+        "donde estan",
+        "dónde están",
+        "navega",
+        "navegar",
+    )
+    if _looks_like_pasted_suite_evidence(text):
+        return any(term in lowered for term in read_terms)
+    return any(term in lowered for term in read_terms) or any(Path(ref).suffix for ref in refs)
+
+
+def _sha256_file(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def _is_suite_evidence_request(text: str, history: list[dict[str, str]] | None = None) -> bool:
+    lowered = str(text or "").lower()
+    if _is_pasted_suite_analysis_request(text):
+        return True
+    suite_terms = (
+        "/verify",
+        "verify",
+        "suite",
+        "suites",
+        "corrida",
+        "corridas",
+        "artifact",
+        "artifacts",
+        "artefacto",
+        "manifest",
+        "transcript",
+        "transcripts",
+        "jsonl",
+        "preregistered",
+        "preregistro",
+        "verification",
+        "post nuclear",
+        "post-nuclear",
+        "long horizon",
+        "hard anchor",
+        "hard-anchor",
+        "branch pruning",
+        "policy rag",
+        "poliza",
+        "póliza",
+    )
+    if any(term in lowered for term in suite_terms):
+        return True
+    for item in history or []:
+        content = str(item.get("content") or "").lower()
+        if "suite" in content or "/verify" in content or "artifact" in content:
+            return any(term in lowered for term in ("ultima", "última", "resultados", "transcript", "corrida", "esa", "eso"))
+    return False
+
+
+def _is_web_search_request(text: str) -> bool:
+    lowered = str(text or "").lower()
+    web_terms = (
+        "busca en la web",
+        "buscar en la web",
+        "buscame en la web",
+        "google",
+        "googlea",
+        "internet",
+        "web",
+        "online",
+        "fuentes",
+        "source",
+        "sources",
+        "links",
+        "link",
+        "noticias",
+        "news",
+        "latest",
+        "último",
+        "ultima",
+        "última",
+        "actual",
+        "reciente",
+        "benchmark",
+        "benchmarks",
+    )
+    lookup_verbs = (
+        "busca",
+        "buscar",
+        "buscame",
+        "investiga",
+        "investigar",
+        "research",
+        "encontra",
+        "encuentra",
+        "averigua",
+        "quiero info",
+        "necesito info",
+        "mostrame info",
+    )
+    if any(term in lowered for term in ("google", "internet", "busca en la web", "buscar en la web", "web search")):
+        return True
+    return any(term in lowered for term in web_terms) and any(verb in lowered for verb in lookup_verbs)
+
+
+def _looks_like_pasted_suite_evidence(text: str) -> bool:
+    raw = str(text or "")
+    lowered = raw.lower()
+    markers = (
+        '"suite_id"',
+        '"run_id"',
+        '"exit_code"',
+        '"stderr"',
+        "traceback",
+        "runtimeerror:",
+        "suite",
+        "run id",
+        "artifacts",
+        "transcripts",
+        "transcr",
+        "branch-pruning-forensics",
+        "hard-anchor-utility",
+    )
+    marker_count = sum(1 for marker in markers if marker in lowered)
+    return marker_count >= 2 and ("\n" in raw or "│" in raw or "{" in raw)
+
+
+def _is_pasted_suite_analysis_request(text: str) -> bool:
+    lowered = str(text or "").lower()
+    analysis_terms = (
+        "quiero info",
+        "quiero data",
+        "dame info",
+        "dame data",
+        "contame",
+        "analiza",
+        "explica",
+        "que significa",
+        "qué significa",
+        "por que fallo",
+        "por qué falló",
+        "fallo",
+        "falló",
+    )
+    return _looks_like_pasted_suite_evidence(text) and any(term in lowered for term in analysis_terms)
+
+
 def _looks_like_deferred_lookup_preamble(text: str) -> bool:
     lowered = " ".join(str(text or "").lower().split())
     if not lowered or len(lowered) > 220:
@@ -320,6 +672,50 @@ REDACTED = "[REDACTED]"
 DEFAULT_TIMEOUT_SECONDS = 30.0
 AGENT_TASK_TIMEOUT_SECONDS = 90.0
 console = None
+
+
+RESPONSE_STYLES: dict[str, str] = {
+    "balanced": (
+        "Balanced style: direct, grounded, a little distinctive, but not theatrical. "
+        "Use the user's Spanish register when appropriate. Avoid repeating the same metaphors."
+    ),
+    "technical": (
+        "Technical style: concise engineering prose, concrete claims, commands and file paths when useful. "
+        "Avoid dramatic framing and avoid decorative analogies."
+    ),
+    "forensic": (
+        "Forensic style: separate observed evidence, inference, risk, and next action. "
+        "Use precise language around hashes, artifacts, dates, and uncertainty."
+    ),
+    "vivid": (
+        "Vivid style: more expressive and memorable, still technically honest. "
+        "Use sparing imagery and sharper phrasing, but do not invent capabilities or evidence."
+    ),
+    "terse": (
+        "Terse style: shortest useful answer. Lead with the answer, then one or two concrete details."
+    ),
+}
+
+
+def _normalize_response_style(value: str | None) -> str:
+    candidate = str(value or "").strip().lower()
+    aliases = {
+        "default": "balanced",
+        "normal": "balanced",
+        "equilibrado": "balanced",
+        "tecnico": "technical",
+        "técnico": "technical",
+        "tech": "technical",
+        "forense": "forensic",
+        "audit": "forensic",
+        "interesante": "vivid",
+        "picante": "vivid",
+        "creativo": "vivid",
+        "corto": "terse",
+        "breve": "terse",
+    }
+    candidate = aliases.get(candidate, candidate)
+    return candidate if candidate in RESPONSE_STYLES else "balanced"
 
 
 def _repo_root() -> Path:
@@ -475,6 +871,18 @@ class RouterBlueprint:
     vision_alias: str
 
 
+@dataclass(frozen=True)
+class AgentBlueprint:
+    blueprint_id: str
+    description: str
+    preferred_model_alias: str
+    fallback_aliases: tuple[str, ...]
+    allowed_tools: tuple[str, ...]
+    max_steps: int
+    evidence_requirement: str
+    output_contract: str
+
+
 def _provider_registry() -> dict[str, ProviderSpec]:
     providers: dict[str, ProviderSpec] = {}
     for provider in OPENAI_COMPATIBLE_PROVIDERS:
@@ -506,6 +914,15 @@ def _provider_registry() -> dict[str, ProviderSpec]:
                 default_model="claude-4-sonnet",
                 requires_token=True,
                 description="Anthropic Messages API",
+            ),
+            "gemini": ProviderSpec(
+                name="gemini",
+                kind="gemini",
+                base_url="https://generativelanguage.googleapis.com/v1beta",
+                token_env="GEMINI_API_KEY",
+                default_model="gemini-3-flash-preview",
+                requires_token=True,
+                description="Google Gemini generateContent API",
             ),
             "ollama": ProviderSpec(
                 name="ollama",
@@ -587,17 +1004,25 @@ DEEPINFRA_MODEL_PROFILES: dict[str, ModelProfile] = {
         model_id="Qwen/Qwen3-Coder-480B-A35B-Instruct-Turbo",
         role="code",
         provider="deepinfra",
-        input_per_million=0.22,
-        output_per_million=1.00,
-        notes="Agentic coding, repository-scale code understanding, function calling, and long context.",
+        input_per_million=0.30,
+        output_per_million=1.20,
+        notes="Primary agentic coding model: repo-scale understanding, tool use, function calling, and 256K context.",
+    ),
+    "qwen-big": ModelProfile(
+        model_id="Qwen/Qwen3.5-122B-A10B",
+        role="qwen-heavy",
+        provider="deepinfra",
+        input_per_million=0.29,
+        output_per_million=2.90,
+        notes="Primary large-Qwen profile for research, HeliX self-questions, synthesis, long context, and agentic planning.",
     ),
     "qwen-122b": ModelProfile(
         model_id="Qwen/Qwen3.5-122B-A10B",
         role="qwen-general",
         provider="deepinfra",
-        input_per_million=None,
-        output_per_million=None,
-        notes="Large Qwen generalist for deeper synthesis, broad retrieval, and non-trivial task planning.",
+        input_per_million=0.29,
+        output_per_million=2.90,
+        notes="Explicit Qwen 122B alias kept for compatibility; qwen-big is the preferred heavy-Qwen route.",
     ),
     "gemma": ModelProfile(
         model_id="google/gemma-4-31B",
@@ -643,8 +1068,8 @@ DEEPINFRA_MODEL_PROFILES: dict[str, ModelProfile] = {
         model_id="Qwen/Qwen3.5-122B-A10B",
         role="research",
         provider="deepinfra",
-        input_per_million=None,
-        output_per_million=None,
+        input_per_million=0.29,
+        output_per_million=2.90,
         notes="Research/search-oriented Qwen 122B profile for long context synthesis and careful uncertainty handling.",
     ),
     "legacy-reasoning": ModelProfile(
@@ -698,16 +1123,62 @@ DEEPINFRA_MODEL_PROFILES: dict[str, ModelProfile] = {
 }
 
 
+GEMINI_MODEL_PROFILES: dict[str, ModelProfile] = {
+    "gemini-pro": ModelProfile(
+        model_id="gemini-3.1-pro-preview",
+        role="gemini-pro",
+        provider="gemini",
+        input_per_million=None,
+        output_per_million=None,
+        notes="Gemini 3.1 Pro preview for high-depth reasoning, synthesis, and complex non-code analysis.",
+    ),
+    "gemini-flash": ModelProfile(
+        model_id="gemini-3-flash-preview",
+        role="gemini-flash",
+        provider="gemini",
+        input_per_million=None,
+        output_per_million=None,
+        notes="Gemini 3 Flash preview for fast general chat, research drafts, and lower-latency turns.",
+    ),
+    "gemini-lite": ModelProfile(
+        model_id="gemini-3.1-flash-lite-preview",
+        role="gemini-lite",
+        provider="gemini",
+        input_per_million=None,
+        output_per_million=None,
+        notes="Gemini 3.1 Flash Lite preview for cheap/fast classification, summaries, and lightweight chat.",
+    ),
+}
+
+
+MODEL_PROFILES: dict[str, ModelProfile] = {
+    **DEEPINFRA_MODEL_PROFILES,
+    **GEMINI_MODEL_PROFILES,
+}
+
+
 ROUTER_BLUEPRINTS: dict[str, RouterBlueprint] = {
     "balanced": RouterBlueprint(
         name="balanced",
-        description="Preferred mixed blueprint: Mistral Small for chat, Gemma for reasoning, Qwen 122B for research/agentic, Qwen Coder for code, Sonnet for audits.",
+        description="Preferred mixed blueprint: Mistral Small for chat, Gemma for reasoning, Qwen Big for research/HeliX, Qwen Coder for code, Sonnet for audits.",
         default_alias="chat",
         chat_alias="chat",
         reasoning_alias="reasoning",
-        research_alias="research",
+        research_alias="qwen-big",
         code_alias="code",
-        agentic_alias="agentic",
+        agentic_alias="qwen-big",
+        audit_alias="sonnet",
+        vision_alias="llama-vision",
+    ),
+    "qwen-heavy": RouterBlueprint(
+        name="qwen-heavy",
+        description="Qwen-first blueprint: Qwen Big for most serious work, Qwen Coder for repo tasks, Gemma for deliberate reasoning, Sonnet for audit.",
+        default_alias="qwen-big",
+        chat_alias="qwen-big",
+        reasoning_alias="gemma",
+        research_alias="qwen-big",
+        code_alias="code",
+        agentic_alias="qwen-big",
         audit_alias="sonnet",
         vision_alias="llama-vision",
     ),
@@ -717,9 +1188,9 @@ ROUTER_BLUEPRINTS: dict[str, RouterBlueprint] = {
         default_alias="chat",
         chat_alias="chat",
         reasoning_alias="reasoning",
-        research_alias="research",
+        research_alias="qwen-big",
         code_alias="code",
-        agentic_alias="agentic",
+        agentic_alias="qwen-big",
         audit_alias="sonnet",
         vision_alias="llama-vision",
     ),
@@ -763,6 +1234,100 @@ ROUTER_BLUEPRINTS: dict[str, RouterBlueprint] = {
 
 
 ROUTER_POLICIES = set(ROUTER_BLUEPRINTS)
+
+
+AGENT_BLUEPRINTS: dict[str, AgentBlueprint] = {
+    "repo-scout": AgentBlueprint(
+        blueprint_id="repo-scout",
+        description="Map a repository with file listing, text search, selected reads, and git status.",
+        preferred_model_alias="code",
+        fallback_aliases=("qwen-big", "devstral"),
+        allowed_tools=("list_files", "search_text", "read_file", "file.inspect", "git_status"),
+        max_steps=5,
+        evidence_requirement="Read files before making repo claims.",
+        output_contract="Summarize findings with file paths and uncertainty.",
+    ),
+    "patch-planner": AgentBlueprint(
+        blueprint_id="patch-planner",
+        description="Inspect repo state and propose a patch without writing files.",
+        preferred_model_alias="code",
+        fallback_aliases=("devstral", "qwen-big"),
+        allowed_tools=("list_files", "search_text", "read_file", "file.inspect", "git_status", "git_diff"),
+        max_steps=6,
+        evidence_requirement="Use current files/diff before proposing changes.",
+        output_contract="Return a concise diagnosis and optional unified diff proposal.",
+    ),
+    "test-diagnoser": AgentBlueprint(
+        blueprint_id="test-diagnoser",
+        description="Diagnose allowlisted test failures with read-only test commands.",
+        preferred_model_alias="code",
+        fallback_aliases=("devstral", "qwen-big"),
+        allowed_tools=("list_files", "search_text", "read_file", "file.inspect", "git_status", "run_test"),
+        max_steps=6,
+        evidence_requirement="Only claim tests ran when run_test returned an event.",
+        output_contract="Report command, pass/fail, relevant output, and next fix.",
+    ),
+    "evidence-auditor": AgentBlueprint(
+        blueprint_id="evidence-auditor",
+        description="Audit HeliX artifacts, receipts, manifests, hashes, and claim boundaries.",
+        preferred_model_alias="sonnet",
+        fallback_aliases=("qwen-big", "deep-reasoning"),
+        allowed_tools=("evidence.latest", "evidence.show", "query_evidence", "inspect_artifact", "file.inspect", "suite.latest", "suite.read"),
+        max_steps=5,
+        evidence_requirement="Cite local artifact/transcript paths or say evidence is missing.",
+        output_contract="Separate verified facts, inferred risks, and unverified claims.",
+    ),
+    "suite-cartographer": AgentBlueprint(
+        blueprint_id="suite-cartographer",
+        description="Explain available experiment suites, scripts, preregisters, outputs, and dry-run commands.",
+        preferred_model_alias="qwen-big",
+        fallback_aliases=("research", "default"),
+        allowed_tools=("suite.catalog", "suite.latest", "suite.transcripts", "suite.dry_run"),
+        max_steps=4,
+        evidence_requirement="Use suite catalog metadata before summarizing suite coverage.",
+        output_contract="List suites by purpose, latest evidence, and safe commands.",
+    ),
+    "suite-run-analyst": AgentBlueprint(
+        blueprint_id="suite-run-analyst",
+        description="Compare runs, statuses, scores, cases, manifests, and transcript availability.",
+        preferred_model_alias="qwen-big",
+        fallback_aliases=("sonnet", "research"),
+        allowed_tools=("suite.catalog", "suite.latest", "suite.search", "suite.read", "suite.transcripts", "file.inspect"),
+        max_steps=5,
+        evidence_requirement="Use artifact/manifest/transcript metadata from verification/.",
+        output_contract="Report what changed, what passed/failed, and evidence paths.",
+    ),
+    "transcript-forensics": AgentBlueprint(
+        blueprint_id="transcript-forensics",
+        description="Read suite transcripts and reconstruct model/tool/event behavior.",
+        preferred_model_alias="qwen-big",
+        fallback_aliases=("sonnet", "research"),
+        allowed_tools=("suite.search", "suite.read", "suite.transcripts", "file.inspect", "query_evidence"),
+        max_steps=5,
+        evidence_requirement="Read transcript excerpts before analyzing behavior.",
+        output_contract="Summarize timeline, model roles, contradictions, and limits.",
+    ),
+    "policy-rag-auditor": AgentBlueprint(
+        blueprint_id="policy-rag-auditor",
+        description="Audit insurance/policy RAG debate evidence and legal claim boundaries.",
+        preferred_model_alias="sonnet",
+        fallback_aliases=("qwen-big", "code"),
+        allowed_tools=("suite.search", "suite.read", "query_evidence", "read_file", "file.inspect", "search_text"),
+        max_steps=5,
+        evidence_requirement="Ground legal/RAG claims in policy suite artifacts or local files.",
+        output_contract="Separate policy facts, legal positions, disputes, and missing evidence.",
+    ),
+    "model-researcher": AgentBlueprint(
+        blueprint_id="model-researcher",
+        description="Compare model profiles, router choices, and provider capabilities.",
+        preferred_model_alias="qwen-big",
+        fallback_aliases=("research", "default"),
+        allowed_tools=("suite.search", "evidence.latest", "web.search", "web.read"),
+        max_steps=5,
+        evidence_requirement="Use local router/model profile data; use web.search when the user asks for current model/provider information.",
+        output_contract="Recommend model routing by job type with fallback chain.",
+    ),
+}
 
 
 SUITES: dict[str, SuiteSpec] = {
@@ -840,8 +1405,18 @@ def model_profiles_report() -> list[dict[str, Any]]:
             "output_per_million": profile.output_per_million,
             "notes": profile.notes,
         }
-        for alias, profile in sorted(DEEPINFRA_MODEL_PROFILES.items())
+        for alias, profile in sorted(MODEL_PROFILES.items())
     ]
+
+
+def models_payload() -> dict[str, Any]:
+    profiles = model_profiles_report()
+    return {
+        "model_profiles": profiles,
+        "deepinfra_model_profiles": [item for item in profiles if item.get("provider") == "deepinfra"],
+        "gemini_model_profiles": [item for item in profiles if item.get("provider") == "gemini"],
+        "router_blueprints": router_blueprints_report(),
+    }
 
 
 def router_blueprints_report() -> list[dict[str, Any]]:
@@ -862,13 +1437,29 @@ def router_blueprints_report() -> list[dict[str, Any]]:
     ]
 
 
+def agent_blueprints_report() -> list[dict[str, Any]]:
+    return [
+        {
+            "blueprint_id": blueprint.blueprint_id,
+            "description": blueprint.description,
+            "preferred_model_alias": blueprint.preferred_model_alias,
+            "fallback_aliases": list(blueprint.fallback_aliases),
+            "allowed_tools": list(blueprint.allowed_tools),
+            "max_steps": blueprint.max_steps,
+            "evidence_requirement": blueprint.evidence_requirement,
+            "output_contract": blueprint.output_contract,
+        }
+        for blueprint in sorted(AGENT_BLUEPRINTS.values(), key=lambda item: item.blueprint_id)
+    ]
+
+
 def resolve_model_alias(value: str) -> str:
     candidate = str(value or "").strip()
     lowered = candidate.lower()
     if lowered in {"auto", "router:auto"}:
         return "auto"
-    if lowered in DEEPINFRA_MODEL_PROFILES:
-        return DEEPINFRA_MODEL_PROFILES[lowered].model_id
+    if lowered in MODEL_PROFILES:
+        return MODEL_PROFILES[lowered].model_id
     aliases = {
         "claude": "sonnet",
         "claude-sonnet": "sonnet",
@@ -877,7 +1468,11 @@ def resolve_model_alias(value: str) -> str:
         "mistral small": "mistral",
         "mistral": "mistral",
         "devstral": "devstral",
-        "qwen": "qwen-122b",
+        "qwen": "qwen-big",
+        "qwen-big": "qwen-big",
+        "qwen big": "qwen-big",
+        "qwen-heavy": "qwen-big",
+        "qwen heavy": "qwen-big",
         "qwen122b": "qwen-122b",
         "qwen-122b": "qwen-122b",
         "qwen 122b": "qwen-122b",
@@ -889,6 +1484,23 @@ def resolve_model_alias(value: str) -> str:
         "gemma": "gemma",
         "gemma-4": "gemma",
         "gemma 4": "gemma",
+        "gemini": "gemini-flash",
+        "gemini-pro": "gemini-pro",
+        "gemini pro": "gemini-pro",
+        "gemini-3.1-pro": "gemini-pro",
+        "gemini 3.1 pro": "gemini-pro",
+        "gemini-3.1-pro-preview": "gemini-pro",
+        "gemini flash": "gemini-flash",
+        "gemini-flash": "gemini-flash",
+        "gemini-3-flash": "gemini-flash",
+        "gemini 3 flash": "gemini-flash",
+        "gemini-3-flash-preview": "gemini-flash",
+        "gemini lite": "gemini-lite",
+        "gemini-lite": "gemini-lite",
+        "gemini flash lite": "gemini-lite",
+        "gemini-3.1-flash-lite": "gemini-lite",
+        "gemini 3.1 flash lite": "gemini-lite",
+        "gemini-3.1-flash-lite-preview": "gemini-lite",
         "llama": "llama-70b",
         "llama-70b": "llama-70b",
         "llama 70b": "llama-70b",
@@ -899,12 +1511,121 @@ def resolve_model_alias(value: str) -> str:
     }
     alias = aliases.get(lowered)
     if alias:
-        return DEEPINFRA_MODEL_PROFILES[alias].model_id
+        return MODEL_PROFILES[alias].model_id
     return candidate
 
 
 def _resolve_router_blueprint(policy: str | None) -> RouterBlueprint:
     return ROUTER_BLUEPRINTS.get(str(policy or "").strip().lower(), ROUTER_BLUEPRINTS["balanced"])
+
+
+def _contains_any(text: str, terms: tuple[str, ...]) -> bool:
+    return any(term in text for term in terms)
+
+
+def _score_terms(text: str, terms: tuple[str, ...], *, weight: float = 1.0) -> float:
+    return sum(weight for term in terms if term in text)
+
+
+def _explicit_model_control_alias(text: str) -> str | None:
+    lowered = str(text or "").lower()
+    control_phrases = (
+        "respondeme con",
+        "responde con",
+        "respondeme usando",
+        "responde usando",
+        "usa ",
+        "usar ",
+        "usando ",
+        "cambia a",
+        "cambiar a",
+        "quiero que me responda",
+        "quiero que responda",
+        "modelo de",
+        "modelo ",
+        "/with ",
+    )
+    model_alias_terms: tuple[tuple[str, tuple[str, ...]], ...] = (
+        ("sonnet", ("sonnet", "claude")),
+        ("llama-vision", ("llama vision", "llama-vision", "vision", "screenshot", "imagen", "image")),
+        ("llama-70b", ("llama", "llama 70b", "llama-70b")),
+        ("gemma", ("gemma", "gemma 4", "gemma-4")),
+        ("gemini-pro", ("gemini pro", "gemini-3.1-pro", "gemini 3.1 pro", "gemini-3.1-pro-preview")),
+        ("gemini-lite", ("gemini lite", "gemini flash lite", "gemini-3.1-flash-lite", "gemini 3.1 flash lite")),
+        ("gemini-flash", ("gemini flash", "gemini-3-flash", "gemini 3 flash", "gemini-3-flash-preview", "gemini")),
+        ("code", ("qwen coder", "qwen-coder", "coder")),
+        ("qwen-big", ("qwen big", "qwen-heavy", "qwen", "qwen 122b", "qwen-122b")),
+        ("devstral", ("devstral",)),
+        ("mistral", ("mistral", "mistral small")),
+        ("engineering", ("glm", "glm-5.1", "glm 5.1")),
+        ("deep-reasoning", ("deepseek", "deepseek v3", "deepseek-v3")),
+    )
+    if not _contains_any(lowered, control_phrases):
+        if "tenes algun modelo" not in lowered and "tienes algun modelo" not in lowered:
+            return None
+    for alias, terms in model_alias_terms:
+        if _contains_any(lowered, terms):
+            return alias
+    return None
+
+
+def _profile_alias_for_model_id(model_id: str) -> str | None:
+    for alias, profile in MODEL_PROFILES.items():
+        if profile.model_id == model_id or alias == model_id:
+            return alias
+    return None
+
+
+def _manual_route_for_model(model_id: str, *, provider_name: str, policy: str) -> dict[str, Any]:
+    alias = _profile_alias_for_model_id(model_id)
+    profile = MODEL_PROFILES.get(alias or "")
+    fallback_chain = list(_fallback_aliases_for_alias(alias or ""))
+    route_provider = profile.provider if profile else provider_name
+    return {
+        "provider": route_provider,
+        "model": model_id,
+        "profile": alias or "manual",
+        "role": profile.role if profile else "manual",
+        "intent": "manual",
+        "confidence": 1.0,
+        "signals": ["manual_model"],
+        "policy": policy,
+        "blueprint": _resolve_router_blueprint(policy).name,
+        "blueprint_description": _resolve_router_blueprint(policy).description,
+        "intent_scores": {"manual": 1.0},
+        "top_intents": [["manual", 1.0]],
+        "ambiguity": False,
+        "ambiguity_resolver": "not_used",
+        "manual_model_alias": alias,
+        "fallback_chain": fallback_chain,
+        "reason": profile.notes if profile else "User-selected model for this action/session.",
+        "input_per_million": profile.input_per_million if profile else None,
+        "output_per_million": profile.output_per_million if profile else None,
+    }
+
+
+def _fallback_aliases_for_alias(alias: str) -> tuple[str, ...]:
+    if alias == "gemini-pro":
+        return ("gemini-flash", "gemini-lite")
+    if alias == "gemini-flash":
+        return ("gemini-lite",)
+    if alias == "qwen-big":
+        return ("qwen-122b", "default", "chat")
+    if alias == "qwen-122b":
+        return ("default", "chat")
+    if alias == "code":
+        return ("devstral", "qwen-big", "chat")
+    if alias == "engineering":
+        return ("code", "qwen-big", "devstral")
+    if alias == "sonnet":
+        return ("qwen-big", "deep-reasoning")
+    if alias == "gemma":
+        return ("qwen-big", "legacy-reasoning")
+    if alias == "research":
+        return ("qwen-big", "default", "chat")
+    if alias == "deep-reasoning":
+        return ("qwen-big", "gemma")
+    return ()
 
 
 def route_model_for_task(
@@ -923,26 +1644,21 @@ def route_model_for_task(
     blueprint = _resolve_router_blueprint(policy)
     policy = blueprint.name
     signals: list[str] = []
-    intent = "chat"
+    explicit_alias = _explicit_model_control_alias(lowered)
 
-    model_control_terms = (
-        "respondeme con",
-        "responde con",
-        "usa claude",
-        "usar claude",
-        "claude sonnet",
-        "sonnet",
-        "mistral",
-        "devstral",
-        "qwen",
-        "gemma",
-        "llama",
-        "vision",
-        "cambia a",
-        "cambiar a",
-        "modelo de",
-        "que modelo",
-        "modelos",
+    helix_terms = (
+        "helix",
+        "merkle",
+        "dag",
+        "receipt",
+        "receipts",
+        "memoria firmada",
+        "evidencia certificada",
+        "verification",
+        "/verify",
+        "corridas",
+        "artifact",
+        "artefacto",
     )
     research_terms = (
         "busca",
@@ -960,11 +1676,61 @@ def route_model_for_task(
         "source",
         "sources",
         "web",
+        "modelos nuevos",
+        "llms",
+        "deepinfra",
     )
-
+    web_terms = (
+        "busca en la web",
+        "buscar en la web",
+        "buscame en la web",
+        "google",
+        "googlea",
+        "internet",
+        "online",
+        "latest",
+        "noticias",
+        "news",
+        "reciente",
+        "actual",
+        "fuentes",
+        "links",
+        "sources",
+    )
+    suite_terms = (
+        "/verify",
+        "verify",
+        "suite",
+        "suites",
+        "corrida",
+        "corridas",
+        "artifact",
+        "artefacto",
+        "artifacts",
+        "manifest",
+        "manifests",
+        "transcript",
+        "transcripts",
+        "jsonl",
+        "preregistered",
+        "preregistro",
+        "resultados",
+        "experimentos",
+        "verification",
+        "post nuclear",
+        "post-nuclear",
+        "long horizon",
+        "hard anchor",
+        "hard-anchor",
+        "branch pruning",
+        "policy rag",
+        "poliza",
+        "póliza",
+    )
     code_terms = (
         "code",
         "codigo",
+        "código",
         "bug",
         "fix",
         "patch",
@@ -984,6 +1750,35 @@ def route_model_for_task(
         "archivo",
         "commit",
     )
+    agentic_code_terms = (
+        "claude code",
+        "codex",
+        "agentic",
+        "agente",
+        "agent",
+        "workspace",
+        "multi-archivo",
+        "multi archivo",
+        "multi-file",
+        "multiarchivo",
+        "implementa",
+        "implementalo",
+        "refactoriza",
+        "refactorizalo",
+        "arregla",
+        "arreglalo",
+        "hacelo",
+        "lee el repo",
+        "fijate el repo",
+        "mira el repo",
+        "revisa el repo",
+        "corré tests",
+        "corre tests",
+        "ejecuta tests",
+        "terminal",
+        "tool",
+        "tools",
+    )
     audit_terms = (
         "auditor",
         "audit",
@@ -1002,40 +1797,28 @@ def route_model_for_task(
         "riesgo",
         "risk",
     )
-    hard_agent_terms = (
-        "claude code",
-        "codex",
-        "workspace",
-        "multi-archivo",
-        "multi archivo",
-        "multi-file",
-        "largo plazo",
-        "long horizon",
-        "arquitectura",
-        "architecture",
-        "terminal",
-        "tools",
-        "tool",
-        "planifica",
-        "orquesta",
-        "suite",
-    )
     reasoning_terms = (
         "razona",
         "reason",
         "matematica",
+        "matemática",
         "prueba",
         "proof",
         "hipotesis",
+        "hipótesis",
         "analiza",
         "desglosa",
         "compar",
         "tradeoff",
+        "arquitectura",
+        "architecture",
+        "metodologia",
+        "metodología",
     )
     vision_terms = (
         "imagen",
         "imagenes",
-        "imagenes",
+        "imágenes",
         "image",
         "images",
         "foto",
@@ -1053,36 +1836,113 @@ def route_model_for_task(
         "diagrama",
         "diagram",
     )
+    long_task_terms = (
+        "largo plazo",
+        "long horizon",
+        "planifica",
+        "orquesta",
+        "suite",
+        "serie de test",
+        "plan de implementacion",
+    )
 
-    if any(term in lowered for term in audit_terms):
-        signals.append("audit_or_high_stakes")
-    if any(term in lowered for term in hard_agent_terms):
-        signals.append("agentic_or_long_horizon")
-    if any(term in lowered for term in code_terms):
-        signals.append("code_or_repo")
-    if any(term in lowered for term in reasoning_terms):
-        signals.append("reasoning")
-    if any(term in lowered for term in research_terms):
-        signals.append("research")
-    if any(term in lowered for term in vision_terms):
-        signals.append("vision")
-    if any(term in lowered for term in model_control_terms):
+    scores: dict[str, float] = {
+        "chat": 1.0,
+        "helix_self": _score_terms(lowered, helix_terms, weight=1.5),
+        "suite_forensics": _score_terms(lowered, suite_terms, weight=1.7),
+        "research": _score_terms(lowered, research_terms, weight=1.6),
+        "web_research": _score_terms(lowered, web_terms, weight=1.9),
+        "code": _score_terms(lowered, code_terms, weight=1.4),
+        "agentic_code": _score_terms(lowered, agentic_code_terms, weight=1.6),
+        "audit": _score_terms(lowered, audit_terms, weight=1.8),
+        "reasoning": _score_terms(lowered, reasoning_terms, weight=1.3),
+        "vision": _score_terms(lowered, vision_terms, weight=2.0),
+        "agentic": _score_terms(lowered, long_task_terms, weight=1.4),
+    }
+    if explicit_alias:
+        scores["model_control"] = 10.0
         signals.append("model_control")
     if len(text) > 1200:
+        scores["agentic"] += 1.2
+        scores["reasoning"] += 0.8
         signals.append("long_prompt")
+    if scores["agentic_code"] and scores["code"]:
+        scores["agentic_code"] += 2.0
+    if scores["audit"] and scores["code"]:
+        scores["audit"] += 0.5
+    if scores["helix_self"] and scores["audit"]:
+        scores["audit"] += 0.6
+    if scores["research"] and "modelos" in lowered and "nuevo" in lowered:
+        scores["research"] += 1.5
+    if _is_web_search_request(lowered):
+        scores["web_research"] += 5.0
+        scores["research"] += 1.0
+    if scores["suite_forensics"] and scores["audit"]:
+        scores["suite_forensics"] += 0.8
 
-    if "model_control" in signals:
-        intent = "model_control"
-    elif "vision" in signals:
-        intent = "vision"
-    elif "research" in signals:
-        intent = "research"
-    elif "code_or_repo" in signals:
-        intent = "code"
-    elif "audit_or_high_stakes" in signals:
-        intent = "audit"
-    elif "reasoning" in signals or "agentic_or_long_horizon" in signals:
-        intent = "reasoning"
+    if scores["audit"]:
+        signals.append("audit_or_high_stakes")
+    if scores["suite_forensics"]:
+        signals.append("suite_forensics")
+    if scores["agentic_code"] or scores["agentic"]:
+        signals.append("agentic_or_long_horizon")
+    if scores["code"]:
+        signals.append("code_or_repo")
+    if scores["reasoning"]:
+        signals.append("reasoning")
+    if scores["research"]:
+        signals.append("research")
+    if scores["web_research"]:
+        signals.append("web_research")
+    if scores["vision"]:
+        signals.append("vision")
+    if scores["helix_self"]:
+        signals.append("helix_self")
+
+    priority = {
+        "model_control": 100,
+        "vision": 90,
+        "audit": 80,
+        "agentic_code": 76,
+        "code": 70,
+        "suite_forensics": 66,
+        "helix_self": 62,
+        "web_research": 61,
+        "research": 60,
+        "agentic": 55,
+        "reasoning": 50,
+        "chat": 0,
+    }
+    ranked = sorted(scores.items(), key=lambda item: (item[1], priority.get(item[0], 0)), reverse=True)
+    intent, top_score = ranked[0]
+    second_intent, second_score = ranked[1] if len(ranked) > 1 else ("none", 0.0)
+    if top_score <= 1.0:
+        intent = "chat"
+    ambiguity = bool(top_score > 1.0 and second_score > 1.0 and (top_score - second_score) <= 1.25)
+
+    if intent == "model_control" and explicit_alias and explicit_alias in MODEL_PROFILES:
+        profile = MODEL_PROFILES[explicit_alias]
+        return {
+            "provider": profile.provider,
+            "model": profile.model_id,
+            "profile": explicit_alias,
+            "role": profile.role,
+            "intent": intent,
+            "confidence": 0.97,
+            "signals": sorted(set(signals)),
+            "policy": policy,
+            "blueprint": blueprint.name,
+            "blueprint_description": blueprint.description,
+            "intent_scores": {key: round(value, 4) for key, value in scores.items() if value > 0},
+            "top_intents": [[name, round(score, 4)] for name, score in ranked[:3]],
+            "ambiguity": False,
+            "ambiguity_resolver": "explicit_model_alias",
+            "manual_model_alias": explicit_alias,
+            "fallback_chain": list(_fallback_aliases_for_alias(explicit_alias)),
+            "reason": profile.notes,
+            "input_per_million": profile.input_per_million,
+            "output_per_million": profile.output_per_million,
+        }
 
     if provider_name != "deepinfra":
         return {
@@ -1095,55 +1955,57 @@ def route_model_for_task(
             "policy": policy,
             "blueprint": blueprint.name,
             "blueprint_description": blueprint.description,
+            "intent_scores": scores,
+            "top_intents": ranked[:3],
+            "ambiguity": ambiguity,
+            "ambiguity_resolver": "not_used",
             "reason": "non-DeepInfra providers currently keep their configured/default model",
         }
 
-    if "model_control" in signals and ("sonnet" in lowered or "claude" in lowered):
-        alias = "sonnet"
-    elif "model_control" in signals and any(term in lowered for term in ("vision", "screenshot", "image", "imagen", "foto")):
-        alias = "llama-vision"
-    elif "model_control" in signals and ("llama" in lowered and any(term in lowered for term in ("70b", "3.3"))):
-        alias = "llama-70b"
-    elif "model_control" in signals and "llama" in lowered:
-        alias = "llama-70b"
-    elif "model_control" in signals and "gemma" in lowered:
-        alias = "gemma"
-    elif "model_control" in signals and ("qwen" in lowered and any(term in lowered for term in ("coder", "code"))):
-        alias = "code"
-    elif "model_control" in signals and "qwen" in lowered:
-        alias = "qwen-122b"
-    elif "model_control" in signals and "devstral" in lowered:
-        alias = "devstral"
-    elif "model_control" in signals and "mistral" in lowered:
-        alias = "mistral"
+    if intent == "model_control" and explicit_alias:
+        alias = explicit_alias
     else:
-        if "vision" in signals:
+        if intent == "vision":
             alias = blueprint.vision_alias
-        elif "audit_or_high_stakes" in signals and ("agentic_or_long_horizon" in signals or "reasoning" in signals):
+        elif intent == "audit":
             alias = blueprint.audit_alias
-        elif "audit_or_high_stakes" in signals:
-            alias = blueprint.audit_alias
-        elif "code_or_repo" in signals:
+        elif intent == "agentic_code":
             alias = blueprint.code_alias
-        elif "research" in signals:
+        elif intent == "code":
+            alias = blueprint.code_alias
+        elif intent in {"helix_self", "suite_forensics"}:
             alias = blueprint.research_alias
-        elif "reasoning" in signals or "agentic_or_long_horizon" in signals:
-            alias = blueprint.reasoning_alias if "reasoning" in signals else blueprint.agentic_alias
+        elif intent in {"research", "web_research"}:
+            alias = blueprint.research_alias
+        elif intent == "agentic":
+            alias = blueprint.agentic_alias
+        elif intent == "reasoning":
+            alias = blueprint.reasoning_alias
         else:
             alias = blueprint.chat_alias or blueprint.default_alias
 
     profile = DEEPINFRA_MODEL_PROFILES[alias]
+    fallback_chain = list(_fallback_aliases_for_alias(alias))
+    confidence = 0.45 if not signals else min(0.97, 0.62 + max(0.0, top_score - second_score) * 0.07 + top_score * 0.03)
+    if ambiguity:
+        confidence = min(confidence, 0.68)
     return {
         "provider": "deepinfra",
         "model": profile.model_id,
         "profile": alias,
         "role": profile.role,
         "intent": intent,
-        "confidence": 0.85 if signals else 0.45,
-        "signals": signals,
+        "confidence": round(confidence, 4),
+        "signals": sorted(set(signals)),
         "policy": policy,
         "blueprint": blueprint.name,
         "blueprint_description": blueprint.description,
+        "intent_scores": {key: round(value, 4) for key, value in scores.items() if value > 0},
+        "top_intents": [[name, round(score, 4)] for name, score in ranked[:3]],
+        "ambiguity": ambiguity,
+        "ambiguity_resolver": "deterministic_scoring",
+        "manual_model_alias": explicit_alias if intent == "model_control" else None,
+        "fallback_chain": fallback_chain,
         "reason": profile.notes,
         "input_per_million": profile.input_per_million,
         "output_per_million": profile.output_per_million,
@@ -1164,6 +2026,122 @@ def _json_ready(value: Any) -> Any:
 
 def _print_json(payload: Any) -> None:
     print(json.dumps(_json_ready(payload), indent=2, ensure_ascii=False))
+
+
+def _print_table(rows: list[dict[str, Any]], columns: list[tuple[str, str, int]]) -> None:
+    if not rows:
+        print("(empty)")
+        return
+    header = "  ".join(label.ljust(width) for _key, label, width in columns)
+    print(header.rstrip())
+    print("  ".join("-" * width for _key, _label, width in columns).rstrip())
+    for row in rows:
+        cells = []
+        for key, _label, width in columns:
+            value = str(row.get(key, "") if row.get(key, "") is not None else "")
+            value = value.replace("\n", " ")
+            if len(value) > width:
+                value = value[: max(0, width - 1)] + "…"
+            cells.append(value.ljust(width))
+        print("  ".join(cells).rstrip())
+
+
+def _compact_model_rows() -> list[dict[str, Any]]:
+    return [
+        {
+            "alias": item["alias"],
+            "provider": item["provider"],
+            "role": item["role"],
+            "model": _short_model_name(item["model_id"]),
+            "cost": (
+                f"{item['input_per_million']}/{item['output_per_million']}"
+                if item.get("input_per_million") is not None and item.get("output_per_million") is not None
+                else "n/a"
+            ),
+            "use": item["notes"],
+        }
+        for item in model_profiles_report()
+    ]
+
+
+def _print_models_compact() -> None:
+    _print_table(
+        _compact_model_rows(),
+        [
+            ("alias", "alias", 18),
+            ("provider", "provider", 10),
+            ("role", "role", 18),
+            ("model", "model", 34),
+            ("cost", "$/M in/out", 12),
+            ("use", "use", 58),
+        ],
+    )
+    print("\nUse /model use ALIAS to pin one model, /model auto to restore routing, /models json for full metadata.")
+
+
+def _print_tools_compact(report: dict[str, Any]) -> None:
+    rows = [
+        {
+            "name": item.get("name"),
+            "kind": item.get("kind") or item.get("safety") or "runtime",
+            "description": item.get("description"),
+        }
+        for item in report.get("tools", [])
+    ]
+    _print_table(rows, [("name", "tool", 24), ("kind", "kind", 16), ("description", "description", 82)])
+    print("\nUse /tools blueprints for agentic toolsets, /tools json for full registry.")
+
+
+def _print_agent_blueprints_compact() -> None:
+    rows = [
+        {
+            "blueprint": item["blueprint_id"],
+            "model": item["preferred_model_alias"],
+            "steps": item["max_steps"],
+            "tools": ", ".join(item["allowed_tools"][:4]) + ("..." if len(item["allowed_tools"]) > 4 else ""),
+            "description": item["description"],
+        }
+        for item in agent_blueprints_report()
+    ]
+    _print_table(
+        rows,
+        [
+            ("blueprint", "blueprint", 24),
+            ("model", "model", 12),
+            ("steps", "steps", 5),
+            ("tools", "tools", 44),
+            ("description", "description", 62),
+        ],
+    )
+
+
+def _print_suites_compact(payload: dict[str, Any]) -> None:
+    rows = []
+    for suite in payload.get("suites", []):
+        counts = suite.get("counts") or {}
+        latest = suite.get("latest") or {}
+        rows.append(
+            {
+                "suite": suite.get("suite_id"),
+                "registered": "yes" if suite.get("registered") else "no",
+                "artifacts": counts.get("artifact", 0),
+                "transcripts": counts.get("transcript_jsonl", 0) + counts.get("transcript_md", 0),
+                "latest": latest.get("updated_utc") or "",
+                "description": suite.get("description") or "",
+            }
+        )
+    _print_table(
+        rows,
+        [
+            ("suite", "suite", 34),
+            ("registered", "reg", 4),
+            ("artifacts", "json", 5),
+            ("transcripts", "tx", 4),
+            ("latest", "latest utc", 22),
+            ("description", "description", 60),
+        ],
+    )
+    print("\nUse /suite latest SUITE, /suite transcripts SUITE, /suite search QUERY, /suites json.")
 
 
 def _utc_now() -> str:
@@ -1250,6 +2228,88 @@ def _get_json(
     if not isinstance(parsed, dict):
         raise ValueError("endpoint response root must be a JSON object")
     return parsed
+
+
+def _fetch_text_url(url: str, *, timeout: float = 8.0, max_bytes: int = 1_000_000) -> tuple[str, str]:
+    req = request.Request(
+        url,
+        method="GET",
+        headers={
+            "User-Agent": "HeliX-CLI/5.4 (+local research tool)",
+            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,text/plain;q=0.8,*/*;q=0.7",
+        },
+    )
+    with request.urlopen(req, timeout=timeout) as response:  # noqa: S310 - user-requested web retrieval
+        content_type = response.headers.get("content-type", "")
+        data = response.read(max_bytes + 1)
+    return data[:max_bytes].decode("utf-8", errors="replace"), content_type
+
+
+def _strip_html(text: str) -> str:
+    cleaned = re.sub(r"(?is)<(script|style|noscript)\b[^>]*>.*?</\1>", " ", str(text or ""))
+    cleaned = re.sub(r"(?s)<[^>]+>", " ", cleaned)
+    cleaned = html.unescape(cleaned)
+    return re.sub(r"\s+", " ", cleaned).strip()
+
+
+def web_search(query: str, *, limit: int = 5, timeout: float = 8.0) -> dict[str, Any]:
+    query = str(query or "").strip()
+    if not query:
+        return {"status": "error", "error": "query is required", "results": []}
+    limit = _safe_int(limit, 5, minimum=1, maximum=10)
+    url = "https://duckduckgo.com/html/?" + urlparse.urlencode({"q": query})
+    try:
+        body, content_type = _fetch_text_url(url, timeout=timeout)
+    except Exception as exc:  # noqa: BLE001
+        return {"status": "error", "query": query, "error": f"{type(exc).__name__}: {exc}", "results": []}
+    results: list[dict[str, Any]] = []
+    for match in re.finditer(r'(?is)<a[^>]+class="result__a"[^>]+href="([^"]+)"[^>]*>(.*?)</a>', body):
+        href = html.unescape(match.group(1))
+        title = _strip_html(match.group(2))
+        parsed = urlparse.urlparse(href)
+        if parsed.path == "/l/":
+            params = urlparse.parse_qs(parsed.query)
+            href = params.get("uddg", [href])[0]
+        snippet = ""
+        tail = body[match.end(): match.end() + 1800]
+        snippet_match = re.search(r'(?is)<a[^>]+class="result__snippet"[^>]*>(.*?)</a>|<div[^>]+class="result__snippet"[^>]*>(.*?)</div>', tail)
+        if snippet_match:
+            snippet = _strip_html(snippet_match.group(1) or snippet_match.group(2) or "")
+        if title and href:
+            results.append({"title": title, "url": href, "snippet": snippet})
+        if len(results) >= limit:
+            break
+    return {
+        "status": "ok" if results else "empty",
+        "query": query,
+        "source": "duckduckgo-html",
+        "content_type": content_type,
+        "result_count": len(results),
+        "results": results,
+    }
+
+
+def web_read(url: str, *, max_chars: int = 8000, timeout: float = 8.0) -> dict[str, Any]:
+    raw = str(url or "").strip()
+    if not raw:
+        return {"status": "error", "error": "url is required"}
+    parsed = urlparse.urlparse(raw)
+    if parsed.scheme not in {"http", "https"}:
+        return {"status": "blocked", "error": "only http/https URLs can be read", "url": raw}
+    max_chars = _safe_int(max_chars, 8000, minimum=1000, maximum=30000)
+    try:
+        body, content_type = _fetch_text_url(raw, timeout=timeout, max_bytes=max_chars * 4)
+    except Exception as exc:  # noqa: BLE001
+        return {"status": "error", "url": raw, "error": f"{type(exc).__name__}: {exc}"}
+    text = _strip_html(body) if "html" in content_type.lower() or "<html" in body[:500].lower() else body
+    return {
+        "status": "ok",
+        "url": raw,
+        "content_type": content_type,
+        "chars": len(text),
+        "truncated": len(text) > max_chars,
+        "content": text[:max_chars],
+    }
 
 
 def _openai_compatible_chat(
@@ -1360,6 +2420,76 @@ def _anthropic_chat(
     }
 
 
+def _gemini_chat(
+    provider: ProviderSpec,
+    *,
+    model: str,
+    messages: list[dict[str, str]],
+    token: str,
+    max_tokens: int,
+    temperature: float,
+    timeout: float,
+    base_url: str | None = None,
+) -> dict[str, Any]:
+    system_parts = [str(item.get("content") or "") for item in messages if item.get("role") == "system"]
+    contents: list[dict[str, Any]] = []
+    for item in messages:
+        role = item.get("role")
+        content = str(item.get("content") or "")
+        if not content or role == "system":
+            continue
+        gemini_role = "model" if role == "assistant" else "user"
+        contents.append({"role": gemini_role, "parts": [{"text": content}]})
+    if not contents:
+        contents.append({"role": "user", "parts": [{"text": ""}]})
+
+    payload: dict[str, Any] = {
+        "contents": contents,
+        "generationConfig": {
+            "maxOutputTokens": max_tokens,
+            "temperature": temperature,
+        },
+    }
+    if system_parts:
+        payload["systemInstruction"] = {"parts": [{"text": "\n\n".join(system_parts)}]}
+
+    started = time.perf_counter()
+    try:
+        response = _post_json(
+            f"{(base_url or provider.base_url or '').rstrip('/')}/models/{model}:generateContent",
+            payload,
+            headers={
+                "Content-Type": "application/json",
+                "x-goog-api-key": token,
+            },
+            timeout=timeout,
+        )
+    except Exception as exc:
+        raise RuntimeError(f"API Error ({provider.name}): {exc}") from exc
+
+    if "error" in response:
+        error_msg = response["error"].get("message", str(response["error"])) if isinstance(response["error"], dict) else str(response["error"])
+        raise RuntimeError(f"Provider Error ({provider.name}): {error_msg}")
+
+    latency_ms = (time.perf_counter() - started) * 1000
+    candidate = dict((response.get("candidates") or [{}])[0] or {})
+    content = candidate.get("content") if isinstance(candidate.get("content"), dict) else {}
+    parts = content.get("parts") if isinstance(content.get("parts"), list) else []
+    text = "".join(str(part.get("text") or "") for part in parts if isinstance(part, dict)).strip()
+    if not text:
+        raise RuntimeError(f"Provider returned empty content. Raw response: {json.dumps(response)}")
+    return {
+        "provider": provider.name,
+        "requested_model": model,
+        "actual_model": response.get("modelVersion") or model,
+        "text": text,
+        "finish_reason": candidate.get("finishReason"),
+        "usage": response.get("usageMetadata"),
+        "latency_ms": latency_ms,
+        "raw": response,
+    }
+
+
 def run_chat(
     *,
     provider_name: str,
@@ -1423,6 +2553,17 @@ def run_chat(
             temperature=temperature,
             timeout=timeout,
         )
+    if provider.kind == "gemini":
+        return _gemini_chat(
+            provider,
+            model=selected_model,
+            messages=messages,
+            token=str(token),
+            max_tokens=max_tokens,
+            temperature=temperature,
+            timeout=timeout,
+            base_url=base_url,
+        )
     return _openai_compatible_chat(
         provider,
         model=selected_model,
@@ -1433,6 +2574,55 @@ def run_chat(
         timeout=timeout,
         base_url=base_url,
     )
+
+
+def _fallback_model_ids_for_route(
+    route: dict[str, Any] | None,
+    *,
+    primary_model: str | None,
+    agent_blueprint: AgentBlueprint | None = None,
+) -> list[str]:
+    aliases: list[str] = []
+    if agent_blueprint is not None:
+        aliases.extend(agent_blueprint.fallback_aliases)
+    aliases.extend(str(item) for item in ((route or {}).get("fallback_chain") or []))
+    models: list[str] = []
+    seen = {str(primary_model or "")}
+    for alias in aliases:
+        try:
+            model_id = resolve_model_alias(alias)
+        except Exception:
+            continue
+        if model_id and model_id not in seen and model_id.lower() not in {"auto", "router:auto"}:
+            models.append(model_id)
+            seen.add(model_id)
+    return models
+
+
+def run_chat_with_failover(
+    *,
+    provider_name: str,
+    model: str | None,
+    fallback_models: list[str] | None = None,
+    **kwargs: Any,
+) -> dict[str, Any]:
+    attempts: list[dict[str, Any]] = []
+    ordered_models = [model, *(fallback_models or [])]
+    last_error: Exception | None = None
+    for candidate in ordered_models:
+        try:
+            result = run_chat(provider_name=provider_name, model=candidate, **kwargs)
+        except Exception as exc:  # noqa: BLE001
+            attempts.append({"model": candidate, "error_type": type(exc).__name__, "error": str(exc)})
+            last_error = exc
+            continue
+        result["failover_attempts"] = attempts
+        result["failover_used"] = bool(attempts)
+        result["selected_model_after_failover"] = result.get("actual_model") or candidate
+        return result
+    summary = "; ".join(f"{item.get('model')}: {item.get('error_type')}" for item in attempts[-4:])
+    last_message = str(last_error) if last_error else "unknown provider error"
+    raise RuntimeError(f"all model attempts failed ({summary}): {last_message}") from last_error
 
 
 def _memory_receipt_for(root: Path | None, memory_id: str | None) -> dict[str, Any] | None:
@@ -1513,6 +2703,262 @@ def _is_safe_readonly_command(tokens: list[str]) -> bool:
     if first in {"cargo", "cargo.exe"} and second == "test":
         return True
     return False
+
+
+class SuiteEvidenceCatalog:
+    """Read-only index over verification suites, artifacts, manifests and transcripts."""
+
+    TEXT_SUFFIXES = {".json", ".jsonl", ".md", ".log", ".txt"}
+
+    def __init__(self, *, evidence_root: Path) -> None:
+        self.evidence_root = Path(evidence_root).resolve()
+        self.nuclear_root = self.evidence_root / "nuclear-methodology"
+
+    def _base_root(self) -> Path:
+        return self.nuclear_root if self.nuclear_root.exists() else self.evidence_root
+
+    def _suite_dirs(self) -> list[Path]:
+        root = self._base_root()
+        if not root.exists():
+            return []
+        return [
+            path
+            for path in sorted(root.iterdir())
+            if path.is_dir() and not path.name.startswith("_") and not path.name.startswith(".")
+        ]
+
+    def _suite_dir(self, suite_id: str) -> Path | None:
+        wanted = _slugish(suite_id)
+        for path in self._suite_dirs():
+            if _slugish(path.name) == wanted:
+                return path
+        return None
+
+    def _kind_for(self, path: Path) -> str:
+        name = path.name.lower()
+        suffix = path.suffix.lower()
+        if name == "preregistered.md":
+            return "preregistered"
+        if suffix == ".log":
+            return "log"
+        if suffix == ".jsonl":
+            return "transcript_jsonl" if "transcript" in name else "jsonl"
+        if suffix == ".md":
+            return "transcript_md" if "transcript" in name else "markdown"
+        if suffix == ".json":
+            if name.endswith("-run.json"):
+                return "manifest"
+            if "integrity-correction" in name:
+                return "integrity_correction"
+            return "artifact"
+        return "other"
+
+    def _iter_suite_files(self, suite_dir: Path, *, limit: int = 2000) -> list[Path]:
+        files: list[Path] = []
+        for current, dirs, names in os.walk(suite_dir):
+            dirs[:] = [name for name in sorted(dirs) if not name.startswith("_") and not name.startswith(".")]
+            for name in sorted(names):
+                path = Path(current) / name
+                if path.suffix.lower() not in self.TEXT_SUFFIXES:
+                    continue
+                files.append(path)
+                if len(files) >= limit:
+                    return files
+        return files
+
+    def _rel(self, path: Path) -> str:
+        try:
+            return str(path.resolve().relative_to(REPO_ROOT))
+        except Exception:
+            return str(path)
+
+    def _timestamp_from_name(self, path: Path) -> str | None:
+        match = re.search(r"(20\d{6}[-_]\d{6}|20\d{6}[-_]\d{2})", path.name)
+        return match.group(1).replace("_", "-") if match else None
+
+    def _json_summary(self, path: Path) -> dict[str, Any]:
+        if path.suffix.lower() != ".json" or path.stat().st_size > 2_000_000:
+            return {}
+        try:
+            payload = json.loads(path.read_text(encoding="utf-8", errors="replace"))
+        except Exception:
+            return {}
+        if not isinstance(payload, dict):
+            return {}
+        return {
+            "run_id": payload.get("run_id"),
+            "case_id": payload.get("case_id"),
+            "status": payload.get("status"),
+            "score": payload.get("score"),
+            "case_count": payload.get("case_count"),
+            "artifact_payload_sha256": payload.get("artifact_payload_sha256"),
+            "transcript_exports": payload.get("transcript_exports"),
+        }
+
+    def _record_for(self, suite_dir: Path, path: Path) -> dict[str, Any]:
+        summary = self._json_summary(path)
+        try:
+            rel_case = path.parent.resolve().relative_to(suite_dir.resolve())
+            case_id = None if str(rel_case) == "." else str(rel_case).replace("\\", "/")
+        except Exception:
+            case_id = None
+        return {
+            "suite_id": suite_dir.name,
+            "case_id": summary.get("case_id") or case_id,
+            "kind": self._kind_for(path),
+            "path": self._rel(path),
+            "name": path.name,
+            "bytes": path.stat().st_size,
+            "updated_utc": datetime.fromtimestamp(path.stat().st_mtime, timezone.utc).isoformat(timespec="seconds").replace("+00:00", "Z"),
+            "run_id": summary.get("run_id") or self._timestamp_from_name(path),
+            "status": summary.get("status"),
+            "score": summary.get("score"),
+            "case_count": summary.get("case_count"),
+            "artifact_payload_sha256": summary.get("artifact_payload_sha256"),
+            "transcript_exports": summary.get("transcript_exports"),
+        }
+
+    def list_suites(self) -> dict[str, Any]:
+        suites = []
+        for suite_dir in self._suite_dirs():
+            files = self._iter_suite_files(suite_dir)
+            counts: dict[str, int] = {}
+            records = [self._record_for(suite_dir, path) for path in files]
+            for record in records:
+                counts[record["kind"]] = counts.get(record["kind"], 0) + 1
+            latest_records = sorted(records, key=lambda item: str(item.get("updated_utc") or ""), reverse=True)
+            spec = SUITES.get(suite_dir.name)
+            suites.append(
+                {
+                    "suite_id": suite_dir.name,
+                    "path": self._rel(suite_dir),
+                    "registered": bool(spec),
+                    "script": spec.script if spec else None,
+                    "description": spec.description if spec else None,
+                    "preregistered_path": self._rel(suite_dir / "PREREGISTERED.md") if (suite_dir / "PREREGISTERED.md").exists() else None,
+                    "counts": counts,
+                    "latest": latest_records[0] if latest_records else None,
+                }
+            )
+        return {"evidence_root": str(self.evidence_root), "suite_count": len(suites), "suites": suites}
+
+    def show_suite(self, suite_id: str, *, limit: int = 12) -> dict[str, Any]:
+        suite_dir = self._suite_dir(suite_id)
+        if suite_dir is None:
+            return {"status": "not_found", "suite_id": suite_id, "suites": [path.name for path in self._suite_dirs()]}
+        records = [self._record_for(suite_dir, path) for path in self._iter_suite_files(suite_dir)]
+        records.sort(key=lambda item: str(item.get("updated_utc") or ""), reverse=True)
+        counts: dict[str, int] = {}
+        for record in records:
+            counts[record["kind"]] = counts.get(record["kind"], 0) + 1
+        return {
+            "status": "ok",
+            "suite_id": suite_dir.name,
+            "path": self._rel(suite_dir),
+            "preregistered_path": self._rel(suite_dir / "PREREGISTERED.md") if (suite_dir / "PREREGISTERED.md").exists() else None,
+            "counts": counts,
+            "latest_records": records[:limit],
+        }
+
+    def latest(self, suite_id: str) -> dict[str, Any]:
+        payload = self.show_suite(suite_id, limit=50)
+        if payload.get("status") != "ok":
+            return payload
+        records = list(payload.get("latest_records") or [])
+        artifacts = [item for item in records if item.get("kind") == "artifact"]
+        manifests = [item for item in records if item.get("kind") == "manifest"]
+        transcripts = [item for item in records if str(item.get("kind", "")).startswith("transcript")]
+        return {
+            "status": "ok",
+            "suite_id": payload.get("suite_id"),
+            "artifact": artifacts[0] if artifacts else None,
+            "manifest": manifests[0] if manifests else None,
+            "transcripts": transcripts[:10],
+            "preregistered_path": payload.get("preregistered_path"),
+            "counts": payload.get("counts"),
+        }
+
+    def transcripts(self, suite_id: str, *, query: str | None = None, limit: int = 30) -> dict[str, Any]:
+        payload = self.show_suite(suite_id, limit=500)
+        if payload.get("status") != "ok":
+            return payload
+        query_l = str(query or "").lower().strip()
+        rows = [
+            item
+            for item in payload.get("latest_records", [])
+            if str(item.get("kind", "")).startswith("transcript")
+        ]
+        if query_l:
+            rows = [item for item in rows if query_l in str(item.get("path", "")).lower() or query_l in str(item.get("case_id", "")).lower()]
+        return {"status": "ok", "suite_id": payload.get("suite_id"), "transcript_count": len(rows), "transcripts": rows[:limit]}
+
+    def search(self, query: str, *, limit: int = 12) -> dict[str, Any]:
+        query_l = str(query or "").lower().strip()
+        if not query_l:
+            return {"status": "error", "error": "query is required", "results": []}
+        results: list[dict[str, Any]] = []
+        for suite_dir in self._suite_dirs():
+            for path in self._iter_suite_files(suite_dir, limit=2500):
+                haystacks = [path.name.lower(), self._rel(path).lower()]
+                snippet = ""
+                if path.stat().st_size <= 1_000_000:
+                    try:
+                        text = path.read_text(encoding="utf-8", errors="replace")
+                    except Exception:
+                        text = ""
+                    lowered_text = text.lower()
+                    if query_l in lowered_text:
+                        idx = lowered_text.find(query_l)
+                        snippet = text[max(0, idx - 160): idx + 360].replace("\n", " ")
+                        haystacks.append(lowered_text)
+                if any(query_l in item for item in haystacks):
+                    record = self._record_for(suite_dir, path)
+                    record["snippet"] = snippet
+                    results.append(record)
+                    if len(results) >= limit:
+                        return {"status": "ok", "query": query, "result_count": len(results), "results": results}
+        return {"status": "ok", "query": query, "result_count": len(results), "results": results}
+
+    def read(self, ref: str, *, max_bytes: int = 16000) -> dict[str, Any]:
+        raw = str(ref or "").strip().strip('"')
+        if not raw:
+            return {"status": "error", "error": "path or artifact reference is required"}
+        candidate = Path(raw)
+        if candidate.is_absolute():
+            path = candidate.resolve()
+        else:
+            repo_candidate = (REPO_ROOT / candidate).resolve()
+            evidence_candidate = (self._base_root() / candidate).resolve()
+            if repo_candidate.exists():
+                path = repo_candidate
+            elif evidence_candidate.exists():
+                path = evidence_candidate
+            else:
+                matches = self.search(raw, limit=2).get("results", [])
+                if matches:
+                    path = (REPO_ROOT / str(matches[0]["path"])).resolve()
+                else:
+                    return {"status": "not_found", "ref": raw}
+        try:
+            path.relative_to(REPO_ROOT.resolve())
+        except ValueError:
+            try:
+                path.relative_to(self.evidence_root)
+            except ValueError:
+                return {"status": "blocked", "error": "path escapes repository/evidence root", "path": str(path)}
+        if not path.exists() or not path.is_file():
+            return {"status": "not_found", "path": str(path)}
+        max_bytes = _safe_int(max_bytes, 16000, minimum=512, maximum=60000)
+        data = path.read_bytes()
+        clipped = data[:max_bytes]
+        return {
+            "status": "ok",
+            "path": self._rel(path),
+            "kind": self._kind_for(path),
+            "bytes": len(data),
+            "truncated": len(data) > max_bytes,
+            "content": clipped.decode("utf-8", errors="replace"),
+        }
 
 
 class ReadOnlyAgentTools:
@@ -1802,6 +3248,22 @@ def _agent_observation_prompt(
     ]
     if mode == "chat":
         instructions.append("Prefer a direct, user-facing answer over a process recap.")
+    if _looks_like_pasted_suite_evidence(goal):
+        instructions.append(
+            "The user pasted suite output/logs. Explain the pasted failure or suite rows directly. If stderr shows a traceback, identify the failing file/function, root error, and likely next action. Do not suggest rerunning as if the pasted block were a run request."
+        )
+    if any(str(item.get("tool") or "") in {"web.search", "web.read"} for item in observations):
+        instructions.append(
+            "For web observations, cite the result URLs/titles you used and distinguish current sourced facts from your inference."
+        )
+    if any(str(item.get("tool") or "") == "memory.resolve" for item in observations):
+        instructions.append(
+            "For memory.resolve observations, answer only from the resolved content. If it is not_found or ambiguous, say that directly. Do not recreate, paraphrase as exact, or infer missing text."
+        )
+    if any(str(item.get("tool") or "") == "file.inspect" for item in observations):
+        instructions.append(
+            "For file.inspect observations, answer from the actual file or directory result. If status is not_found/blocked/error, report that status and any suggestions; do not claim the file was moved, renamed, pruned, or deleted unless the observation proves it."
+        )
     if helix_focus:
         instructions.extend(
             [
@@ -1869,6 +3331,7 @@ class InteractiveSession:
         self.router_policy = router_policy if router_policy in ROUTER_POLICIES else "balanced"
         self.raw_output = False
         self.theme_name = DEFAULT_THEME
+        self.response_style = "balanced"
         self.runtime = HelixRuntime(root=workspace_root)
         self.run_id = ""
         self.thread_id: str | None = None
@@ -1887,6 +3350,7 @@ class InteractiveSession:
         self.last_runner_trace: dict[str, Any] | None = None
         self.last_model_turns: list[dict[str, Any]] = []
         self._state_path = self.workspace_root / "session-os" / "helix-cli-state.json"
+        self.suite_catalog = SuiteEvidenceCatalog(evidence_root=self.evidence_root)
         self._state_path.parent.mkdir(parents=True, exist_ok=True)
         active_thread_id = self._load_active_thread_id()
         if active_thread_id:
@@ -1911,11 +3375,20 @@ class InteractiveSession:
                 "git_status",
                 "git_diff",
                 "query_evidence",
+                "file.inspect",
+                "memory.resolve",
                 "evidence.latest",
                 "evidence.refresh",
                 "evidence.show",
                 "suite.list",
+                "suite.catalog",
+                "suite.latest",
+                "suite.search",
+                "suite.transcripts",
+                "suite.read",
                 "suite.dry_run",
+                "web.search",
+                "web.read",
             ],
             "confirmation_required": ["/apply last", "/cert SUITE"],
             "blocked_for_planner": ["destructive git", "destructive filesystem"],
@@ -2201,6 +3674,318 @@ class InteractiveSession:
         finally:
             catalog.close()
 
+    def _resolve_memory_matches_from_catalog(self, ref: str, *, max_chars: int) -> list[dict[str, Any]]:
+        needle = str(ref or "").strip().lower()
+        if not needle:
+            return []
+        catalog = hmem.open_catalog(self.workspace_root)
+        try:
+            matches: list[dict[str, Any]] = []
+
+            def _payload_for(memory_id: str, item_dict: dict[str, Any] | None = None) -> dict[str, Any] | None:
+                item = catalog.get_memory(memory_id)
+                if item is None:
+                    return None
+                node_hash = catalog.get_memory_node_hash(memory_id)
+                receipt = catalog.get_memory_receipt(memory_id)
+                payload = dict(item_dict or item.to_dict())
+                content = _truncate_text(str(payload.get("content") or ""), max_chars)
+                payload.update(
+                    {
+                        "source": "hmem",
+                        "memory_id": memory_id,
+                        "node_hash": node_hash,
+                        "content": content["text"],
+                        "content_truncated": content["truncated"],
+                        "receipt": receipt,
+                        "signature_verified": bool((receipt or {}).get("signature_verified")),
+                        "chain": catalog.verify_chain(node_hash) if node_hash else None,
+                    }
+                )
+                return payload
+
+            if needle.startswith("mem-"):
+                payload = _payload_for(needle)
+                return [payload] if payload else []
+
+            for agent_filter in (self.agent_id, None):
+                rows = catalog.list_memories(
+                    project=self.project,
+                    agent_id=agent_filter,
+                    session_id=self.thread_id,
+                    limit=20000,
+                    retrieval_scope="workspace",
+                )
+                for row in rows:
+                    memory_id = str(row.get("memory_id") or "")
+                    node_hash = str(row.get("node_hash") or "")
+                    if memory_id.lower().startswith(needle) or node_hash.lower().startswith(needle):
+                        payload = _payload_for(memory_id, row)
+                        if payload:
+                            matches.append(payload)
+                if matches:
+                    break
+            seen: set[tuple[str, str]] = set()
+            unique: list[dict[str, Any]] = []
+            for item in matches:
+                key = (str(item.get("memory_id") or ""), str(item.get("node_hash") or ""))
+                if key in seen:
+                    continue
+                seen.add(key)
+                unique.append(item)
+            return unique
+        finally:
+            catalog.close()
+
+    def _resolve_memory_matches_from_transcripts(self, ref: str, *, max_chars: int) -> list[dict[str, Any]]:
+        needle = str(ref or "").strip().lower()
+        if not needle or not self.transcript_dir.exists():
+            return []
+        matches: list[dict[str, Any]] = []
+        jsonl_paths = sorted(self.transcript_dir.rglob("*.jsonl"), key=lambda path: path.stat().st_mtime, reverse=True)
+        for path in jsonl_paths[:300]:
+            try:
+                lines = path.read_text(encoding="utf-8-sig", errors="ignore").splitlines()
+            except Exception:
+                continue
+            for line_number, line in enumerate(lines, start=1):
+                if needle not in line.lower():
+                    continue
+                try:
+                    event = json.loads(line)
+                except json.JSONDecodeError:
+                    continue
+                receipt = event.get("helix_memory") if isinstance(event.get("helix_memory"), dict) else {}
+                node_hash = str(receipt.get("node_hash") or "")
+                memory_id = str(receipt.get("memory_id") or "")
+                if not (node_hash.lower().startswith(needle) or memory_id.lower().startswith(needle) or needle in line.lower()):
+                    continue
+                content = _truncate_text(str(event.get("content") or ""), max_chars)
+                matches.append(
+                    {
+                        "source": "transcript-jsonl",
+                        "path": str(path),
+                        "line": line_number,
+                        "memory_id": memory_id or None,
+                        "node_hash": node_hash or None,
+                        "role": event.get("role"),
+                        "event": event.get("event"),
+                        "created_utc": event.get("created_utc"),
+                        "content": content["text"],
+                        "content_truncated": content["truncated"],
+                        "receipt": receipt or None,
+                    }
+                )
+        if matches:
+            return matches
+        md_paths = sorted(self.transcript_dir.rglob("*.md"), key=lambda path: path.stat().st_mtime, reverse=True)
+        for path in md_paths[:300]:
+            try:
+                text = path.read_text(encoding="utf-8-sig", errors="ignore")
+            except Exception:
+                continue
+            index = text.lower().find(needle)
+            if index < 0:
+                continue
+            start = max(0, index - 1200)
+            end = min(len(text), index + max_chars)
+            excerpt = text[start:end].strip()
+            matches.append(
+                {
+                    "source": "transcript-md",
+                    "path": str(path),
+                    "memory_id": None,
+                    "node_hash": needle,
+                    "content": excerpt,
+                    "content_truncated": start > 0 or end < len(text),
+                }
+            )
+        return matches
+
+    def memory_resolve(self, ref: str, *, max_chars: int = 40000) -> dict[str, Any]:
+        needle = str(ref or "").strip().lower()
+        if not needle:
+            return {"status": "error", "error": "missing ref", "ref": ref}
+        matches = self._resolve_memory_matches_from_catalog(needle, max_chars=max_chars)
+        if not matches:
+            matches = self._resolve_memory_matches_from_transcripts(needle, max_chars=max_chars)
+        if not matches:
+            return {"status": "not_found", "ref": needle, "match_count": 0, "matches": []}
+        exact = [
+            item
+            for item in matches
+            if str(item.get("memory_id") or "").lower() == needle or str(item.get("node_hash") or "").lower() == needle
+        ]
+        if exact:
+            matches = exact
+        if len(matches) > 1:
+            distinct = {
+                str(item.get("node_hash") or item.get("memory_id") or item.get("path") or "")
+                for item in matches
+            }
+            if len(distinct) > 1:
+                return {"status": "ambiguous", "ref": needle, "match_count": len(matches), "matches": matches[:12]}
+        return {"status": "ok", "ref": needle, "match_count": len(matches), "matches": matches[:1]}
+
+    def _file_allowed_roots(self) -> list[Path]:
+        roots = [
+            self.task_root,
+            self.workspace_root,
+            self.evidence_root,
+            self.transcript_dir,
+            REPO_ROOT,
+            Path.home(),
+        ]
+        unique: list[Path] = []
+        seen: set[str] = set()
+        for root in roots:
+            try:
+                resolved = Path(root).expanduser().resolve(strict=False)
+            except Exception:
+                continue
+            key = str(resolved).lower()
+            if key not in seen:
+                unique.append(resolved)
+                seen.add(key)
+        return unique
+
+    def _path_is_allowed(self, path: Path) -> bool:
+        for root in self._file_allowed_roots():
+            try:
+                path.relative_to(root)
+                return True
+            except ValueError:
+                continue
+        return False
+
+    def _resolve_user_path(self, ref: str) -> tuple[Path, str]:
+        raw = _normalise_local_path_ref(ref)
+        if not raw:
+            raise ValueError("path is required")
+        candidate = Path(raw).expanduser()
+        candidates = [candidate] if candidate.is_absolute() else [
+            self.task_root / candidate,
+            REPO_ROOT / candidate,
+            self.evidence_root / candidate,
+            self.transcript_dir / candidate,
+            self.workspace_root / candidate,
+        ]
+        selected = candidates[0]
+        for item in candidates:
+            if item.exists():
+                selected = item
+                break
+        resolved = selected.resolve(strict=False)
+        if not self._path_is_allowed(resolved):
+            raise PermissionError(f"path is outside allowed HeliX roots: {raw}")
+        return resolved, raw
+
+    def _sensitive_file_reason(self, path: Path) -> str | None:
+        lowered_parts = [part.lower() for part in path.parts]
+        name = path.name.lower()
+        suffix = path.suffix.lower()
+        if any(part in {".ssh", ".aws", ".azure", ".gcp", ".gnupg"} for part in lowered_parts):
+            return "sensitive credential directory"
+        if name == ".env" or name.startswith(".env."):
+            return "environment secret file"
+        if suffix in {".pem", ".key", ".p12", ".pfx", ".crt", ".cer"}:
+            return "credential/key file extension"
+        if name in {"id_rsa", "id_dsa", "id_ecdsa", "id_ed25519", "known_hosts"}:
+            return "ssh credential file"
+        if name == "config.json" and "helix" in lowered_parts and "appdata" in lowered_parts:
+            return "HeliX user config may contain API tokens"
+        if any(part in {"secrets", ".secrets"} for part in lowered_parts):
+            return "secret directory"
+        return None
+
+    def file_inspect(self, path_ref: str, *, max_bytes: int = 60000, list_limit: int = 80) -> dict[str, Any]:
+        try:
+            path, raw = self._resolve_user_path(path_ref)
+        except Exception as exc:  # noqa: BLE001
+            return {
+                "status": "blocked" if isinstance(exc, PermissionError) else "error",
+                "ref": path_ref,
+                "error": f"{type(exc).__name__}: {exc}",
+                "allowed_roots": [str(root) for root in self._file_allowed_roots()],
+            }
+        if not path.exists():
+            suggestions: list[dict[str, Any]] = []
+            parent = path.parent
+            if parent.exists() and parent.is_dir() and self._path_is_allowed(parent):
+                needle = path.stem.lower()
+                parts = [part for part in re.split(r"[-_.\s]+", needle) if len(part) >= 4]
+                for child in sorted(parent.iterdir(), key=lambda item: item.name.lower())[:1000]:
+                    child_name = child.name.lower()
+                    if needle in child_name or any(part in child_name for part in parts):
+                        suggestions.append(
+                            {
+                                "path": str(child),
+                                "kind": "directory" if child.is_dir() else "file",
+                                "bytes": child.stat().st_size if child.is_file() else None,
+                            }
+                        )
+                    if len(suggestions) >= 12:
+                        break
+            return {
+                "status": "not_found",
+                "ref": raw,
+                "path": str(path),
+                "parent_exists": parent.exists(),
+                "suggestions": suggestions,
+            }
+        sensitive_reason = self._sensitive_file_reason(path)
+        if sensitive_reason:
+            return {"status": "blocked", "ref": raw, "path": str(path), "reason": sensitive_reason}
+        if path.is_dir():
+            limit = _safe_int(list_limit, 80, minimum=1, maximum=200)
+            entries = []
+            for child in sorted(path.iterdir(), key=lambda item: (not item.is_dir(), item.name.lower())):
+                if child.name in ReadOnlyAgentTools.SKIP_DIRS:
+                    continue
+                reason = self._sensitive_file_reason(child)
+                entries.append(
+                    {
+                        "name": child.name,
+                        "path": str(child),
+                        "kind": "directory" if child.is_dir() else "file",
+                        "bytes": child.stat().st_size if child.is_file() else None,
+                        "blocked": bool(reason),
+                    }
+                )
+                if len(entries) >= limit:
+                    break
+            return {
+                "status": "ok",
+                "type": "directory",
+                "ref": raw,
+                "path": str(path),
+                "entry_count": len(entries),
+                "truncated": len(entries) >= limit,
+                "entries": entries,
+            }
+        if not path.is_file():
+            return {"status": "blocked", "ref": raw, "path": str(path), "reason": "not a regular file"}
+        max_bytes = _safe_int(max_bytes, 60000, minimum=512, maximum=120000)
+        size = path.stat().st_size
+        with path.open("rb") as handle:
+            data = handle.read(max_bytes + 1)
+        if b"\x00" in data[:4096]:
+            return {"status": "blocked", "ref": raw, "path": str(path), "bytes": size, "reason": "binary file"}
+        text = data[:max_bytes].decode("utf-8", errors="replace")
+        text = redact_value(text, secrets=_secret_values(self.provider))
+        return {
+            "status": "ok",
+            "type": "file",
+            "ref": raw,
+            "path": str(path),
+            "name": path.name,
+            "suffix": path.suffix.lower(),
+            "bytes": size,
+            "sha256": _sha256_file(path) if size <= 25_000_000 else None,
+            "truncated": size > max_bytes,
+            "content": text,
+        }
+
     def certified_identity_evidence(self, *, latest_user_receipt: dict[str, Any] | None = None) -> dict[str, Any]:
         stats = hmem.stats(root=self.workspace_root)
         graph = hmem.graph(
@@ -2342,6 +4127,37 @@ class InteractiveSession:
                     handler=lambda args: self.evidence_show(str(args["memory_id"])) or {"status": "not_found"},
                 ),
                 ToolSpec(
+                    name="memory.resolve",
+                    description="Resolve a memory_id or node_hash prefix to exact HeliX memory/transcript content.",
+                    input_schema={
+                        "type": "object",
+                        "properties": {"ref": {"type": "string"}, "max_chars": {"type": "integer"}},
+                        "required": ["ref"],
+                    },
+                    handler=lambda args: self.memory_resolve(
+                        str(args["ref"]),
+                        max_chars=_safe_int(args.get("max_chars"), 40000, minimum=1000, maximum=120000),
+                    ),
+                ),
+                ToolSpec(
+                    name="file.inspect",
+                    description="Inspect an explicit local file or directory path under allowed HeliX roots; reads text files or lists directories.",
+                    input_schema={
+                        "type": "object",
+                        "properties": {
+                            "path": {"type": "string"},
+                            "max_bytes": {"type": "integer"},
+                            "list_limit": {"type": "integer"},
+                        },
+                        "required": ["path"],
+                    },
+                    handler=lambda args: self.file_inspect(
+                        str(args["path"]),
+                        max_bytes=_safe_int(args.get("max_bytes"), 60000, minimum=512, maximum=120000),
+                        list_limit=_safe_int(args.get("list_limit"), 80, minimum=1, maximum=200),
+                    ),
+                ),
+                ToolSpec(
                     name="suite.list",
                     description="List verification suites known to HeliX.",
                     input_schema={"type": "object", "properties": {}},
@@ -2356,8 +4172,71 @@ class InteractiveSession:
                                 "supports_deepinfra_flag": suite.supports_deepinfra_flag,
                             }
                             for suite in sorted(SUITES.values(), key=lambda item: item.suite_id)
-                        ]
+                        ],
+                        "discovered": self.suite_catalog.list_suites(),
                     },
+                ),
+                ToolSpec(
+                    name="suite.catalog",
+                    description="Discover local verification suites with artifacts, manifests, preregisters and transcripts.",
+                    input_schema={"type": "object", "properties": {}},
+                    handler=lambda _args: self.suite_catalog.list_suites(),
+                ),
+                ToolSpec(
+                    name="suite.latest",
+                    description="Show latest artifact, manifest and transcript records for one suite.",
+                    input_schema={"type": "object", "properties": {"suite_id": {"type": "string"}}, "required": ["suite_id"]},
+                    handler=lambda args: self.suite_catalog.latest(str(args["suite_id"])),
+                ),
+                ToolSpec(
+                    name="suite.search",
+                    description="Search suite artifacts, manifests, preregisters, logs and transcripts under verification/.",
+                    input_schema={"type": "object", "properties": {"query": {"type": "string"}, "limit": {"type": "integer"}}, "required": ["query"]},
+                    handler=lambda args: self.suite_catalog.search(
+                        str(args["query"]),
+                        limit=_safe_int(args.get("limit"), 12, minimum=1, maximum=50),
+                    ),
+                ),
+                ToolSpec(
+                    name="suite.transcripts",
+                    description="List transcript JSONL/Markdown files for one suite.",
+                    input_schema={
+                        "type": "object",
+                        "properties": {"suite_id": {"type": "string"}, "query": {"type": "string"}, "limit": {"type": "integer"}},
+                        "required": ["suite_id"],
+                    },
+                    handler=lambda args: self.suite_catalog.transcripts(
+                        str(args["suite_id"]),
+                        query=str(args.get("query") or "") or None,
+                        limit=_safe_int(args.get("limit"), 30, minimum=1, maximum=100),
+                    ),
+                ),
+                ToolSpec(
+                    name="suite.read",
+                    description="Read a safe excerpt from one suite artifact, preregister, log or transcript path.",
+                    input_schema={"type": "object", "properties": {"ref": {"type": "string"}, "max_bytes": {"type": "integer"}}, "required": ["ref"]},
+                    handler=lambda args: self.suite_catalog.read(
+                        str(args["ref"]),
+                        max_bytes=_safe_int(args.get("max_bytes"), 16000, minimum=512, maximum=60000),
+                    ),
+                ),
+                ToolSpec(
+                    name="web.search",
+                    description="Search the public web for current information when the user explicitly asks for web/Google/latest/source lookup.",
+                    input_schema={"type": "object", "properties": {"query": {"type": "string"}, "limit": {"type": "integer"}}, "required": ["query"]},
+                    handler=lambda args: web_search(
+                        str(args["query"]),
+                        limit=_safe_int(args.get("limit"), 5, minimum=1, maximum=10),
+                    ),
+                ),
+                ToolSpec(
+                    name="web.read",
+                    description="Read a bounded text excerpt from an HTTP/HTTPS URL returned by web.search.",
+                    input_schema={"type": "object", "properties": {"url": {"type": "string"}, "max_chars": {"type": "integer"}}, "required": ["url"]},
+                    handler=lambda args: web_read(
+                        str(args["url"]),
+                        max_chars=_safe_int(args.get("max_chars"), 8000, minimum=1000, maximum=30000),
+                    ),
                 ),
                 ToolSpec(
                     name="suite.dry_run",
@@ -2377,8 +4256,17 @@ class InteractiveSession:
                 {"name": "evidence.latest", "description": "List latest evidence memories.", "safety": "auto", "kind": "evidence"},
                 {"name": "evidence.refresh", "description": "Incrementally refresh evidence into memory.", "safety": "auto", "kind": "evidence"},
                 {"name": "evidence.show", "description": "Inspect one evidence memory and receipt.", "safety": "auto", "kind": "evidence"},
+                {"name": "memory.resolve", "description": "Resolve memory_id or node_hash prefix to exact content.", "safety": "auto", "kind": "memory"},
+                {"name": "file.inspect", "description": "Read text files or list directories from explicit local paths.", "safety": "auto", "kind": "filesystem-read"},
                 {"name": "suite.list", "description": "List verification suites.", "safety": "auto", "kind": "suite"},
+                {"name": "suite.catalog", "description": "Discover local suite artifacts and transcripts.", "safety": "auto", "kind": "suite"},
+                {"name": "suite.latest", "description": "Show latest suite evidence.", "safety": "auto", "kind": "suite"},
+                {"name": "suite.search", "description": "Search artifacts and transcripts.", "safety": "auto", "kind": "suite"},
+                {"name": "suite.transcripts", "description": "List suite transcripts.", "safety": "auto", "kind": "suite"},
+                {"name": "suite.read", "description": "Read artifact/transcript excerpts.", "safety": "auto", "kind": "suite"},
                 {"name": "suite.dry_run", "description": "Inspect a suite command without executing it.", "safety": "auto", "kind": "suite"},
+                {"name": "web.search", "description": "Search the public web for current information.", "safety": "auto", "kind": "web"},
+                {"name": "web.read", "description": "Read a bounded excerpt from a web result URL.", "safety": "auto", "kind": "web"},
             ]
         )
         return ToolRegistry(specs), report
@@ -2394,6 +4282,7 @@ class InteractiveSession:
             "tool_policy": self.tool_policy,
             "tools": [*runtime_tools, *agent_tools, *extra_report],
             "tool_count": len(runtime_tools) + len(agent_tools) + len(extra_report),
+            "agent_blueprints": agent_blueprints_report(),
         }
 
     def _chat_system(
@@ -2427,8 +4316,15 @@ class InteractiveSession:
             "If no tool is needed, return only the visible answer, optionally wrapped in <helix_output>...</helix_output>. "
             "Do not invent dates, run IDs, hashes, memory IDs, node hashes, or file paths. "
             "Do not reveal chain-of-thought, scratchpads, plans, hidden reasoning, or fake tool calls. "
+            "If the user gives a memory_id or node_hash prefix and asks where it is, what it contains, or to recover it, use memory.resolve and never reconstruct the content from model memory. "
+            "If the user gives an explicit local file or directory path and asks to read, inspect, open, navigate, or comment on it, use file.inspect before answering. "
+            f"Response style: {self.response_style}. {RESPONSE_STYLES.get(self.response_style, RESPONSE_STYLES['balanced'])} "
+            "For ordinary questions outside HeliX, answer normally and follow the user's topic; do not force Merkle-DAG, receipts, evidence, or routing metaphors into unrelated conversation. "
+            "If the user pastes suite output, tables, JSON, tracebacks, or logs and asks for info/data, analyze the pasted evidence and any tool results; do not rerun certification suites unless the user explicitly asks to run/certify them. "
             "When explaining HeliX itself, describe only concrete, observable capabilities grounded in the current memory, evidence pack, runtime state, or tool registry. "
             "Do not claim that HeliX captures 'trajectories of thought', preserves hidden reasoning, or records private chain-of-thought unless that exact capability is explicitly present in the evidence provided here. "
+            "Do not say HeliX guarantees conversations were not altered unless the evidence pack contains a verified signature and verified chain for the exact cited record; otherwise say it records receipts/hashes that can be checked. "
+            "Never claim specific suites, runs, artifacts, or transcripts are present unless they appear in tool output, repository evidence, or memory context in this turn. "
             "Prefer plain statements about what HeliX stores, signs, searches, routes, verifies, exposes, or automates in this session. "
             "If the evidence is partial, say what is verified and what remains unverified instead of filling gaps with theory. "
             "Do not pad HeliX explanations with generic industry examples such as healthcare, finance, education, or security unless the evidence pack actually mentions them. "
@@ -2460,9 +4356,11 @@ class InteractiveSession:
             "Use at most one tool per turn. Request tools only with <tool_call> JSON. "
             "If enough evidence is available, answer directly or inside <helix_output>...</helix_output>. "
             "You may inspect repo files, git state, HeliX evidence, and suite metadata. "
+            f"Response style: {self.response_style}. {RESPONSE_STYLES.get(self.response_style, RESPONSE_STYLES['balanced'])} "
             "Do not invent file paths, hashes, test results, or patch application claims. "
             "For explicit memory-review requests, a sentence like 'voy a buscar...' is not a final answer: "
             "either call helix.search / memory.search or provide the actual summary. "
+            "For explicit local file paths, read or list them with file.inspect/read_file before making claims about their content. "
             "If code changes are needed, you may propose a unified diff in the final answer, but never claim a patch was applied automatically.\n\n"
             "Current deep memory:\n"
             f"{memory_context.get('context') or '(empty)'}\n\n"
@@ -2478,12 +4376,18 @@ class InteractiveSession:
         goal: str,
         mode: str,
         selected_model: str,
+        selected_provider_name: str | None,
         tool_manifest: list[dict[str, Any]],
         memory_context: dict[str, Any],
         identity_evidence: dict[str, Any] | None,
         repository_evidence_pack: dict[str, Any] | None,
         helix_focus: bool = False,
         helix_auditability: bool = False,
+        suite_focus: bool = False,
+        web_focus: bool = False,
+        hash_recovery_ref: str | None = None,
+        file_path_ref: str | None = None,
+        fallback_models: list[str] | None = None,
         timeout: float | None,
     ) -> tuple[Any, list[dict[str, Any]]]:
         model_turns: list[dict[str, Any]] = []
@@ -2497,6 +4401,72 @@ class InteractiveSession:
                 }
                 for item in state.get("observations", [])
             ]
+            if mode == "chat" and observations and str(observations[-1].get("tool") or "") == "memory.resolve":
+                result = observations[-1].get("result") if isinstance(observations[-1].get("result"), dict) else {}
+                if isinstance(result, dict) and isinstance(result.get("result"), dict):
+                    result = result["result"]
+                return PlannerDecision(
+                    kind="final",
+                    thought="render exact memory.resolve result without model reconstruction",
+                    final=_format_memory_resolve_answer(result),
+                    planner="memory-resolve",
+                    raw_text="",
+                )
+            if mode == "chat" and hash_recovery_ref and not observations:
+                return PlannerDecision(
+                    kind="tool",
+                    thought="resolve node hash or memory id prefix before answering",
+                    tool_name="memory.resolve",
+                    arguments={"ref": hash_recovery_ref, "max_chars": 60000},
+                    planner="memory-resolve",
+                    raw_text="",
+                )
+            if mode == "chat" and file_path_ref and not observations:
+                return PlannerDecision(
+                    kind="tool",
+                    thought="inspect explicit local file or directory path before answering",
+                    tool_name="file.inspect",
+                    arguments={"path": file_path_ref, "max_bytes": 80000, "list_limit": 100},
+                    planner="file-grounding",
+                    raw_text="",
+                )
+            if mode == "chat" and suite_focus and not observations:
+                if _looks_like_pasted_suite_evidence(goal):
+                    return PlannerDecision(
+                        kind="tool",
+                        thought="analyze pasted suite output by searching local suite evidence instead of rerunning the suite",
+                        tool_name="suite.search",
+                        arguments={"query": goal, "limit": 8},
+                        planner="suite-grounding",
+                        raw_text="",
+                    )
+                suite_id = _suite_from_text(goal)
+                if suite_id:
+                    return PlannerDecision(
+                        kind="tool",
+                        thought="ground suite questions in local verification artifacts and transcripts",
+                        tool_name="suite.latest",
+                        arguments={"suite_id": suite_id},
+                        planner="suite-grounding",
+                        raw_text="",
+                    )
+                return PlannerDecision(
+                    kind="tool",
+                    thought="ground suite questions in local verification search results",
+                    tool_name="suite.search",
+                    arguments={"query": goal, "limit": 8},
+                    planner="suite-grounding",
+                    raw_text="",
+                )
+            if mode == "chat" and web_focus and not observations:
+                return PlannerDecision(
+                    kind="tool",
+                    thought="explicit web/current-info request requires web.search before answering",
+                    tool_name="web.search",
+                    arguments={"query": goal, "limit": 5},
+                    planner="web-grounding",
+                    raw_text="",
+                )
             if mode == "chat" and helix_focus and not observations:
                 if helix_auditability:
                     return PlannerDecision(
@@ -2552,9 +4522,10 @@ class InteractiveSession:
                     helix_auditability=helix_auditability,
                 )
             )
-            result = run_chat(
-                provider_name=self.provider_name,
+            result = run_chat_with_failover(
+                provider_name=selected_provider_name or self.provider_name,
                 model=selected_model,
+                fallback_models=fallback_models,
                 prompt=prompt,
                 system=system,
                 history=history,
@@ -2574,6 +4545,8 @@ class InteractiveSession:
                     "latency_ms": result.get("latency_ms"),
                     "finish_reason": result.get("finish_reason"),
                     "usage": result.get("usage"),
+                    "failover_used": result.get("failover_used"),
+                    "failover_attempts": result.get("failover_attempts") or [],
                     "tool_call_count": len(calls),
                     "raw_preview": raw_text[:2000],
                     "raw_text": raw_text,
@@ -2624,8 +4597,14 @@ class InteractiveSession:
         recent_history = self.recent_history(limit=4, exclude_latest_user=False)
         helix_focus = _is_helix_explanation_request(user_text, recent_history)
         helix_auditability = _is_helix_auditability_request(user_text, recent_history)
+        suite_focus = _is_suite_evidence_request(user_text, recent_history)
+        web_focus = _is_web_search_request(user_text)
+        hash_recovery_ref = _latest_hash_reference(user_text, recent_history) if _is_hash_recovery_request(user_text, recent_history) else None
+        file_path_refs = _extract_local_path_refs(user_text) if _is_local_file_request(user_text) else []
+        file_path_ref = file_path_refs[0] if file_path_refs else None
         route = None
         selected_model = self.model
+        selected_provider_name = self.provider_name
         if self.model.lower() in {"auto", "router:auto"}:
             route = route_model_for_task(
                 f"{user_text}\nMode: chat",
@@ -2638,7 +4617,12 @@ class InteractiveSession:
                     policy=self.router_policy,
                     auditability=helix_auditability,
                 )
-            selected_model = route.get("model") or PROVIDERS[self.provider_name].default_model
+            selected_provider_name = str(route.get("provider") or self.provider_name)
+            selected_model = route.get("model") or PROVIDERS[selected_provider_name].default_model
+        else:
+            route = _manual_route_for_model(selected_model, provider_name=self.provider_name, policy=self.router_policy)
+            selected_provider_name = str(route.get("provider") or self.provider_name)
+        fallback_models = _fallback_model_ids_for_route(route, primary_model=selected_model)
 
         repository_evidence_pack = None
         if _needs_repository_evidence(user_text, route):
@@ -2668,6 +4652,7 @@ class InteractiveSession:
         planner_callback, model_turns = self._planner_callback_factory(
             goal=user_text,
             mode="chat",
+            selected_provider_name=selected_provider_name,
             selected_model=selected_model,
             tool_manifest=tool_manifest,
             memory_context=context,
@@ -2675,6 +4660,11 @@ class InteractiveSession:
             repository_evidence_pack=repository_evidence_pack,
             helix_focus=helix_focus,
             helix_auditability=helix_auditability,
+            suite_focus=suite_focus,
+            web_focus=web_focus,
+            hash_recovery_ref=hash_recovery_ref,
+            file_path_ref=file_path_ref,
+            fallback_models=fallback_models,
             timeout=None,
         )
         trace = self.runtime.agent_runner().run(
@@ -2710,6 +4700,8 @@ class InteractiveSession:
             metadata={
                 "actual_model": model_turns[-1].get("actual_model") if model_turns else None,
                 "selected_model": selected_model,
+                "failover_used": model_turns[-1].get("failover_used") if model_turns else None,
+                "failover_attempts": model_turns[-1].get("failover_attempts") if model_turns else [],
                 "route": route,
                 "latency_ms": model_turns[-1].get("latency_ms") if model_turns else None,
                 "finish_reason": model_turns[-1].get("finish_reason") if model_turns else None,
@@ -2724,15 +4716,42 @@ class InteractiveSession:
         )
         return {"text": text, "raw_text": raw_text, "reasoning": "", "route": route, "trace": trace}
 
-    def task(self, goal: str, *, max_steps: int = 5) -> dict[str, Any]:
+    def task(
+        self,
+        goal: str,
+        *,
+        max_steps: int = 5,
+        mode_override: str | None = None,
+        agent_blueprint: AgentBlueprint | None = None,
+    ) -> dict[str, Any]:
         route = route_model_for_task(
             f"{goal}\nTask mode: inspect repo, use tools, propose patch if needed.",
             provider_name=self.provider_name,
             policy=self.router_policy,
         )
         selected_model = self.model
-        if self.model.lower() in {"auto", "router:auto"}:
+        if agent_blueprint is not None and self.model.lower() in {"auto", "router:auto"}:
+            selected_model = resolve_model_alias(agent_blueprint.preferred_model_alias)
+            route = _manual_route_for_model(selected_model, provider_name=self.provider_name, policy=self.router_policy)
+            route["intent"] = "agentic_blueprint"
+            route["agent_blueprint"] = agent_blueprint.blueprint_id
+        elif self.model.lower() in {"auto", "router:auto"}:
             selected_model = route.get("model") or PROVIDERS[self.provider_name].default_model
+        else:
+            route = _manual_route_for_model(selected_model, provider_name=self.provider_name, policy=self.router_policy)
+        fallback_models = _fallback_model_ids_for_route(route, primary_model=selected_model, agent_blueprint=agent_blueprint)
+        active_agent_mode = mode_override or self.agent_mode
+        active_tool_policy = self.tool_policy
+        if agent_blueprint is not None:
+            allowed = set(agent_blueprint.allowed_tools) | {"helix.search", "memory.search", "rag.search"}
+            active_tool_policy = {
+                **self.tool_policy,
+                "mode": f"blueprint:{agent_blueprint.blueprint_id}",
+                "auto": [tool for tool in self.tool_policy.get("auto", []) if tool in allowed],
+                "agent_blueprint": agent_blueprint.blueprint_id,
+                "allowed_tools": sorted(allowed),
+            }
+            max_steps = agent_blueprint.max_steps
         repository_evidence_pack = self.refresh_evidence(goal, limit=8)
         context = self.memory_context(goal)
         memory_ids = list(context.get("memory_ids") or [])
@@ -2741,7 +4760,9 @@ class InteractiveSession:
             content=goal,
             event_type="task_start",
             metadata={
-                "mode": self.agent_mode,
+                "mode": active_agent_mode,
+                "agent_blueprint": agent_blueprint.blueprint_id if agent_blueprint else None,
+                "allowed_tools": list(agent_blueprint.allowed_tools) if agent_blueprint else None,
                 "task_root": str(self.task_root),
                 "route": route,
                 "thread_id": self.thread_id,
@@ -2760,10 +4781,12 @@ class InteractiveSession:
             goal=goal,
             mode="task",
             selected_model=selected_model,
+            selected_provider_name=self.provider_name,
             tool_manifest=tool_manifest,
             memory_context=context,
             identity_evidence=None,
             repository_evidence_pack=repository_evidence_pack,
+            fallback_models=fallback_models,
             timeout=AGENT_TASK_TIMEOUT_SECONDS,
         )
         try:
@@ -2777,7 +4800,7 @@ class InteractiveSession:
                 planner_name=f"{self.provider_name}:{selected_model}",
                 allow_heuristic_fallback=False,
                 extra_tools=extra_tools,
-                tool_policy=self.tool_policy,
+                tool_policy=active_tool_policy,
                 retrieval_scope="workspace",
                 memory_exclude_ids=excluded_memory_ids,
                 max_steps=max(1, max_steps),
@@ -2787,10 +4810,12 @@ class InteractiveSession:
             self.last_patch = None
             task_result = {
                 "status": "error",
-                "mode": self.agent_mode,
+                "mode": active_agent_mode,
+                "agent_blueprint": agent_blueprint.blueprint_id if agent_blueprint else None,
                 "goal": goal,
                 "task_root": str(self.task_root),
                 "selected_model": selected_model,
+                "fallback_models": fallback_models,
                 "route": route,
                 "final": final_text,
                 "tool_events": [],
@@ -2804,8 +4829,10 @@ class InteractiveSession:
                 content=final_text,
                 event_type="task_error",
                 metadata={
-                    "mode": self.agent_mode,
+                    "mode": active_agent_mode,
+                    "agent_blueprint": agent_blueprint.blueprint_id if agent_blueprint else None,
                     "selected_model": selected_model,
+                    "fallback_models": fallback_models,
                     "route": route,
                     "error_type": type(exc).__name__,
                     "error": str(exc),
@@ -2848,14 +4875,18 @@ class InteractiveSession:
         self.last_patch = patch
         task_result = {
             "status": status,
-            "mode": self.agent_mode,
+            "mode": active_agent_mode,
+            "agent_blueprint": agent_blueprint.blueprint_id if agent_blueprint else None,
             "goal": goal,
             "task_root": str(self.task_root),
             "selected_model": selected_model,
+            "fallback_models": fallback_models,
             "route": route,
             "final": final_text,
             "tool_events": tool_events,
             "model_turns": model_turns,
+            "failover_used": model_turns[-1].get("failover_used") if model_turns else None,
+            "failover_attempts": model_turns[-1].get("failover_attempts") if model_turns else [],
             "patch_available": bool(patch),
             "trace_path": trace.get("trace_path"),
         }
@@ -2867,8 +4898,13 @@ class InteractiveSession:
             content=final_text,
             event_type="task_error" if status == "error" else "task_final",
             metadata={
-                "mode": self.agent_mode,
+                "mode": active_agent_mode,
+                "agent_blueprint": agent_blueprint.blueprint_id if agent_blueprint else None,
+                "allowed_tools": list(agent_blueprint.allowed_tools) if agent_blueprint else None,
                 "selected_model": selected_model,
+                "fallback_models": fallback_models,
+                "failover_used": model_turns[-1].get("failover_used") if model_turns else None,
+                "failover_attempts": model_turns[-1].get("failover_attempts") if model_turns else [],
                 "route": route,
                 "tool_event_count": len(tool_events),
                 "patch_available": bool(patch),
@@ -2893,6 +4929,7 @@ class InteractiveSession:
             "event_count": len(self.events),
             "router_policy": self.router_policy,
             "theme": self.theme_name,
+            "response_style": self.response_style,
             "agent_mode": self.agent_mode,
             "tool_policy": self.tool_policy,
             "last_patch_available": bool(self.last_patch),
@@ -2904,20 +4941,25 @@ class InteractiveSession:
 HELP_TEXT = """Commands:
   /help                         Show this help
   /status                       Show provider, model, workspace and transcript paths
-  /provider NAME                Switch provider: deepinfra, openai, anthropic, ollama, llamacpp, local, ...
-  /model NAME                   Switch model; aliases include auto, mistral, qwen, gemma, coder, llama, llama-vision, sonnet
+  /provider NAME                Switch provider: deepinfra, gemini, openai, anthropic, ollama, llamacpp, local, ...
+  /model NAME                   Switch model; aliases include auto, qwen-big, mistral, qwen, gemma, gemini-pro, coder, llama-vision, sonnet
+  /model use NAME               Same as /model NAME; persists until /model auto
   /model list                   List model aliases and router blueprints
-  /models                       List built-in DeepInfra model profiles and router blueprints
+  /with MODEL PROMPT            Use one model for a single action, then restore the previous model
+  /models                       Open/select or compact-list model profiles; /models json for full metadata
   /route TEXT                   Explain which model auto-routing would pick
-  /router NAME                  Change routing blueprint/policy: balanced, current, qwen-gemma-mistral, cheap, premium
+  /web QUERY                    Search the public web directly and show raw result metadata
+  /router NAME                  Change routing blueprint/policy: balanced, qwen-heavy, current, qwen-gemma-mistral, cheap, premium
+  /router why TEXT              Explain intent scores, model choice and fallback chain
   /router list                  Open or print the routing blueprint selector
   /theme NAME                   Switch terminal theme: industrial-brutalist, industrial-neon, xerox, brown-console
   /theme list                   Open or print the theme selector/report
+  /style NAME                   Response register: balanced, technical, forensic, vivid, terse
   /raw on|off                   Toggle raw model output after the cleaned answer
   /clear                        Clear the terminal
-  /key                          Prompt for the current provider API key for this process only
-  /key save                     Save current provider API key in HeliX user config
-  /key forget                   Remove saved current provider API key from HeliX user config
+  /key [PROVIDER]               Prompt for a provider API key for this process only
+  /key save [PROVIDER]          Save provider API key in HeliX user config
+  /key forget [PROVIDER]        Remove saved provider API key from HeliX user config
   /config                       Show HeliX config/data paths
   /doctor                       Run helix doctor
   /providers                    List providers
@@ -2928,17 +4970,27 @@ HELP_TEXT = """Commands:
   /evidence search QUERY        Search certified evidence memories
   /evidence show MEMORY_ID      Show one certified evidence memory, receipt and chain status
   /verify PATH|latest|search Q  Verify an artifact JSON or discover verified artifacts
+  /suites                       Compact catalog of local verification suites and latest artifacts
+  /suite latest SUITE           Show latest artifact, manifest and transcript paths for one suite
+  /suite transcripts SUITE      List suite transcript exports; add a filter after the suite name
+  /suite search QUERY           Search artifacts/transcripts under verification/nuclear-methodology
+  /suite read PATH_OR_NAME      Read a bounded local artifact/transcript excerpt
+  /file PATH                    Inspect a local file or directory path under allowed HeliX roots
   /memory QUERY                 Search unified HeliX memory for this workspace, prioritizing the active thread
+  /memory resolve HASH_OR_ID    Resolve a memory_id or node_hash prefix to exact stored content
   /thread new [TITLE]           Create and switch to a new persistent thread
   /thread list                  List known workspace threads
   /thread open THREAD_ID        Reopen an existing thread
   /thread close [THREAD_ID]     Close a thread without deleting its memory
   /thread current               Show the active thread
-  /task GOAL                    Run the unified HeliX runner in stronger agentic mode
-  /tools                        List the unified tool registry exposed to the runner
+  /task GOAL                    Run the unified HeliX runner in read-only agentic mode
+  /tools                        Compact-list runner tools; /tools blueprints for agent toolsets; /tools json for raw registry
+  /agents                       List agentic blueprints for Codex-like tasks and evidence analysis
   /mode                         Show tool policy and safety mode for the active thread
   /apply last                   Apply last proposed patch after explicit confirmation
-  /agent GOAL                   Alias for /task in interactive mode
+  /agent suggest GOAL           Codex-like safe mode: read, plan, use read-only tools, propose next actions
+  /agent use BLUEPRINT GOAL     Run a specific agent blueprint, e.g. suite-run-analyst or patch-planner
+  /agent GOAL                   Alias for /agent suggest GOAL
   /exit                         Leave the session
 
 Natural language defaults to chat. Repo/debug/patch requests are routed to /task; certification suite requests are routed to /cert.
@@ -2985,6 +5037,36 @@ def _ensure_provider_token(provider_name: str) -> None:
             if save in {"y", "yes", "s", "si"}:
                 path = _save_config_token(provider.name, token)
                 print(f"[helix] token saved in user config: {path}")
+
+
+def _maybe_prompt_optional_provider_token(provider_name: str, *, config: dict[str, Any]) -> dict[str, Any]:
+    provider = PROVIDERS.get(provider_name)
+    if not provider or not provider.requires_token or not provider.token_env:
+        return config
+    if os.environ.get(provider.token_env) or _config_token(provider.name):
+        return config
+    optional = config.get("optional_token_prompts")
+    if not isinstance(optional, dict):
+        optional = {}
+    if optional.get(provider.name) == "skip":
+        return config
+    answer = input(f"Optional: save {provider.name} API key now for models like {provider.default_model}? [y/N/skip]: ").strip().lower()
+    if answer in {"skip", "never", "nope"}:
+        optional[provider.name] = "skip"
+        config["optional_token_prompts"] = optional
+        _save_config(config)
+        print(f"[helix] optional {provider.name} key prompt disabled. Use /key save {provider.name} if you want it later.")
+        return config
+    if answer not in {"y", "yes", "s", "si"}:
+        return config
+    token = getpass.getpass(f"Paste {provider.name} token to save in HeliX config: ").strip()
+    if not token:
+        print("[helix] no optional token saved.")
+        return config
+    os.environ[provider.token_env] = token
+    path = _save_config_token(provider.name, token)
+    print(f"[helix] {provider.token_env} saved in HeliX config: {path}")
+    return _load_config()
 
 
 def _suite_from_text(text: str) -> str | None:
@@ -3047,9 +5129,169 @@ def _recent_history_mentions_helix(history: list[dict[str, str]] | None = None) 
     return False
 
 
+def _has_helix_scope_term(text: str) -> bool:
+    lowered = str(text or "").lower()
+    scope_terms = (
+        "helix",
+        "/verify",
+        "verify",
+        "merkle",
+        "dag",
+        "receipt",
+        "receipts",
+        "node_hash",
+        "node hash",
+        "hash",
+        "hashes",
+        "firma",
+        "firmas",
+        "signature",
+        "signatures",
+        "memoria",
+        "memory",
+        "evidencia",
+        "evidence",
+        "artifact",
+        "artifacts",
+        "artefacto",
+        "suite",
+        "suites",
+        "corrida",
+        "corridas",
+        "transcript",
+        "transcripts",
+        "tombstone",
+        "fence",
+        "rollback",
+    )
+    return any(term in lowered for term in scope_terms)
+
+
+def _is_clear_non_helix_topic_shift(text: str) -> bool:
+    lowered = " ".join(str(text or "").lower().split())
+    if not lowered or _has_helix_scope_term(lowered):
+        return False
+    topic_shift_starters = (
+        "hablame de ",
+        "hablame sobre ",
+        "contame de ",
+        "contame sobre ",
+        "quiero saber de ",
+        "quiero saber sobre ",
+        "que sabes de ",
+        "que sabes sobre ",
+        "dame info de ",
+        "dame info sobre ",
+        "quiero info de ",
+        "quiero info sobre ",
+        "buscame info de ",
+        "buscame info sobre ",
+        "busca info de ",
+        "busca info sobre ",
+        "investiga ",
+        "googlea ",
+    )
+    if lowered.startswith(topic_shift_starters):
+        return True
+    general_topic_terms = (
+        "argentina",
+        "buenos aires",
+        "politica",
+        "economia",
+        "historia",
+        "cultura",
+        "futbol",
+        "viaje",
+        "turismo",
+        "comida",
+        "dolar",
+        "gobierno",
+        "presidente",
+        "pais",
+        "mundo",
+    )
+    return any(term in lowered for term in general_topic_terms)
+
+
+def _is_contextual_helix_followup(text: str) -> bool:
+    lowered = " ".join(str(text or "").lower().strip().split())
+    if not lowered or len(lowered) > 220 or _is_clear_non_helix_topic_shift(lowered):
+        return False
+    direct_followup_terms = (
+        "eso",
+        "esto",
+        "entenderlo",
+        "entenderla",
+        "entender eso",
+        "entender esto",
+        "explicamelo",
+        "explicame eso",
+        "explicame esto",
+        "ayudes a entender",
+        "ayudar a entender",
+        "que mas",
+        "que otra cosa",
+        "como funciona",
+        "como trabaja",
+        "para que sirve",
+        "que permite",
+        "que hace",
+        "chasis",
+        "trazabilidad",
+        "auditabilidad",
+        "auditable",
+        "seguro",
+        "segura",
+        "seguridad",
+        "riguroso",
+        "rigurosa",
+        "rigor",
+        "valida",
+        "valido",
+        "invalida",
+        "invalido",
+    )
+    if any(term in lowered for term in direct_followup_terms):
+        return True
+    return lowered in {
+        "como?",
+        "como",
+        "y?",
+        "y eso?",
+        "y eso",
+        "y esto?",
+        "y esto",
+        "que onda?",
+        "que onda",
+        "por que?",
+        "por que",
+    }
+
+
+def _is_affective_reaction(text: str) -> bool:
+    lowered = " ".join(str(text or "").lower().strip().split())
+    if not lowered or "?" in lowered:
+        return False
+    reaction_terms = (
+        "una locura",
+        "increible",
+        "impresionante",
+        "muy bueno",
+        "buenisimo",
+        "esta bueno",
+        "es genial",
+        "en el buen sentido",
+    )
+    return any(term in lowered for term in reaction_terms) or bool(re.search(r"\bme gusta\b", lowered))
+
+
 def _is_helix_auditability_request(text: str, history: list[dict[str, str]] | None = None) -> bool:
     lowered = str(text or "").lower()
-    helix_in_scope = "helix" in lowered or _recent_history_mentions_helix(history)
+    if _is_clear_non_helix_topic_shift(lowered):
+        return False
+    helix_in_scope = _has_helix_scope_term(lowered) or (
+        _recent_history_mentions_helix(history) and _is_contextual_helix_followup(lowered)
+    )
     if not helix_in_scope:
         return False
     auditability_terms = (
@@ -3077,6 +5319,12 @@ def _is_helix_auditability_request(text: str, history: list[dict[str, str]] | No
         "chain",
         "cadena",
         "integridad",
+        "seguro",
+        "segura",
+        "seguridad",
+        "riguroso",
+        "rigurosa",
+        "rigor",
         "trazabilidad",
         "verificado",
         "verificable",
@@ -3088,7 +5336,11 @@ def _is_helix_auditability_request(text: str, history: list[dict[str, str]] | No
 
 def _is_helix_explanation_request(text: str, history: list[dict[str, str]] | None = None) -> bool:
     lowered = str(text or "").lower()
-    helix_in_scope = "helix" in lowered or _recent_history_mentions_helix(history)
+    if _is_affective_reaction(lowered) or _is_clear_non_helix_topic_shift(lowered):
+        return False
+    helix_in_scope = _has_helix_scope_term(lowered) or (
+        _recent_history_mentions_helix(history) and _is_contextual_helix_followup(lowered)
+    )
     if not helix_in_scope:
         return False
     explanation_terms = (
@@ -3126,11 +5378,13 @@ def _is_helix_explanation_request(text: str, history: list[dict[str, str]] | Non
         "verificacion",
         "verificación",
     )
-    return (
-        any(term in lowered for term in explanation_terms)
-        or any(term in lowered for term in capability_terms)
-        or _is_helix_auditability_request(lowered, history)
-    )
+    if _has_helix_scope_term(lowered):
+        return (
+            any(term in lowered for term in explanation_terms)
+            or any(term in lowered for term in capability_terms)
+            or _is_helix_auditability_request(lowered, history)
+        )
+    return _is_contextual_helix_followup(lowered) or _is_helix_auditability_request(lowered, history)
 
 
 def _helix_grounding_query(text: str) -> str:
@@ -3148,7 +5402,7 @@ def _helix_grounding_query(text: str) -> str:
 
 def _override_route_for_helix_focus(route: dict[str, Any], *, policy: str, auditability: bool) -> dict[str, Any]:
     blueprint = _resolve_router_blueprint(policy)
-    alias = blueprint.audit_alias if auditability else blueprint.reasoning_alias
+    alias = blueprint.audit_alias if auditability else "qwen-big"
     profile = DEEPINFRA_MODEL_PROFILES[alias]
     signals = list(route.get("signals") or [])
     signals.append("helix_focus")
@@ -3169,7 +5423,7 @@ def _override_route_for_helix_focus(route: dict[str, Any], *, policy: str, audit
         "reason": (
             "Contextual HeliX auditability question promoted to the blueprint audit profile for grounded answers."
             if auditability
-            else "Contextual HeliX explanation request promoted to the blueprint reasoning profile for grounded answers."
+            else "Contextual HeliX explanation request promoted to the blueprint large-Qwen research profile for grounded answers."
         ),
     }
 
@@ -3186,6 +5440,8 @@ def _needs_certified_evidence(
         return True
     if _is_helix_explanation_request(lowered, history):
         return True
+    if _is_clear_non_helix_topic_shift(lowered) or _is_affective_reaction(lowered):
+        return False
     evidence_terms = (
         "helix",
         "merkle",
@@ -3243,12 +5499,20 @@ def _needs_repository_evidence(text: str, route: dict[str, Any] | None = None) -
     )
     if any(term in lowered for term in evidence_terms):
         return True
-    return bool(route and route.get("intent") in {"research", "audit"})
+    if _is_suite_evidence_request(text):
+        return True
+    return bool(route and route.get("intent") in {"research", "audit", "suite_forensics"})
 
 
 def _route_natural_language(text: str) -> str | None:
     lowered = text.lower()
-    if any(term in lowered for term in ("corre", "ejecuta", "run ", "certifica")):
+    if _is_pasted_suite_analysis_request(text):
+        return None
+    if "/verify" in lowered and not any(term in lowered for term in ("resultado", "transcript", "corrida", "artifact", "manifest")):
+        return "/suites"
+    execution_terms = ("corre", "ejecuta", "run ", "certifica")
+    analysis_terms = ("quiero info", "quiero data", "dame info", "dame data", "contame", "analiza", "explica")
+    if any(term in lowered for term in execution_terms) and not any(term in lowered for term in analysis_terms):
         suite_id = _suite_from_text(text)
         if suite_id:
             return f"/cert {suite_id}"
@@ -3281,6 +5545,11 @@ def _looks_like_agent_task(text: str) -> bool:
         "lee estos archivos",
         "busca en archivos",
         "aplica un fix",
+        "codex",
+        "claude code",
+        "modo agente",
+        "modo agentico",
+        "modo agentic",
     )
     task_objects = ("repo", "archivo", "archivos", "test", "tests", "pytest", "diff", "patch", "código", "codigo")
     if any(verb in lowered for verb in task_verbs):
@@ -3298,6 +5567,19 @@ def _set_session_provider(session: InteractiveSession, candidate: str) -> None:
     elif default_model:
         session.model = default_model
     _ensure_provider_token(candidate)
+
+
+def _set_session_model(session: InteractiveSession, value: str) -> None:
+    model_id = resolve_model_alias(value)
+    if model_id.lower() in {"auto", "router:auto"}:
+        session.model = "auto"
+        return
+    alias = _profile_alias_for_model_id(model_id)
+    profile = MODEL_PROFILES.get(alias or "")
+    if profile and profile.provider != session.provider_name:
+        session.provider_name = profile.provider
+        _ensure_provider_token(profile.provider)
+    session.model = model_id
 
 
 def _select_provider(session: InteractiveSession) -> str | None:
@@ -3343,9 +5625,15 @@ def _select_model(session: InteractiveSession) -> str | None:
     options = [
         ("auto", "auto - let the router choose per prompt"),
         ("mistral", "mistral - fast conversational baseline"),
-        ("qwen", "qwen - large generalist for synthesis and research"),
+        ("qwen-big", "qwen-big - primary large Qwen for research, HeliX and synthesis"),
+        ("qwen", "qwen - alias for qwen-big"),
         ("gemma", "gemma - careful reasoning and decomposition"),
+        ("gemini-pro", "gemini-pro - Gemini 3.1 Pro preview via GEMINI_API_KEY"),
+        ("gemini-flash", "gemini-flash - Gemini 3 Flash preview via GEMINI_API_KEY"),
+        ("gemini-lite", "gemini-lite - Gemini 3.1 Flash Lite preview via GEMINI_API_KEY"),
         ("coder", "coder - repository and patch-heavy coding work"),
+        ("engineering", "engineering - premium GLM agentic engineering path"),
+        ("deep-reasoning", "deep-reasoning - DeepSeek reasoning fallback"),
         ("llama", "llama - larger generalist fallback"),
         ("llama-vision", "llama-vision - visual debugging and screenshots"),
         ("sonnet", "sonnet - higher-stakes audits and review"),
@@ -3401,12 +5689,68 @@ def _handle_interactive_command(session: InteractiveSession, line: str) -> bool:
         _print_json({"providers": provider_report(probe_local=False)})
         return True
     if name == "models":
-        _print_json(
-            {
-                "deepinfra_model_profiles": model_profiles_report(),
-                "router_blueprints": router_blueprints_report(),
-            }
-        )
+        if rest.lower() == "json":
+            _print_json(models_payload())
+            return True
+        if console and _HAS_UI:
+            selected = _select_model(session)
+            if selected:
+                _set_session_model(session, selected)
+                print(f"[helix] provider={session.provider_name} model={session.model}")
+            return True
+        _print_models_compact()
+        return True
+    if name in {"suites", "experiments", "experimentos"}:
+        payload = session.suite_catalog.list_suites()
+        if rest.lower() == "json":
+            _print_json(payload)
+        else:
+            _print_suites_compact(payload)
+        return True
+    if name == "suite":
+        parts = _split_command(rest)
+        subcommand = parts[0].lower() if parts else "list"
+        argument = " ".join(parts[1:]).strip()
+        if subcommand in {"list", "ls", "catalog"}:
+            payload = session.suite_catalog.list_suites()
+            if argument == "json":
+                _print_json(payload)
+            else:
+                _print_suites_compact(payload)
+            return True
+        if subcommand in {"show", "latest"}:
+            if not argument:
+                print(f"Usage: /suite {subcommand} SUITE_ID")
+                return True
+            suite_id = _suite_from_text(argument) or argument
+            payload = session.suite_catalog.latest(suite_id) if subcommand == "latest" else session.suite_catalog.show_suite(suite_id)
+            _print_json(payload)
+            return True
+        if subcommand in {"transcript", "transcripts"}:
+            if not argument:
+                print("Usage: /suite transcripts SUITE_ID [FILTER]")
+                return True
+            arg_parts = _split_command(argument)
+            suite_id = _suite_from_text(arg_parts[0]) or arg_parts[0]
+            query = " ".join(arg_parts[1:]).strip() or None
+            _print_json(session.suite_catalog.transcripts(suite_id, query=query, limit=60))
+            return True
+        if subcommand == "search":
+            query = argument or input("Suite evidence query: ").strip()
+            _print_json(session.suite_catalog.search(query, limit=20))
+            return True
+        if subcommand in {"read", "open"}:
+            if not argument:
+                print("Usage: /suite read PATH_OR_FILENAME")
+                return True
+            _print_json(session.suite_catalog.read(argument))
+            return True
+        if subcommand == "ingest":
+            target = argument or "all"
+            pack = session.refresh_evidence(None if target == "all" else target, limit=50)
+            _print_json(pack)
+            return True
+        print("Usage: /suite list|show SUITE|latest SUITE|transcripts SUITE [FILTER]|search QUERY|read PATH|ingest [SUITE|all]")
         return True
     if name == "route":
         if not rest:
@@ -3414,7 +5758,24 @@ def _handle_interactive_command(session: InteractiveSession, line: str) -> bool:
             return True
         _print_json(route_model_for_task(rest, provider_name=session.provider_name, policy=session.router_policy))
         return True
+    if name == "web":
+        query = rest or input("Web query: ").strip()
+        _print_json(web_search(query, limit=8))
+        return True
+    if name in {"file", "open", "read"}:
+        path_ref = rest or input("File or directory path: ").strip()
+        _print_json(session.file_inspect(path_ref))
+        return True
     if name == "router":
+        parts = _split_command(rest)
+        subcommand = parts[0].lower() if parts else ""
+        if subcommand == "why":
+            prompt = " ".join(parts[1:]).strip()
+            if not prompt:
+                print("Usage: /router why TEXT")
+                return True
+            _print_json(route_model_for_task(prompt, provider_name=session.provider_name, policy=session.router_policy))
+            return True
         if rest.lower() in {"list", "ls"}:
             if console and _HAS_UI:
                 selected = _select_router_policy(session)
@@ -3458,6 +5819,17 @@ def _handle_interactive_command(session: InteractiveSession, line: str) -> bool:
             _save_config(config)
         print(f"[helix] theme={session.theme_name}")
         return True
+    if name == "style":
+        if rest.lower() in {"list", "ls"}:
+            _print_json({"current": session.response_style, "styles": RESPONSE_STYLES})
+            return True
+        if rest:
+            session.response_style = _normalize_response_style(rest)
+            config = _load_config()
+            config["response_style"] = session.response_style
+            _save_config(config)
+        print(f"[helix] response_style={session.response_style}")
+        return True
     if name == "config":
         token_providers = sorted((_load_config().get("tokens") or {}).keys())
         _print_json(
@@ -3471,6 +5843,7 @@ def _handle_interactive_command(session: InteractiveSession, line: str) -> bool:
                 "session_task_root": session.task_root,
                 "saved_token_providers": token_providers,
                 "theme": session.theme_name,
+                "response_style": session.response_style,
             }
         )
         return True
@@ -3505,26 +5878,75 @@ def _handle_interactive_command(session: InteractiveSession, line: str) -> bool:
         print(f"[helix] provider={session.provider_name} model={session.model}")
         return True
     if name == "model":
+        parts = _split_command(rest)
+        subcommand = parts[0].lower() if parts else ""
+        if subcommand == "use":
+            rest = " ".join(parts[1:]).strip()
+            if not rest:
+                print("Usage: /model use NAME")
+                return True
         if rest.lower() in {"list", "ls"}:
             if console and _HAS_UI:
                 selected = _select_model(session)
                 if selected:
-                    session.model = resolve_model_alias(selected)
+                    _set_session_model(session, selected)
             else:
-                _print_json(
-                    {
-                        "deepinfra_model_profiles": model_profiles_report(),
-                        "router_blueprints": router_blueprints_report(),
-                    }
-                )
+                _print_json(models_payload())
                 return True
         elif rest:
-            session.model = resolve_model_alias(rest)
+            _set_session_model(session, rest)
         elif console and _HAS_UI:
             selected = _select_model(session)
             if selected:
-                session.model = resolve_model_alias(selected)
-        print(f"[helix] model={session.model}")
+                _set_session_model(session, selected)
+        print(f"[helix] provider={session.provider_name} model={session.model}")
+        return True
+    if name == "with":
+        parts = _split_command(rest)
+        if len(parts) < 2:
+            print("Usage: /with MODEL PROMPT")
+            return True
+        alias = parts[0]
+        goal = " ".join(parts[1:]).strip()
+        previous_provider = session.provider_name
+        previous_model = session.model
+        _set_session_model(session, alias)
+        try:
+            routed = _route_natural_language(goal)
+            if routed and routed.startswith("/task"):
+                result = session.task(goal, mode_override="suggest")
+                if console:
+                    _render_task_result(console, result)
+                else:
+                    _print_json(result)
+            else:
+                if console:
+                    response_obj = _run_with_status(console, lambda: session.chat(goal))
+                    latest = session.events[-1] if session.events else {}
+                    metadata = latest.get("metadata", {})
+                    receipt = latest.get("helix_memory") or {}
+                    raw_text = response_obj.get("raw_text") or ""
+                    _render_chat_response(
+                        console,
+                        clean_text=response_obj.get("text") or "",
+                        model_used=_short_model_name(metadata.get("actual_model", session.model)),
+                        intent="manual_once",
+                        latency_label=(
+                            f"{float(metadata.get('latency_ms')):.0f}ms"
+                            if isinstance(metadata.get("latency_ms"), (int, float))
+                            else "n/a"
+                        ),
+                        short_hash=str(receipt.get("node_hash") or "")[:10] or "nohash",
+                        raw_text=raw_text,
+                        show_raw=session.raw_output,
+                    )
+                else:
+                    response = session.chat(goal)
+                    print(response.get("text"))
+        finally:
+            session.provider_name = previous_provider
+            session.model = previous_model
+        print(f"[helix] provider/model restored to {session.provider_name}/{session.model}")
         return True
     if name == "raw":
         if rest:
@@ -3539,15 +5961,23 @@ def _handle_interactive_command(session: InteractiveSession, line: str) -> bool:
         os.system("cls" if os.name == "nt" else "clear")
         return True
     if name == "key":
-        if rest.lower() == "forget":
-            path = _forget_config_token(session.provider_name)
-            provider = PROVIDERS[session.provider_name]
+        parts = _split_command(rest)
+        action = parts[0].lower() if parts else ""
+        provider_name = session.provider_name
+        if action in PROVIDERS:
+            provider_name = action
+            action = ""
+        elif len(parts) > 1 and parts[1].lower() in PROVIDERS:
+            provider_name = parts[1].lower()
+        if action == "forget":
+            path = _forget_config_token(provider_name)
+            provider = PROVIDERS[provider_name]
             if provider.token_env:
                 os.environ.pop(provider.token_env, None)
             print(f"[helix] saved token removed from config: {path}")
             return True
-        if rest.lower() in {"save", "persist"}:
-            provider = PROVIDERS[session.provider_name]
+        if action in {"save", "persist"}:
+            provider = PROVIDERS[provider_name]
             if not provider.token_env:
                 print(f"[helix] provider {provider.name} does not use an API token.")
                 return True
@@ -3559,8 +5989,8 @@ def _handle_interactive_command(session: InteractiveSession, line: str) -> bool:
             path = _save_config_token(provider.name, token)
             print(f"[helix] token saved in user config: {path}")
             return True
-        if rest.lower() == "status":
-            provider = PROVIDERS[session.provider_name]
+        if action == "status":
+            provider = PROVIDERS[provider_name]
             _print_json(
                 {
                     "provider": provider.name,
@@ -3571,7 +6001,7 @@ def _handle_interactive_command(session: InteractiveSession, line: str) -> bool:
                 }
             )
             return True
-        _ensure_provider_token(session.provider_name)
+        _ensure_provider_token(provider_name)
         return True
     if name in {"cert", "cert-dry"}:
         parts = _split_command(rest)
@@ -3630,6 +6060,7 @@ def _handle_interactive_command(session: InteractiveSession, line: str) -> bool:
     if name == "verify":
         if not rest:
             print("Usage: /verify PATH|latest|search QUERY")
+            print("Related: /suites | /suite latest SUITE | /suite transcripts SUITE | /evidence latest")
             return True
         verify_parts = _split_command(rest)
         verify_mode = verify_parts[0].lower() if verify_parts else ""
@@ -3697,6 +6128,15 @@ def _handle_interactive_command(session: InteractiveSession, line: str) -> bool:
             _print_json(report)
         return True
     if name == "memory":
+        parts = _split_command(rest)
+        subcommand = parts[0].lower() if parts else ""
+        if subcommand in {"resolve", "show", "hash"}:
+            ref = " ".join(parts[1:]).strip()
+            if not ref:
+                print("Usage: /memory resolve HASH_OR_MEMORY_ID")
+                return True
+            _print_json(session.memory_resolve(ref))
+            return True
         query = rest or input("Memory query: ").strip()
         _print_json(
             hmem.hybrid_search(
@@ -3711,7 +6151,19 @@ def _handle_interactive_command(session: InteractiveSession, line: str) -> bool:
         )
         return True
     if name == "tools":
-        _print_json(session.tool_registry_report())
+        report = session.tool_registry_report()
+        if rest.lower() == "json":
+            _print_json(report)
+        elif rest.lower() in {"blueprints", "agents"}:
+            _print_agent_blueprints_compact()
+        else:
+            _print_tools_compact(report)
+        return True
+    if name == "agents":
+        if rest.lower() == "json":
+            _print_json({"agent_blueprints": agent_blueprints_report()})
+        else:
+            _print_agent_blueprints_compact()
         return True
     if name == "mode":
         _print_json(
@@ -3764,11 +6216,44 @@ def _handle_interactive_command(session: InteractiveSession, line: str) -> bool:
             print(applied.stderr or applied.stdout)
         return True
     if name in {"task", "agent"}:
+        mode_override = None
+        agent_blueprint: AgentBlueprint | None = None
+        if name == "agent":
+            parts = _split_command(rest)
+            if parts and parts[0].lower() in {"list", "ls", "blueprints"}:
+                _print_agent_blueprints_compact()
+                return True
+            if parts and parts[0].lower() in {"use", "run"}:
+                if len(parts) < 2:
+                    print("Usage: /agent use BLUEPRINT GOAL")
+                    print(f"Known blueprints: {', '.join(sorted(AGENT_BLUEPRINTS))}")
+                    return True
+                blueprint_id = _slugish(parts[1])
+                agent_blueprint = AGENT_BLUEPRINTS.get(blueprint_id)
+                if agent_blueprint is None:
+                    print(f"Unknown agent blueprint: {parts[1]}")
+                    print(f"Known blueprints: {', '.join(sorted(AGENT_BLUEPRINTS))}")
+                    return True
+                mode_override = "suggest"
+                rest = " ".join(parts[2:]).strip()
+            elif parts and parts[0].lower() in {"suggest", "plan"}:
+                mode_override = "suggest"
+                rest = " ".join(parts[1:]).strip()
+            elif parts and parts[0].lower() in {"auto-edit", "autoedit", "edit"}:
+                print("[helix] auto-edit is not enabled in this build; running safe suggest mode instead.")
+                mode_override = "suggest"
+                rest = " ".join(parts[1:]).strip()
+            else:
+                mode_override = "suggest"
         goal = rest or input("Agent goal: ").strip()
         if console:
-            result = _run_with_status(console, lambda: session.task(goal), phase="task")
+            result = _run_with_status(
+                console,
+                lambda: session.task(goal, mode_override=mode_override, agent_blueprint=agent_blueprint),
+                phase="task",
+            )
         else:
-            result = session.task(goal)
+            result = session.task(goal, mode_override=mode_override, agent_blueprint=agent_blueprint)
         if console:
             _render_task_result(console, result)
         else:
@@ -3818,6 +6303,8 @@ def run_interactive(args: argparse.Namespace | None = None) -> int:
     )
     model = _read_default("Model", default_model) if default_model else input("Model: ").strip()
     _ensure_provider_token(provider_name)
+    if provider_name != "gemini":
+        config = _maybe_prompt_optional_provider_token("gemini", config=config)
     workspace = Path(getattr(args, "workspace_root", None) or _default_workspace_root()).resolve()
     task_root = Path(getattr(args, "task_root", None) or Path.cwd()).resolve()
     project = _slugish(getattr(args, "project", None) or "helix-cli")
@@ -3838,6 +6325,7 @@ def run_interactive(args: argparse.Namespace | None = None) -> int:
         task_root=task_root,
     )
     session.theme_name = theme_name
+    session.response_style = _normalize_response_style(config.get("response_style") or "balanced")
 
     if console:
         _render_session_ribbon(console, session)
@@ -3862,16 +6350,23 @@ def run_interactive(args: argparse.Namespace | None = None) -> int:
 
     if _HAS_UI:
         completer = WordCompleter([
-            '/help', '/status', '/thread', '/provider', '/model', '/models', '/route', 
+            '/help', '/status', '/thread', '/provider', '/model', '/models', '/route', '/web', '/file',
             '/router', '/key', '/doctor', '/providers', '/cert', '/cert-dry', 
-            '/evidence', '/verify', '/memory', '/task', '/tools', '/mode', '/apply', '/agent', '/theme', '/raw', '/clear', '/config', '/exit', '/quit',
-            '/model auto', '/model sonnet', '/model mistral', '/model devstral', '/model qwen', '/model gemma', '/model llama', '/model llama-vision',
-            '/router balanced', '/router current', '/router qwen-gemma-mistral', '/router cheap', '/router premium', '/router list',
+            '/evidence', '/verify', '/suites', '/suite', '/memory', '/task', '/tools', '/agents', '/mode', '/apply', '/agent', '/with', '/theme', '/style', '/raw', '/clear', '/config', '/exit', '/quit',
+            '/provider deepinfra', '/provider gemini', '/provider list',
+            '/models json', '/model auto', '/model use ', '/model sonnet', '/model mistral', '/model devstral', '/model qwen', '/model qwen-big', '/model gemma', '/model gemini-pro', '/model gemini-flash', '/model gemini-lite', '/model coder', '/model engineering', '/model deep-reasoning', '/model llama', '/model llama-vision',
+            '/with sonnet ', '/with qwen-big ', '/with gemma ', '/with gemini-pro ', '/with gemini-flash ', '/with gemini-lite ', '/with coder ', '/with mistral ',
+            '/router balanced', '/router qwen-heavy', '/router current', '/router qwen-gemma-mistral', '/router cheap', '/router premium', '/router list', '/router why ',
+            '/web ', '/file ',
             '/theme industrial-brutalist', '/theme industrial-neon', '/theme xerox', '/theme brown-console', '/theme brown', '/theme cyberpunk', '/theme cyberpunk-gray', '/theme list', '/raw on', '/raw off',
-            '/key save', '/key forget', '/key status',
+            '/style balanced', '/style technical', '/style forensic', '/style vivid', '/style terse', '/style list',
+            '/key save', '/key save gemini', '/key gemini', '/key forget', '/key forget gemini', '/key status', '/key status gemini',
             '/evidence refresh', '/evidence latest', '/evidence search', '/verify latest', '/verify search',
+            '/memory resolve ', '/memory show ', '/memory hash ',
+            '/suites json', '/suite list', '/suite latest ', '/suite show ', '/suite transcripts ', '/suite search ', '/suite read ', '/suite ingest ',
             '/thread new', '/thread list', '/thread open', '/thread close', '/thread current',
-            '/task ', '/tools', '/mode', '/apply last',
+            '/task ', '/agent suggest ', '/agent use repo-scout ', '/agent use patch-planner ', '/agent use suite-run-analyst ', '/agent use transcript-forensics ', '/agent use evidence-auditor ', '/agent auto-edit ',
+            '/tools', '/tools json', '/tools blueprints', '/agents', '/agents json', '/mode', '/apply last',
         ], ignore_case=True)
         prompt_session = PromptSession(completer=completer, style=_prompt_style(theme_name))
     else:
@@ -4133,12 +6628,7 @@ def _cmd_providers_list(args: argparse.Namespace) -> int:
 
 
 def _cmd_models_list(args: argparse.Namespace) -> int:
-    _print_json(
-        {
-            "deepinfra_model_profiles": model_profiles_report(),
-            "router_blueprints": router_blueprints_report(),
-        }
-    )
+    _print_json(models_payload())
     return 0
 
 
@@ -4168,7 +6658,7 @@ def _cmd_auth_test(args: argparse.Namespace) -> int:
     try:
         result = run_chat(
             provider_name=provider.name,
-            model=args.model or provider.default_model,
+            model=resolve_model_alias(args.model) if args.model else provider.default_model,
             prompt="Return exactly: helix-auth-ok",
             max_tokens=16,
             temperature=0.0,
@@ -4244,7 +6734,7 @@ def _write_chat_transcript(path: Path, payload: dict[str, Any]) -> None:
 
 def _cmd_chat(args: argparse.Namespace) -> int:
     route = None
-    selected_model = args.model
+    selected_model = resolve_model_alias(args.model) if args.model else args.model
     if args.model and args.model.lower() in {"auto", "router:auto"}:
         route = route_model_for_task(args.prompt, provider_name=args.provider, policy=args.router_policy)
         selected_model = route.get("model")

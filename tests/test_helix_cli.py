@@ -13,12 +13,60 @@ def _test_root() -> Path:
     return Path.cwd() / "verification" / "cli-sessions" / "_test" / uuid.uuid4().hex
 
 
+def _write_suite_fixture(base: Path, suite_id: str = "hard-anchor-utility") -> tuple[Path, Path, dict[str, Path]]:
+    evidence_root = base / "repo" / "verification"
+    suite_dir = evidence_root / "nuclear-methodology" / suite_id
+    case_dir = suite_dir / "exact-anchor-recovery-under-lossy-summary"
+    case_dir.mkdir(parents=True)
+    preregistered = suite_dir / "PREREGISTERED.md"
+    preregistered.write_text("# preregistered\n- hard anchor recovery\n", encoding="utf-8")
+    transcript = case_dir / f"local-{suite_id}-case-{suite_id}-20260421-120000-transcript.jsonl"
+    transcript.write_text(
+        '{"event":"proposer","model":"qwen","content":"hard anchor recovered"}\n'
+        '{"event":"auditor","model":"sonnet","content":"lineage verified"}\n',
+        encoding="utf-8",
+    )
+    transcript_md = case_dir / f"local-{suite_id}-case-{suite_id}-20260421-120000-transcript.md"
+    transcript_md.write_text("## Transcript\nhard anchor recovered\n", encoding="utf-8")
+    artifact = suite_dir / f"local-{suite_id}-suite-{suite_id}-20260421-120000.json"
+    artifact.write_text(
+        json.dumps(
+            {
+                "suite_id": suite_id,
+                "run_id": f"{suite_id}-20260421-120000",
+                "status": "completed",
+                "case_count": 1,
+                "score": 1.0,
+                "cases": [{"case_id": "exact-anchor-recovery-under-lossy-summary", "status": "completed", "score": 1.0}],
+                "transcript_exports": {"jsonl_path": str(transcript), "md_path": str(transcript_md)},
+            },
+            ensure_ascii=False,
+        ),
+        encoding="utf-8",
+    )
+    manifest = suite_dir / f"local-{suite_id}-suite-20260421-120000-run.json"
+    manifest.write_text(
+        json.dumps({"run_id": f"{suite_id}-20260421-120000", "artifact_path": str(artifact)}, ensure_ascii=False),
+        encoding="utf-8",
+    )
+    return evidence_root, suite_dir, {
+        "artifact": artifact,
+        "manifest": manifest,
+        "transcript": transcript,
+        "transcript_md": transcript_md,
+        "preregistered": preregistered,
+    }
+
+
 def test_provider_registry_includes_cloud_local_and_openai_compatible() -> None:
     assert "deepinfra" in helix_cli.PROVIDERS
+    assert "gemini" in helix_cli.PROVIDERS
     assert "ollama" in helix_cli.PROVIDERS
     assert "llamacpp" in helix_cli.PROVIDERS
     assert "local" in helix_cli.PROVIDERS
     assert helix_cli.PROVIDERS["deepinfra"].token_env == "DEEPINFRA_API_TOKEN"
+    assert helix_cli.PROVIDERS["gemini"].token_env == "GEMINI_API_KEY"
+    assert helix_cli.PROVIDERS["gemini"].kind == "gemini"
     assert helix_cli.PROVIDERS["ollama"].requires_token is False
 
 
@@ -88,6 +136,26 @@ def test_natural_language_routes_known_suite() -> None:
     assert routed == "/cert policy-rag-legal-debate"
 
 
+def test_pasted_suite_analysis_does_not_route_to_cert() -> None:
+    pasted = """quiero data de esto
+Suite                     Run ID           Estado
+branch-pruning-forensics  20260421-120000  completed
+{
+  "suite_id": "branch-pruning-forensics",
+  "exit_code": 1,
+  "stderr": "RuntimeError: RustIndexedMerkleDAG was not rebuilt with build_context_fast"
+}
+"""
+    assert helix_cli._looks_like_pasted_suite_evidence(pasted) is True
+    assert helix_cli._is_pasted_suite_analysis_request(pasted) is True
+    assert helix_cli._route_natural_language(pasted) is None
+    assert helix_cli._is_suite_evidence_request(pasted) is True
+
+
+def test_natural_language_verify_hint_opens_suite_catalog() -> None:
+    assert helix_cli._route_natural_language("bueno /verify") == "/suites"
+
+
 def test_default_workspace_root_prefers_repo_workspace_over_config_override(monkeypatch) -> None:
     monkeypatch.setattr(helix_cli, "_load_config", lambda: {"workspace_root": "C:/tmp/elsewhere"})
     monkeypatch.setenv("HELIX_WORKSPACE_ROOT", "C:/tmp/from-env")
@@ -144,9 +212,10 @@ def test_auto_router_selects_research_model_for_benchmark_lookup() -> None:
         policy="balanced",
     )
     assert route["intent"] == "research"
-    assert route["profile"] == "research"
+    assert route["profile"] == "qwen-big"
     assert route["model"] == "Qwen/Qwen3.5-122B-A10B"
     assert route["blueprint"] == "balanced"
+    assert route["fallback_chain"] == ["qwen-122b", "default", "chat"]
 
 
 def test_auto_router_selects_gemma_for_reasoning_in_balanced_blueprint() -> None:
@@ -188,12 +257,50 @@ def test_auto_router_handles_model_control_for_mistral_and_sonnet() -> None:
     assert sonnet["intent"] == "model_control"
     assert sonnet["profile"] == "sonnet"
 
+    gemini = helix_cli.route_model_for_task(
+        "quiero que me responda gemini pro",
+        provider_name="deepinfra",
+        policy="balanced",
+    )
+    assert gemini["intent"] == "model_control"
+    assert gemini["provider"] == "gemini"
+    assert gemini["profile"] == "gemini-pro"
+    assert gemini["model"] == helix_cli.GEMINI_MODEL_PROFILES["gemini-pro"].model_id
+
+
+def test_auto_router_does_not_treat_model_research_as_model_control() -> None:
+    route = helix_cli.route_model_for_task(
+        "quiero info de modelos nuevos para agentes de codigo",
+        provider_name="deepinfra",
+        policy="balanced",
+    )
+    assert route["intent"] in {"research", "agentic_code"}
+    assert route["intent"] != "model_control"
+    assert route["profile"] in {"qwen-big", "code"}
+    assert route["intent_scores"]
+
+
+def test_auto_router_selects_agentic_coding_for_codex_like_repo_work() -> None:
+    route = helix_cli.route_model_for_task(
+        "actua como codex, lee el repo, arregla el bug y proponeme el patch",
+        provider_name="deepinfra",
+        policy="balanced",
+    )
+    assert route["intent"] == "agentic_code"
+    assert route["profile"] == "code"
+    assert "Coder" in route["model"]
+    assert route["fallback_chain"] == ["devstral", "qwen-big", "chat"]
+
 
 def test_model_alias_resolution() -> None:
     assert helix_cli.resolve_model_alias("mistral").startswith("mistralai/")
     assert helix_cli.resolve_model_alias("sonnet") == helix_cli.DEEPINFRA_MODEL_PROFILES["sonnet"].model_id
-    assert helix_cli.resolve_model_alias("qwen") == helix_cli.DEEPINFRA_MODEL_PROFILES["qwen-122b"].model_id
+    assert helix_cli.resolve_model_alias("qwen") == helix_cli.DEEPINFRA_MODEL_PROFILES["qwen-big"].model_id
+    assert helix_cli.resolve_model_alias("qwen-122b") == helix_cli.DEEPINFRA_MODEL_PROFILES["qwen-122b"].model_id
     assert helix_cli.resolve_model_alias("gemma") == helix_cli.DEEPINFRA_MODEL_PROFILES["gemma"].model_id
+    assert helix_cli.resolve_model_alias("gemini-pro") == helix_cli.GEMINI_MODEL_PROFILES["gemini-pro"].model_id
+    assert helix_cli.resolve_model_alias("gemini flash") == helix_cli.GEMINI_MODEL_PROFILES["gemini-flash"].model_id
+    assert helix_cli.resolve_model_alias("gemini-3.1-flash-lite-preview") == helix_cli.GEMINI_MODEL_PROFILES["gemini-lite"].model_id
     assert helix_cli.resolve_model_alias("llama-vision") == helix_cli.DEEPINFRA_MODEL_PROFILES["llama-vision"].model_id
     assert helix_cli.resolve_model_alias("auto") == "auto"
 
@@ -202,8 +309,11 @@ def test_router_blueprints_report_lists_current_and_hybrid_presets() -> None:
     blueprints = {item["name"]: item for item in helix_cli.router_blueprints_report()}
     assert "balanced" in blueprints
     assert "current" in blueprints
+    assert "qwen-heavy" in blueprints
     assert "qwen-gemma-mistral" in blueprints
     assert blueprints["balanced"]["reasoning_alias"] == "reasoning"
+    assert blueprints["balanced"]["research_alias"] == "qwen-big"
+    assert blueprints["qwen-heavy"]["default_alias"] == "qwen-big"
     assert blueprints["current"]["research_alias"] == "legacy-research"
 
 
@@ -262,6 +372,186 @@ def test_theme_list_command_prints_canonical_theme_report(capsys) -> None:
     output = capsys.readouterr().out
     assert "industrial-brutalist" in output
     assert "industrial-neon" in output
+
+
+def test_model_use_command_persists_until_auto() -> None:
+    session = helix_cli.InteractiveSession(
+        provider_name="deepinfra",
+        model="auto",
+        workspace_root=_test_root() / "workspace",
+        project="test-project",
+        agent_id="tester",
+        max_tokens=64,
+        temperature=0.0,
+        transcript_dir=_test_root() / "transcripts",
+    )
+    assert helix_cli._handle_interactive_command(session, "/model use sonnet") is True
+    assert session.model == helix_cli.DEEPINFRA_MODEL_PROFILES["sonnet"].model_id
+    assert helix_cli._handle_interactive_command(session, "/model auto") is True
+    assert session.model == "auto"
+
+
+def test_model_use_gemini_switches_provider_and_model(monkeypatch) -> None:
+    monkeypatch.setattr(helix_cli, "_ensure_provider_token", lambda provider_name: None)
+    session = helix_cli.InteractiveSession(
+        provider_name="deepinfra",
+        model="auto",
+        workspace_root=_test_root() / "workspace",
+        project="test-project",
+        agent_id="tester",
+        max_tokens=64,
+        temperature=0.0,
+        transcript_dir=_test_root() / "transcripts",
+    )
+    assert helix_cli._handle_interactive_command(session, "/model use gemini-pro") is True
+    assert session.provider_name == "gemini"
+    assert session.model == helix_cli.GEMINI_MODEL_PROFILES["gemini-pro"].model_id
+
+
+def test_key_save_accepts_explicit_gemini_provider(monkeypatch, capsys) -> None:
+    saved = {}
+    monkeypatch.setattr(helix_cli.getpass, "getpass", lambda prompt: "gemini-key")
+    monkeypatch.setattr(
+        helix_cli,
+        "_save_config_token",
+        lambda provider_name, token: saved.update({"provider": provider_name, "token": token}) or Path("config.json"),
+    )
+    session = helix_cli.InteractiveSession(
+        provider_name="deepinfra",
+        model="auto",
+        workspace_root=_test_root() / "workspace",
+        project="test-project",
+        agent_id="tester",
+        max_tokens=64,
+        temperature=0.0,
+        transcript_dir=_test_root() / "transcripts",
+    )
+    assert helix_cli._handle_interactive_command(session, "/key save gemini") is True
+    assert saved == {"provider": "gemini", "token": "gemini-key"}
+    assert "token saved" in capsys.readouterr().out
+
+
+def test_optional_gemini_token_prompt_can_save_key(monkeypatch, capsys) -> None:
+    saved = {}
+    configs = [{"tokens": {}}, {"tokens": {"gemini": "gemini-key"}}]
+    monkeypatch.delenv("GEMINI_API_KEY", raising=False)
+    monkeypatch.setattr(helix_cli, "_load_config", lambda: configs[-1])
+    monkeypatch.setattr(helix_cli, "_config_token", lambda provider_name: None)
+    monkeypatch.setattr(helix_cli, "_save_config_token", lambda provider_name, token: saved.update({"provider": provider_name, "token": token}) or Path("config.json"))
+    monkeypatch.setattr(helix_cli.getpass, "getpass", lambda prompt: "gemini-key")
+    monkeypatch.setattr("builtins.input", lambda prompt: "y")
+
+    updated = helix_cli._maybe_prompt_optional_provider_token("gemini", config=configs[0])
+    assert saved == {"provider": "gemini", "token": "gemini-key"}
+    assert updated["tokens"]["gemini"] == "gemini-key"
+    assert "GEMINI_API_KEY saved" in capsys.readouterr().out
+
+
+def test_optional_gemini_token_prompt_can_be_skipped(monkeypatch, capsys) -> None:
+    saved_config = {}
+    monkeypatch.delenv("GEMINI_API_KEY", raising=False)
+    monkeypatch.setattr(helix_cli, "_config_token", lambda provider_name: None)
+    monkeypatch.setattr(helix_cli, "_save_config", lambda config: saved_config.update(config) or Path("config.json"))
+    monkeypatch.setattr("builtins.input", lambda prompt: "skip")
+
+    updated = helix_cli._maybe_prompt_optional_provider_token("gemini", config={})
+    assert updated["optional_token_prompts"]["gemini"] == "skip"
+    assert saved_config["optional_token_prompts"]["gemini"] == "skip"
+    assert "prompt disabled" in capsys.readouterr().out
+
+
+def test_router_why_command_prints_scored_route(capsys) -> None:
+    session = helix_cli.InteractiveSession(
+        provider_name="deepinfra",
+        model="auto",
+        workspace_root=_test_root() / "workspace",
+        project="test-project",
+        agent_id="tester",
+        max_tokens=64,
+        temperature=0.0,
+        transcript_dir=_test_root() / "transcripts",
+    )
+    assert helix_cli._handle_interactive_command(session, "/router why investiga modelos nuevos para codigo") is True
+    output = capsys.readouterr().out
+    assert '"intent_scores"' in output
+    assert '"fallback_chain"' in output
+
+
+def test_web_search_request_routes_to_web_research() -> None:
+    route = helix_cli.route_model_for_task(
+        "buscame en la web benchmarks actuales de modelos de codigo",
+        provider_name="deepinfra",
+        policy="balanced",
+    )
+    assert route["intent"] == "web_research"
+    assert route["profile"] == "qwen-big"
+    assert "web_research" in route["signals"]
+
+
+def test_with_command_uses_one_model_then_restores_auto(monkeypatch, capsys) -> None:
+    workspace = _test_root() / "workspace"
+    captured = {}
+
+    def fake_run_chat(provider_name, model, prompt, system, history=None, **kwargs):
+        captured["model"] = model
+        return {
+            "text": "<helix_output>Respuesta con Gemma.</helix_output>",
+            "actual_model": model,
+            "latency_ms": 1.0,
+            "finish_reason": "stop",
+            "usage": {"total_tokens": 8},
+        }
+
+    monkeypatch.setattr(helix_cli, "run_chat", fake_run_chat)
+    session = helix_cli.InteractiveSession(
+        provider_name="deepinfra",
+        model="auto",
+        workspace_root=workspace,
+        project="test-project",
+        agent_id="tester",
+        max_tokens=64,
+        temperature=0.0,
+        transcript_dir=workspace / "transcripts",
+    )
+    assert helix_cli._handle_interactive_command(session, "/with gemma razona esta hipotesis") is True
+    assert captured["model"] == helix_cli.DEEPINFRA_MODEL_PROFILES["gemma"].model_id
+    assert session.model == "auto"
+    assert "provider/model restored to deepinfra/auto" in capsys.readouterr().out
+
+
+def test_with_command_can_use_gemini_once_then_restore(monkeypatch, capsys) -> None:
+    workspace = _test_root() / "workspace"
+    captured = {}
+
+    def fake_run_chat(provider_name, model, prompt, system, history=None, **kwargs):
+        captured["provider_name"] = provider_name
+        captured["model"] = model
+        return {
+            "text": "<helix_output>Respuesta con Gemini.</helix_output>",
+            "actual_model": model,
+            "latency_ms": 1.0,
+            "finish_reason": "stop",
+            "usage": {"total_tokens": 8},
+        }
+
+    monkeypatch.setattr(helix_cli, "_ensure_provider_token", lambda provider_name: None)
+    monkeypatch.setattr(helix_cli, "run_chat", fake_run_chat)
+    session = helix_cli.InteractiveSession(
+        provider_name="deepinfra",
+        model="auto",
+        workspace_root=workspace,
+        project="test-project",
+        agent_id="tester",
+        max_tokens=64,
+        temperature=0.0,
+        transcript_dir=workspace / "transcripts",
+    )
+    assert helix_cli._handle_interactive_command(session, "/with gemini-pro explicame esto") is True
+    assert captured["provider_name"] == "gemini"
+    assert captured["model"] == helix_cli.GEMINI_MODEL_PROFILES["gemini-pro"].model_id
+    assert session.provider_name == "deepinfra"
+    assert session.model == "auto"
+    assert "provider/model restored to deepinfra/auto" in capsys.readouterr().out
 
 
 def test_prompt_toolbar_markup_tracks_session_state() -> None:
@@ -477,6 +767,34 @@ def test_helix_auditability_request_is_detected_from_context() -> None:
     assert helix_cli._needs_certified_evidence("que onda la auditabilidad y los hashes?", history=history) is True
 
 
+def test_helix_context_does_not_capture_clear_general_topic_shift() -> None:
+    history = [{"role": "assistant", "content": "Si queres, seguimos hablando de HeliX."}]
+    assert helix_cli._is_helix_explanation_request("hablame de argentina", history) is False
+    assert helix_cli._is_helix_auditability_request("hablame de argentina", history) is False
+    assert helix_cli._needs_certified_evidence("hablame de argentina", history=history) is False
+
+
+def test_helix_context_does_not_ground_pure_social_reactions() -> None:
+    history = [{"role": "assistant", "content": "Si queres, seguimos hablando de HeliX."}]
+    assert helix_cli._is_helix_explanation_request("la verdad es una locura esto en el buen sentido!", history) is False
+    assert helix_cli._needs_certified_evidence(
+        "la verdad es una locura esto en el buen sentido!",
+        history=history,
+    ) is False
+
+
+def test_signature_followups_stay_grounded_in_helix_context() -> None:
+    history = [{"role": "assistant", "content": "HeliX usa receipts y un Merkle DAG verificable."}]
+    assert helix_cli._is_helix_auditability_request(
+        "como te darias cuenta si una firma no es valida?",
+        history,
+    ) is True
+    assert helix_cli._needs_certified_evidence(
+        "como te darias cuenta si una firma no es valida?",
+        history=history,
+    ) is True
+
+
 def test_interactive_record_writes_signed_memory_receipt() -> None:
     workspace = Path.cwd() / "verification" / "cli-sessions" / "_test" / uuid.uuid4().hex
     session = helix_cli.InteractiveSession(
@@ -573,6 +891,42 @@ def test_contextual_helix_followup_injects_certified_evidence_pack(monkeypatch) 
     assert "Do not claim that HeliX captures 'trajectories of thought'" in system
 
 
+def test_chat_topic_shift_after_helix_context_answers_without_helix_grounding(monkeypatch) -> None:
+    workspace = _test_root() / "workspace"
+    captured = {}
+
+    def fake_run_chat(provider_name, model, prompt, system, history=None, **kwargs):
+        captured["model"] = model
+        captured["system"] = system
+        return {
+            "text": "<helix_output>Argentina es un pais de America del Sur con una historia politica y cultural muy rica.</helix_output>",
+            "actual_model": model,
+            "latency_ms": 1.0,
+            "finish_reason": "stop",
+            "usage": {"total_tokens": 12},
+        }
+
+    monkeypatch.setattr(helix_cli, "run_chat", fake_run_chat)
+    session = helix_cli.InteractiveSession(
+        provider_name="deepinfra",
+        model="auto",
+        workspace_root=workspace,
+        project="test-project",
+        agent_id="tester",
+        max_tokens=64,
+        temperature=0.0,
+        transcript_dir=workspace / "transcripts",
+    )
+    session.record(role="user", content="estaba pensando en helix", event_type="user_turn")
+    session.record(role="assistant", content="Dale, exploremos eso.", event_type="assistant_turn")
+
+    result = session.chat("hablame de argentina")
+    assert result["route"]["intent"] == "chat"
+    assert captured["model"] == helix_cli.DEEPINFRA_MODEL_PROFILES["chat"].model_id
+    assert '"claim": "This HeliX CLI session is backed by HeliX memory and evidence exports."' not in captured["system"]
+    assert not (result["trace"].get("observations") or [])
+
+
 def test_openai_compatible_chat_uses_mocked_transport(monkeypatch) -> None:
     captured = {}
 
@@ -599,6 +953,45 @@ def test_openai_compatible_chat_uses_mocked_transport(monkeypatch) -> None:
     assert result["actual_model"] == "mock-model-actual"
     assert captured["url"].endswith("/chat/completions")
     assert json.loads(json.dumps(captured["payload"]))["model"] == "mock-model"
+
+
+def test_gemini_chat_uses_generate_content_api(monkeypatch) -> None:
+    captured = {}
+
+    def fake_post_json(url, payload, *, headers, timeout):
+        captured["url"] = url
+        captured["payload"] = payload
+        captured["headers"] = headers
+        captured["timeout"] = timeout
+        return {
+            "modelVersion": "gemini-3.1-pro-preview",
+            "candidates": [
+                {
+                    "content": {"parts": [{"text": "ok gemini"}]},
+                    "finishReason": "STOP",
+                }
+            ],
+            "usageMetadata": {"totalTokenCount": 7},
+        }
+
+    monkeypatch.setenv("GEMINI_API_KEY", "gemini-test-token")
+    monkeypatch.setattr(helix_cli, "_post_json", fake_post_json)
+    result = helix_cli.run_chat(
+        provider_name="gemini",
+        model="gemini-3.1-pro-preview",
+        system="system guard",
+        history=[{"role": "assistant", "content": "prev answer"}],
+        prompt="hello",
+        prompt_token=False,
+        max_tokens=8,
+    )
+    assert result["text"] == "ok gemini"
+    assert result["actual_model"] == "gemini-3.1-pro-preview"
+    assert captured["url"].endswith("/models/gemini-3.1-pro-preview:generateContent")
+    assert captured["headers"]["x-goog-api-key"] == "gemini-test-token"
+    assert captured["payload"]["systemInstruction"]["parts"][0]["text"] == "system guard"
+    assert captured["payload"]["contents"][0]["role"] == "model"
+    assert captured["payload"]["contents"][-1]["role"] == "user"
 
 
 def test_memory_catalog_journal_replays_merkle_receipts(monkeypatch) -> None:
@@ -744,6 +1137,492 @@ def test_repository_evidence_pack_is_injected_for_verify_questions(monkeypatch) 
     assert "Do not invent dates, run IDs, hashes" in system
 
 
+def test_suite_evidence_catalog_indexes_artifacts_manifests_and_transcripts() -> None:
+    evidence_root, _suite_dir, paths = _write_suite_fixture(_test_root())
+    catalog = helix_cli.SuiteEvidenceCatalog(evidence_root=evidence_root)
+
+    listed = catalog.list_suites()
+    assert listed["suite_count"] == 1
+    assert listed["suites"][0]["suite_id"] == "hard-anchor-utility"
+    assert listed["suites"][0]["counts"]["artifact"] == 1
+    assert listed["suites"][0]["counts"]["manifest"] == 1
+    assert listed["suites"][0]["counts"]["transcript_jsonl"] == 1
+
+    latest = catalog.latest("hard-anchor-utility")
+    assert latest["status"] == "ok"
+    assert latest["artifact"]["run_id"] == "hard-anchor-utility-20260421-120000"
+    assert latest["manifest"]["kind"] == "manifest"
+    assert latest["transcripts"]
+
+    transcripts = catalog.transcripts("hard-anchor-utility", query="exact-anchor")
+    assert transcripts["transcript_count"] == 2
+
+    search = catalog.search("lineage verified")
+    assert search["result_count"] == 1
+    assert search["results"][0]["kind"] == "transcript_jsonl"
+    assert "lineage verified" in search["results"][0]["snippet"]
+
+    read = catalog.read(str(paths["transcript"]))
+    assert read["status"] == "ok"
+    assert read["kind"] == "transcript_jsonl"
+    assert "hard anchor recovered" in read["content"]
+
+
+def test_suite_commands_print_catalog_latest_and_transcripts(capsys) -> None:
+    base = _test_root()
+    evidence_root, _suite_dir, _paths = _write_suite_fixture(base)
+    workspace = base / "workspace"
+    session = helix_cli.InteractiveSession(
+        provider_name="deepinfra",
+        model="auto",
+        workspace_root=workspace,
+        project="test-project",
+        agent_id="tester",
+        max_tokens=64,
+        temperature=0.0,
+        transcript_dir=workspace / "transcripts",
+        evidence_root=evidence_root,
+    )
+
+    assert helix_cli._handle_interactive_command(session, "/suites") is True
+    output = capsys.readouterr().out
+    assert "hard-anchor-utility" in output
+    assert "json" in output
+
+    assert helix_cli._handle_interactive_command(session, "/suite latest hard-anchor-utility") is True
+    output = capsys.readouterr().out
+    assert '"artifact"' in output
+    assert "hard-anchor-utility-20260421-120000" in output
+
+    assert helix_cli._handle_interactive_command(session, "/suite transcripts hard-anchor-utility exact-anchor") is True
+    output = capsys.readouterr().out
+    assert '"transcript_count": 2' in output
+
+
+def test_models_tools_and_agents_commands_use_compact_output_by_default(capsys) -> None:
+    session = helix_cli.InteractiveSession(
+        provider_name="deepinfra",
+        model="auto",
+        workspace_root=_test_root() / "workspace",
+        project="test-project",
+        agent_id="tester",
+        max_tokens=64,
+        temperature=0.0,
+        transcript_dir=_test_root() / "transcripts",
+    )
+
+    assert helix_cli._handle_interactive_command(session, "/models") is True
+    models_output = capsys.readouterr().out
+    assert "qwen-big" in models_output
+    assert "gemini-pro" in models_output
+    assert "gemini" in models_output
+    assert "Use /model use ALIAS" in models_output
+    assert '"deepinfra_model_profiles"' not in models_output
+
+    assert helix_cli._handle_interactive_command(session, "/tools") is True
+    tools_output = capsys.readouterr().out
+    assert "suite.latest" in tools_output
+    assert "Use /tools blueprints" in tools_output
+
+    assert helix_cli._handle_interactive_command(session, "/agents") is True
+    agents_output = capsys.readouterr().out
+    assert "suite-run-analyst" in agents_output
+    assert "patch-planner" in agents_output
+
+
+def test_chat_suite_questions_are_grounded_with_suite_tools(monkeypatch) -> None:
+    base = _test_root()
+    evidence_root, _suite_dir, _paths = _write_suite_fixture(base, "branch-pruning-forensics")
+    captured = {}
+
+    def fake_run_chat(provider_name, model, prompt, system, history=None, **kwargs):
+        captured["history"] = history
+        return {
+            "text": "<helix_output>La ultima corrida local disponible es branch-pruning-forensics-20260421-120000.</helix_output>",
+            "actual_model": model,
+            "latency_ms": 1.0,
+            "finish_reason": "stop",
+            "usage": {"total_tokens": 10},
+        }
+
+    monkeypatch.setattr(helix_cli, "run_chat", fake_run_chat)
+    workspace = base / "workspace"
+    session = helix_cli.InteractiveSession(
+        provider_name="deepinfra",
+        model="auto",
+        workspace_root=workspace,
+        project="test-project",
+        agent_id="tester",
+        max_tokens=64,
+        temperature=0.0,
+        transcript_dir=workspace / "transcripts",
+        evidence_root=evidence_root,
+    )
+
+    result = session.chat("contame la ultima corrida de branch pruning")
+    assert result["route"]["intent"] == "suite_forensics"
+    assert result["trace"]["observations"][0]["tool_name"] == "suite.latest"
+    assert "branch-pruning-forensics-20260421-120000" in json.dumps(captured["history"], ensure_ascii=False)
+    assert "branch-pruning-forensics-20260421-120000" in result["text"]
+
+
+def test_chat_pasted_suite_failure_uses_search_not_cert_rerun(monkeypatch) -> None:
+    base = _test_root()
+    evidence_root, _suite_dir, _paths = _write_suite_fixture(base, "branch-pruning-forensics")
+    captured = {}
+
+    def fake_run_chat(provider_name, model, prompt, system, history=None, **kwargs):
+        captured["prompt"] = prompt
+        captured["history"] = history
+        return {
+            "text": "<helix_output>La corrida pegada falló porque RustIndexedMerkleDAG no expone build_context_fast; no es un fallo del auditor sino del build/binding local.</helix_output>",
+            "actual_model": model,
+            "latency_ms": 1.0,
+            "finish_reason": "stop",
+            "usage": {"total_tokens": 18},
+        }
+
+    monkeypatch.setattr(helix_cli, "run_chat", fake_run_chat)
+    workspace = base / "workspace"
+    session = helix_cli.InteractiveSession(
+        provider_name="deepinfra",
+        model="auto",
+        workspace_root=workspace,
+        project="test-project",
+        agent_id="tester",
+        max_tokens=64,
+        temperature=0.0,
+        transcript_dir=workspace / "transcripts",
+        evidence_root=evidence_root,
+    )
+    pasted = """quiero data de esto
+Suite                     Run ID           Estado
+branch-pruning-forensics  20260421-120000  completed
+{
+  "suite_id": "branch-pruning-forensics",
+  "exit_code": 1,
+  "stderr": "RuntimeError: RustIndexedMerkleDAG was not rebuilt with build_context_fast"
+}
+"""
+    result = session.chat(pasted)
+    observations = result["trace"].get("observations") or []
+    assert observations
+    assert observations[0]["tool_name"] == "suite.search"
+    assert "pasted suite output/logs" in captured["prompt"]
+    assert "build_context_fast" in result["text"]
+
+
+def test_chat_web_search_requests_call_web_tool_before_answering(monkeypatch) -> None:
+    base = _test_root()
+    workspace = base / "workspace"
+    captured = {}
+
+    def fake_web_search(query, *, limit=5, timeout=8.0):
+        captured["web_query"] = query
+        return {
+            "status": "ok",
+            "query": query,
+            "result_count": 1,
+            "results": [
+                {
+                    "title": "Claude benchmark source",
+                    "url": "https://example.com/claude-benchmark",
+                    "snippet": "Current benchmark details.",
+                }
+            ],
+        }
+
+    def fake_run_chat(provider_name, model, prompt, system, history=None, **kwargs):
+        captured["history"] = history
+        return {
+            "text": "<helix_output>Fuente: https://example.com/claude-benchmark - benchmark actual localizado.</helix_output>",
+            "actual_model": model,
+            "latency_ms": 1.0,
+            "finish_reason": "stop",
+            "usage": {"total_tokens": 10},
+        }
+
+    monkeypatch.setattr(helix_cli, "web_search", fake_web_search)
+    monkeypatch.setattr(helix_cli, "run_chat", fake_run_chat)
+    session = helix_cli.InteractiveSession(
+        provider_name="deepinfra",
+        model="auto",
+        workspace_root=workspace,
+        project="test-project",
+        agent_id="tester",
+        max_tokens=64,
+        temperature=0.0,
+        transcript_dir=workspace / "transcripts",
+    )
+
+    result = session.chat("buscame en la web benchmarks actuales de claude mythos")
+    assert result["route"]["intent"] == "web_research"
+    assert captured["web_query"].startswith("buscame en la web")
+    assert result["trace"]["observations"][0]["tool_name"] == "web.search"
+    assert "https://example.com/claude-benchmark" in json.dumps(captured["history"], ensure_ascii=False)
+    assert "https://example.com/claude-benchmark" in result["text"]
+
+
+def test_memory_resolve_finds_exact_record_by_node_hash_prefix() -> None:
+    base = _test_root()
+    workspace = base / "workspace"
+    session = helix_cli.InteractiveSession(
+        provider_name="deepinfra",
+        model="auto",
+        workspace_root=workspace,
+        project="test-project",
+        agent_id="tester",
+        max_tokens=64,
+        temperature=0.0,
+        transcript_dir=workspace / "transcripts",
+        evidence_root=base / "empty-verification",
+    )
+    content = "Selección Puntual de las Mejores Transcripciones HeliX\ncontenido exacto certificado"
+    event = session.record(role="assistant", content=content, event_type="assistant_turn")
+    node_hash = str((event.get("helix_memory") or {}).get("node_hash") or "")
+
+    resolved = session.memory_resolve(node_hash[:10])
+
+    assert resolved["status"] == "ok"
+    match = resolved["matches"][0]
+    assert match["node_hash"] == node_hash
+    assert match["content"] == content
+    assert match["chain"]["status"] == "verified"
+
+
+def test_chat_hash_recovery_uses_memory_resolve_without_model_reconstruction(monkeypatch) -> None:
+    base = _test_root()
+    workspace = base / "workspace"
+    session = helix_cli.InteractiveSession(
+        provider_name="deepinfra",
+        model="auto",
+        workspace_root=workspace,
+        project="test-project",
+        agent_id="tester",
+        max_tokens=64,
+        temperature=0.0,
+        transcript_dir=workspace / "transcripts",
+        evidence_root=base / "empty-verification",
+    )
+    target = "HeliX y la Hauntologia Rizomatica: texto real guardado, no reconstruido."
+    event = session.record(role="assistant", content=target, event_type="assistant_turn")
+    prefix = str((event.get("helix_memory") or {}).get("node_hash") or "")[:10]
+
+    def fail_run_chat(*args, **kwargs):
+        raise AssertionError("hash recovery must not ask the model to recreate exact content")
+
+    monkeypatch.setattr(helix_cli, "run_chat", fail_run_chat)
+    result = session.chat(f"quiero que recuperes completo este hash {prefix}")
+
+    observations = result["trace"].get("observations") or []
+    assert observations
+    assert observations[0]["tool_name"] == "memory.resolve"
+    assert observations[0]["arguments"]["ref"] == prefix
+    assert target in result["text"]
+    assert "sin reconstruirlo con el modelo" in result["text"]
+
+
+def test_memory_resolve_falls_back_to_transcript_jsonl() -> None:
+    base = _test_root()
+    workspace = base / "workspace"
+    transcript_dir = workspace / "transcripts"
+    transcript_dir.mkdir(parents=True)
+    node_hash = "5b71482b56abcdef1234567890abcdef1234567890abcdef1234567890abcd"
+    stored_content = "Selección Puntual de las Mejores Transcripciones HeliX"
+    (transcript_dir / "old-session.jsonl").write_text(
+        json.dumps(
+            {
+                "event": "assistant_turn",
+                "role": "assistant",
+                "created_utc": "2026-04-21T20:00:00Z",
+                "content": stored_content,
+                "helix_memory": {"memory_id": "mem-old", "node_hash": node_hash},
+            },
+            ensure_ascii=False,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    session = helix_cli.InteractiveSession(
+        provider_name="deepinfra",
+        model="auto",
+        workspace_root=workspace,
+        project="test-project",
+        agent_id="tester",
+        max_tokens=64,
+        temperature=0.0,
+        transcript_dir=transcript_dir,
+        evidence_root=base / "empty-verification",
+    )
+
+    resolved = session.memory_resolve("5b71482b56")
+
+    assert resolved["status"] == "ok"
+    assert resolved["matches"][0]["source"] == "transcript-jsonl"
+    assert resolved["matches"][0]["content"] == stored_content
+
+
+def test_file_inspect_reads_absolute_file_lists_directory_and_blocks_secrets() -> None:
+    base = _test_root()
+    workspace = base / "workspace"
+    repo = base / "repo with spaces"
+    verification = repo / "verification"
+    verification.mkdir(parents=True)
+    artifact = verification / "local-ghost-in-the-shell-live-20260418-093140-run.json"
+    artifact.write_text('{"suite_id":"ghost","status":"completed"}\n', encoding="utf-8")
+    secret = repo / ".env"
+    secret.write_text("GEMINI_API_KEY=secret\n", encoding="utf-8")
+    session = helix_cli.InteractiveSession(
+        provider_name="deepinfra",
+        model="auto",
+        workspace_root=workspace,
+        project="test-project",
+        agent_id="tester",
+        max_tokens=64,
+        temperature=0.0,
+        transcript_dir=workspace / "transcripts",
+        evidence_root=verification,
+        task_root=base,
+    )
+
+    file_result = session.file_inspect(str(artifact))
+    assert file_result["status"] == "ok"
+    assert file_result["type"] == "file"
+    assert file_result["sha256"]
+    assert '"suite_id":"ghost"' in file_result["content"]
+
+    wrapped = str(artifact).replace("093140", "0\n93140")
+    wrapped_result = session.file_inspect(wrapped)
+    assert wrapped_result["status"] == "ok"
+    assert wrapped_result["path"] == str(artifact)
+
+    dir_result = session.file_inspect(str(verification))
+    assert dir_result["status"] == "ok"
+    assert dir_result["type"] == "directory"
+    assert any(item["name"] == artifact.name for item in dir_result["entries"])
+
+    blocked = session.file_inspect(str(secret))
+    assert blocked["status"] == "blocked"
+    assert blocked["reason"] == "environment secret file"
+
+
+def test_chat_local_path_request_uses_file_inspect_before_answering(monkeypatch) -> None:
+    base = _test_root()
+    workspace = base / "workspace"
+    repo = base / "repo with spaces"
+    verification = repo / "verification"
+    verification.mkdir(parents=True)
+    artifact = verification / "local-ghost-v2-doppelganger-war-20260419-011343.json"
+    artifact.write_text('{"suite_id":"doppelganger","verdict":"interesting"}\n', encoding="utf-8")
+    captured = {}
+
+    def fake_run_chat(provider_name, model, prompt, system, history=None, **kwargs):
+        captured["prompt"] = prompt
+        captured["history"] = history
+        return {
+            "text": "<helix_output>Lei el archivo real: verdict=interesting.</helix_output>",
+            "actual_model": model,
+            "latency_ms": 1.0,
+            "finish_reason": "stop",
+            "usage": {"total_tokens": 10},
+        }
+
+    monkeypatch.setattr(helix_cli, "run_chat", fake_run_chat)
+    session = helix_cli.InteractiveSession(
+        provider_name="deepinfra",
+        model="auto",
+        workspace_root=workspace,
+        project="test-project",
+        agent_id="tester",
+        max_tokens=64,
+        temperature=0.0,
+        transcript_dir=workspace / "transcripts",
+        evidence_root=verification,
+        task_root=base,
+    )
+
+    result = session.chat(f'hay unas que estan "{artifact}" que me interesan')
+
+    observations = result["trace"].get("observations") or []
+    assert observations
+    assert observations[0]["tool_name"] == "file.inspect"
+    assert observations[0]["arguments"]["path"] == str(artifact)
+    assert "file.inspect observations" in captured["prompt"]
+    assert "doppelganger" in json.dumps(captured["history"], ensure_ascii=False)
+    assert "verdict=interesting" in result["text"]
+
+    captured.clear()
+    dir_result = session.chat(f"lee esta carpeta {verification}")
+    dir_observations = dir_result["trace"].get("observations") or []
+    assert dir_observations
+    assert dir_observations[0]["tool_name"] == "file.inspect"
+    assert dir_observations[0]["arguments"]["path"] == str(verification)
+    dir_observation = dir_observations[0]["observation"]
+    if isinstance(dir_observation.get("result"), dict):
+        dir_observation = dir_observation["result"]
+    assert dir_observation["type"] == "directory"
+    assert artifact.name in json.dumps(captured["history"], ensure_ascii=False)
+
+
+def test_chat_model_failover_uses_route_fallback_without_crashing(monkeypatch) -> None:
+    workspace = _test_root() / "workspace"
+    calls = []
+
+    def fake_run_chat(provider_name, model, prompt, system, history=None, **kwargs):
+        calls.append(model)
+        if model == helix_cli.DEEPINFRA_MODEL_PROFILES["qwen-big"].model_id:
+            raise RuntimeError("provider overloaded")
+        return {
+            "text": "<helix_output>Respondido por fallback.</helix_output>",
+            "actual_model": model,
+            "latency_ms": 1.0,
+            "finish_reason": "stop",
+            "usage": {"total_tokens": 10},
+        }
+
+    monkeypatch.setattr(helix_cli, "run_chat", fake_run_chat)
+    session = helix_cli.InteractiveSession(
+        provider_name="deepinfra",
+        model="auto",
+        workspace_root=workspace,
+        project="test-project",
+        agent_id="tester",
+        max_tokens=64,
+        temperature=0.0,
+        transcript_dir=workspace / "transcripts",
+    )
+
+    result = session.chat("investiga modelos nuevos de deepinfra actuales")
+    assert result["text"] == "Respondido por fallback."
+    assert calls[0] == helix_cli.DEEPINFRA_MODEL_PROFILES["qwen-big"].model_id
+    assert calls[1] == helix_cli.DEEPINFRA_MODEL_PROFILES["default"].model_id
+    latest = session.events[-1]
+    assert latest["metadata"]["failover_used"] is True
+    assert latest["metadata"]["failover_attempts"][0]["error_type"] == "RuntimeError"
+
+
+def test_direct_web_command_prints_search_results(monkeypatch, capsys) -> None:
+    monkeypatch.setattr(
+        helix_cli,
+        "web_search",
+        lambda query, *, limit=5, timeout=8.0: {"status": "ok", "query": query, "results": [{"title": "T", "url": "https://example.com"}]},
+    )
+    session = helix_cli.InteractiveSession(
+        provider_name="deepinfra",
+        model="auto",
+        workspace_root=_test_root() / "workspace",
+        project="test-project",
+        agent_id="tester",
+        max_tokens=64,
+        temperature=0.0,
+        transcript_dir=_test_root() / "transcripts",
+    )
+    assert helix_cli._handle_interactive_command(session, "/web claude benchmark") is True
+    output = capsys.readouterr().out
+    assert '"query": "claude benchmark"' in output
+    assert "https://example.com" in output
+
+
 def test_interactive_task_uses_read_only_tools_and_records_receipts(monkeypatch) -> None:
     base = _test_root()
     task_root = base / "repo"
@@ -793,6 +1672,102 @@ def test_interactive_task_uses_read_only_tools_and_records_receipts(monkeypatch)
     tool_result_events = [event for event in session.events if event["event"] == "task_tool_result"]
     assert tool_result_events
     assert tool_result_events[0]["helix_memory"]["receipt"]["signature_verified"] is True
+
+
+def test_agent_suggest_command_records_suggest_mode(monkeypatch, capsys) -> None:
+    base = _test_root()
+    task_root = base / "repo"
+    task_root.mkdir(parents=True)
+
+    def fake_run_chat(provider_name, model, prompt, system, history=None, **kwargs):
+        return {
+            "text": "<helix_output>Plan seguro: leer archivos, proponer patch, correr tests sugeridos.</helix_output>",
+            "actual_model": model,
+            "latency_ms": 2.0,
+            "finish_reason": "stop",
+            "usage": {"total_tokens": 20},
+        }
+
+    monkeypatch.setattr(helix_cli, "run_chat", fake_run_chat)
+    session = helix_cli.InteractiveSession(
+        provider_name="deepinfra",
+        model="auto",
+        workspace_root=base / "workspace",
+        project="test-project",
+        agent_id="tester",
+        max_tokens=64,
+        temperature=0.0,
+        transcript_dir=base / "transcripts",
+        task_root=task_root,
+    )
+    assert helix_cli._handle_interactive_command(session, "/agent suggest revisa el repo estilo codex") is True
+    output = capsys.readouterr().out
+    assert '"mode": "suggest"' in output
+    assert session.last_task_result["mode"] == "suggest"
+    assert session.last_task_result["route"]["intent"] == "agentic_code"
+
+
+def test_style_command_changes_response_register_and_persists(monkeypatch, capsys) -> None:
+    saved = {}
+
+    monkeypatch.setattr(helix_cli, "_load_config", lambda: {})
+    monkeypatch.setattr(helix_cli, "_save_config", lambda config: saved.update(config) or Path("config.json"))
+    session = helix_cli.InteractiveSession(
+        provider_name="deepinfra",
+        model="auto",
+        workspace_root=_test_root() / "workspace",
+        project="test-project",
+        agent_id="tester",
+        max_tokens=64,
+        temperature=0.0,
+        transcript_dir=_test_root() / "transcripts",
+    )
+
+    assert helix_cli._handle_interactive_command(session, "/style interesante") is True
+    assert session.response_style == "vivid"
+    assert saved["response_style"] == "vivid"
+    assert "response_style=vivid" in capsys.readouterr().out
+
+
+def test_agent_use_blueprint_selects_blueprint_model_and_records_allowed_tools(monkeypatch, capsys) -> None:
+    base = _test_root()
+    task_root = base / "repo"
+    task_root.mkdir(parents=True)
+
+    def fake_run_chat(provider_name, model, prompt, system, history=None, **kwargs):
+        return {
+            "text": "<helix_output>Analisis de suite basado en catalogo y transcripts locales.</helix_output>",
+            "actual_model": model,
+            "latency_ms": 2.0,
+            "finish_reason": "stop",
+            "usage": {"total_tokens": 20},
+        }
+
+    monkeypatch.setattr(helix_cli, "run_chat", fake_run_chat)
+    session = helix_cli.InteractiveSession(
+        provider_name="deepinfra",
+        model="auto",
+        workspace_root=base / "workspace",
+        project="test-project",
+        agent_id="tester",
+        max_tokens=64,
+        temperature=0.0,
+        transcript_dir=base / "transcripts",
+        task_root=task_root,
+    )
+
+    assert helix_cli._handle_interactive_command(
+        session,
+        "/agent use suite-run-analyst compara las ultimas corridas de hard-anchor",
+    ) is True
+    output = capsys.readouterr().out
+    assert '"agent_blueprint": "suite-run-analyst"' in output
+    assert session.last_task_result["agent_blueprint"] == "suite-run-analyst"
+    assert session.last_task_result["route"]["intent"] == "agentic_blueprint"
+    assert session.last_task_result["selected_model"] == helix_cli.DEEPINFRA_MODEL_PROFILES["qwen-big"].model_id
+    task_start = next(event for event in session.events if event["event"] == "task_start")
+    assert "suite.latest" in task_start["metadata"]["allowed_tools"]
+    assert "suite.read" in task_start["metadata"]["allowed_tools"]
 
 
 def test_interactive_task_forces_memory_search_before_accepting_preamble(monkeypatch) -> None:
@@ -1051,8 +2026,8 @@ def test_chat_promotes_contextual_helix_explanations_to_reasoning_profile(monkey
     session.record(role="user", content="estaba pensando en helix", event_type="user_turn")
     session.record(role="assistant", content="Dale, exploremos eso.", event_type="assistant_turn")
     result = session.chat("me gustaria que me ayudes a entenderlo")
-    assert captured["model"] == helix_cli.DEEPINFRA_MODEL_PROFILES["deep-reasoning"].model_id
-    assert result["route"]["profile"] == "deep-reasoning"
+    assert captured["model"] == helix_cli.DEEPINFRA_MODEL_PROFILES["qwen-big"].model_id
+    assert result["route"]["profile"] == "qwen-big"
     assert "Do not pad HeliX explanations with generic industry examples" in captured["system"]
 
 
@@ -1204,4 +2179,13 @@ def test_tool_registry_report_includes_unified_runtime_and_cli_tools() -> None:
     assert "helix.search" in names
     assert "search_text" in names
     assert "evidence.refresh" in names
+    assert "file.inspect" in names
     assert "suite.list" in names
+    assert "suite.latest" in names
+    assert "suite.read" in names
+    assert "suite.transcripts" in names
+    assert "web.search" in names
+    assert "web.read" in names
+    blueprints = {item["blueprint_id"] for item in report["agent_blueprints"]}
+    assert "suite-run-analyst" in blueprints
+    assert "patch-planner" in blueprints

@@ -91,6 +91,197 @@ def test_memory_catalog_summary_mode_and_budget(tmp_path: Path) -> None:
     catalog.close()
 
 
+def test_memory_catalog_quarantines_equivocating_branch_and_filters_it_from_default_context(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    monkeypatch.setenv("HELIX_RETRIEVAL_SIGNATURE_ENFORCEMENT", "permissive")
+    catalog = MemoryCatalog.open(tmp_path / "lineage.sqlite")
+    try:
+        root = catalog.remember(
+            project="helix",
+            agent_id="agent-a",
+            session_id="thread-a",
+            memory_type="semantic",
+            summary="Canonical root",
+            content="Canonical lineage root memory.",
+            importance=8,
+        )
+        root_hash = catalog.get_memory_node_hash(root.memory_id)
+        canonical = catalog.remember(
+            project="helix",
+            agent_id="agent-a",
+            session_id="thread-a",
+            memory_type="semantic",
+            summary="Canonical continuation",
+            content="Canonical continuation of the thread.",
+            importance=9,
+        )
+        canonical_hash = catalog.get_memory_node_hash(canonical.memory_id)
+        assert root_hash and canonical_hash
+
+        catalog._session_heads["thread-a"] = root_hash  # noqa: SLF001 - simulate stale writer/equivocating branch
+        quarantined = catalog.remember(
+            project="helix",
+            agent_id="agent-a",
+            session_id="thread-a",
+            memory_type="semantic",
+            memory_id="mem-quarantined",
+            summary="Competing branch",
+            content="This branch diverged from the stale head and must be quarantined.",
+            importance=7,
+        )
+        quarantined_hash = catalog.get_memory_node_hash(quarantined.memory_id)
+
+        lineage = catalog.verify_session_lineage("thread-a", include_quarantined=True)
+        checkpoint = catalog.head_checkpoint("thread-a")
+        visible = catalog.list_memories(project="helix", agent_id="agent-a", session_id="thread-a", include_quarantined=False)
+        forensic = catalog.list_memories(project="helix", agent_id="agent-a", session_id="thread-a", include_quarantined=True)
+        default_context = catalog.build_context(
+            project="helix",
+            agent_id="agent-a",
+            session_id="thread-a",
+            mode="summary",
+            budget_tokens=120,
+        )
+        forensic_context = catalog.build_context(
+            project="helix",
+            agent_id="agent-a",
+            session_id="thread-a",
+            mode="summary",
+            budget_tokens=200,
+            include_quarantined=True,
+        )
+
+        assert catalog.verify_chain(quarantined_hash)["status"] == "verified"
+        assert lineage["status"] == "equivocation_detected"
+        assert lineage["trust_status"] == "verified_with_quarantine"
+        assert lineage["checkpoint_verified"] is True
+        assert lineage["canonical_head"] == canonical_hash
+        assert lineage["equivocation_count"] == 1
+        assert lineage["quarantined_count"] == 1
+        assert checkpoint["checkpoint_hash"] == lineage["latest_checkpoint_hash"]
+        assert visible and all(item["memory_id"] != quarantined.memory_id for item in visible)
+        rogue_row = next(item for item in forensic if item["memory_id"] == quarantined.memory_id)
+        assert rogue_row["canonical"] is False
+        assert rogue_row["quarantined"] is True
+        assert rogue_row["equivocation_id"]
+        assert quarantined.memory_id not in default_context["memory_ids"]
+        assert quarantined.memory_id in forensic_context["memory_ids"]
+        assert default_context["thread_lineage"]["equivocation_count"] == 1
+    finally:
+        catalog.close()
+
+
+def test_memory_catalog_signed_checkpoints_replay_and_export_proof(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.delenv("HELIX_RECEIPT_SIGNING_MODE", raising=False)
+    path = tmp_path / "trust.sqlite"
+    catalog = MemoryCatalog.open(path)
+    try:
+        first = catalog.remember(
+            project="helix",
+            agent_id="agent-a",
+            session_id="thread-trust",
+            memory_type="semantic",
+            summary="Trust root",
+            content="First canonical trust memory.",
+        )
+        second = catalog.remember(
+            project="helix",
+            agent_id="agent-a",
+            session_id="thread-trust",
+            memory_type="semantic",
+            summary="Trust head",
+            content="Second canonical trust memory.",
+        )
+        second_hash = catalog.get_memory_node_hash(second.memory_id)
+        receipt = catalog.get_memory_receipt(second.memory_id)
+        checkpoint = catalog.head_checkpoint("thread-trust")
+        lineage = catalog.verify_session_lineage("thread-trust")
+        proof = catalog.export_session_proof("thread-trust", ref=second.memory_id)
+
+        assert receipt and receipt["signature_verified"] is True
+        assert receipt["checkpoint_hash"] == checkpoint["checkpoint_hash"]
+        assert checkpoint["checkpoint_verified"] is True
+        assert checkpoint["checkpoint"]["canonical_head"] == second_hash
+        assert lineage["status"] == "verified"
+        assert lineage["trust_status"] == "verified"
+        assert lineage["checkpoint_count"] == 2
+        assert proof["status"] == "ok"
+        assert proof["target_memory_id"] == second.memory_id
+        assert proof["target_receipt"]["signature_verified"] is True
+        assert proof["dag_chain"]
+        assert (tmp_path / "trust" / "trust_root.json").exists()
+        assert first.memory_id != second.memory_id
+    finally:
+        catalog.close()
+
+    MemoryCatalog._REGISTRY.pop(str(path.resolve()), None)  # noqa: SLF001 - force journal replay
+    replayed = MemoryCatalog.open(path)
+    try:
+        replayed_lineage = replayed.verify_session_lineage("thread-trust")
+        replayed_checkpoint = replayed.head_checkpoint("thread-trust")
+        assert replayed_lineage["status"] == "verified"
+        assert replayed_lineage["checkpoint_count"] == 2
+        assert replayed_checkpoint["checkpoint_verified"] is True
+    finally:
+        replayed.close()
+
+
+def test_memory_catalog_checkpoint_tamper_fails_verification(tmp_path: Path) -> None:
+    catalog = MemoryCatalog.open(tmp_path / "tamper.sqlite")
+    try:
+        catalog.remember(
+            project="helix",
+            agent_id="agent-a",
+            session_id="thread-tamper",
+            memory_type="semantic",
+            summary="Tamper target",
+            content="Checkpoint tamper should fail.",
+        )
+        catalog._session_checkpoints["thread-tamper"][-1]["canonical_head"] = "forged-head"  # noqa: SLF001
+
+        lineage = catalog.verify_session_lineage("thread-tamper")
+
+        assert lineage["status"] == "failed"
+        assert lineage["trust_status"] == "failed"
+        assert lineage["checkpoint_verified"] is False
+    finally:
+        catalog.close()
+
+
+def test_memory_catalog_legacy_unsigned_warn_default_and_strict_filter(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("HELIX_RECEIPT_SIGNING_MODE", "off")
+    monkeypatch.delenv("HELIX_RETRIEVAL_SIGNATURE_ENFORCEMENT", raising=False)
+    catalog = MemoryCatalog.open(tmp_path / "legacy.sqlite")
+    try:
+        legacy = catalog.remember(
+            project="helix",
+            agent_id="agent-a",
+            session_id="thread-legacy",
+            memory_type="semantic",
+            summary="Legacy unsigned",
+            content="legacy unsigned checkpoint memory",
+            importance=8,
+        )
+
+        warned = catalog.search(project="helix", agent_id="agent-a", query="legacy unsigned", limit=3)
+        strict = catalog.search(project="helix", agent_id="agent-a", query="legacy unsigned", limit=3, signature_enforcement="strict")
+        lineage = catalog.verify_session_lineage("thread-legacy")
+
+        assert warned and warned[0]["memory_id"] == legacy.memory_id
+        assert warned[0]["legacy_unsigned"] is True
+        assert warned[0]["signature_enforcement_warning"] == "unsigned_or_unverified_receipt_returned"
+        assert strict == []
+        assert lineage["legacy_unsigned_count"] == 1
+        assert lineage["trust_status"] == "verified_with_legacy_warnings"
+    finally:
+        catalog.close()
+
+
 def test_memory_catalog_uses_rust_bm25_when_extension_is_available(tmp_path: Path) -> None:
     if RustIndexedMerkleDAG is None:
         pytest.skip("Rust indexed MerkleDAG extension is not installed")

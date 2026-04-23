@@ -85,6 +85,7 @@ def build_context(
     limit: int = 5,
     exclude_memory_ids: list[str] | None = None,
     retrieval_scope: str = "workspace",
+    include_quarantined: bool = False,
 ) -> dict[str, Any]:
     """Build a context string for the agent from stored memories.
 
@@ -106,6 +107,7 @@ def build_context(
             limit=limit,
             exclude_memory_ids=exclude_memory_ids,
             retrieval_scope=retrieval_scope,
+            include_quarantined=include_quarantined,
         )
     finally:
         catalog.close()
@@ -270,6 +272,7 @@ def search(
     top_k: int = 5,
     retrieval_scope: str = "workspace",
     exclude_memory_ids: list[str] | None = None,
+    include_quarantined: bool = False,
 ) -> dict[str, Any]:
     catalog = open_catalog(root)
     try:
@@ -281,6 +284,7 @@ def search(
             limit=top_k,
             retrieval_scope=retrieval_scope,
             exclude_memory_ids=exclude_memory_ids,
+            include_quarantined=include_quarantined,
         )
     finally:
         catalog.close()
@@ -384,6 +388,7 @@ def graph(
     session_id: str | None = None,
     limit: int = 50,
     retrieval_scope: str = "workspace",
+    include_quarantined: bool = False,
 ) -> dict[str, Any]:
     catalog = open_catalog(root)
     try:
@@ -393,6 +398,71 @@ def graph(
             session_id=session_id,
             limit=limit,
             retrieval_scope=retrieval_scope,
+            include_quarantined=include_quarantined,
+        )
+    finally:
+        catalog.close()
+
+
+def session_lineage(
+    *,
+    root: str | Path | None,
+    session_id: str,
+    include_quarantined: bool = True,
+    limit: int = 20,
+) -> dict[str, Any]:
+    catalog = open_catalog(root)
+    try:
+        return catalog.session_lineage(
+            session_id=session_id,
+            include_quarantined=include_quarantined,
+            limit=limit,
+        )
+    finally:
+        catalog.close()
+
+
+def verify_session_lineage(
+    *,
+    root: str | Path | None,
+    session_id: str,
+    include_quarantined: bool = False,
+) -> dict[str, Any]:
+    catalog = open_catalog(root)
+    try:
+        return catalog.verify_session_lineage(
+            session_id=session_id,
+            include_quarantined=include_quarantined,
+        )
+    finally:
+        catalog.close()
+
+
+def head_checkpoint(
+    *,
+    root: str | Path | None,
+    session_id: str,
+) -> dict[str, Any]:
+    catalog = open_catalog(root)
+    try:
+        return catalog.head_checkpoint(session_id)
+    finally:
+        catalog.close()
+
+
+def export_session_proof(
+    *,
+    root: str | Path | None,
+    session_id: str,
+    ref: str | None = None,
+    include_quarantined: bool = False,
+) -> dict[str, Any]:
+    catalog = open_catalog(root)
+    try:
+        return catalog.export_session_proof(
+            session_id,
+            ref=ref,
+            include_quarantined=include_quarantined,
         )
     finally:
         catalog.close()

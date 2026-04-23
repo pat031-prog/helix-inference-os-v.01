@@ -126,6 +126,74 @@ def test_agent_runner_injects_hmem_context_into_planner(tmp_path: Path, permissi
     assert result["final_answer"] == "Use pending vs verified carefully."
 
 
+def test_agent_runner_memory_context_excludes_quarantined_branch_by_default(
+    tmp_path: Path,
+    permissive_retrieval: None,
+) -> None:
+    catalog = MemoryCatalog.open(tmp_path / "session-os" / "memory.sqlite")
+    try:
+        root = catalog.remember(
+            project="helix",
+            agent_id="lineage-agent",
+            session_id="thread-lineage",
+            memory_type="semantic",
+            summary="Canonical root",
+            content="Canonical root policy.",
+            importance=8,
+        )
+        root_hash = catalog.get_memory_node_hash(root.memory_id)
+        good = catalog.remember(
+            project="helix",
+            agent_id="lineage-agent",
+            session_id="thread-lineage",
+            memory_type="semantic",
+            summary="Canonical policy",
+            content="Verified policy says lineage stays canonical.",
+            importance=9,
+        )
+        catalog._session_heads["thread-lineage"] = root_hash  # noqa: SLF001 - simulate stale competing writer
+        bad = catalog.remember(
+            project="helix",
+            agent_id="lineage-agent",
+            session_id="thread-lineage",
+            memory_type="semantic",
+            summary="Stale competing branch",
+            content="Quarantined branch claims the stale head is canonical.",
+            importance=7,
+        )
+    finally:
+        catalog.close()
+
+    class FakeRuntime:
+        def __init__(self) -> None:
+            self.planner_prompt = ""
+
+        def generate_text(self, **kwargs):  # noqa: ANN003,ANN202
+            self.planner_prompt = kwargs["prompt"]
+            payload = {"kind": "final", "thought": "enough", "final": "Use the canonical policy only."}
+            text = json.dumps(payload)
+            return {"completion_text": text, "generated_text": text}
+
+    runtime = FakeRuntime()
+    runner = AgentRunner(runtime, root=tmp_path)
+
+    result = runner.run(
+        goal="What is the canonical policy?",
+        agent_name="lineage-agent",
+        session_id="thread-lineage",
+        local_planner_alias="planner-local",
+        max_steps=1,
+    )
+
+    assert good.memory_id in result["memory_context"]["memory_ids"]
+    assert bad.memory_id not in result["memory_context"]["memory_ids"]
+    assert "Quarantined branch" not in runtime.planner_prompt
+    assert result["memory_context"]["thread_lineage"]["equivocation_count"] == 1
+    assert result["memory_context"]["trust_summary"]["status"] == "equivocation_detected"
+    assert result["memory_context"]["trust_summary"]["checkpoint_verified"] is True
+    assert result["final_answer"] == "Use the canonical policy only."
+
+
 def test_agent_runner_injects_active_memory_into_worker_prompt(tmp_path: Path, permissive_retrieval: None) -> None:
     catalog = MemoryCatalog.open(tmp_path / "session-os" / "memory.sqlite")
     try:

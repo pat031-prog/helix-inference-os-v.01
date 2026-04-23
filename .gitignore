@@ -61,6 +61,7 @@ api_keys.*
 .anthropic
 .openai
 .groq
+**/session-os/trust/local_signing_key.json
 
 # ─── Build output / generated sites ───────────────────────────────────────────
 site-dist/

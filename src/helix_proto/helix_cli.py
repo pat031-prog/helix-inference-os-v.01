@@ -66,6 +66,7 @@ _UNCLOSED_INTERNAL_RE = re.compile(
 _FINAL_MARKER_RE = re.compile(
     r"(?im)^\s*(final answer|final output|actual output|refined answer|respuesta final|output|response)\s*:\s*"
 )
+_URL_REF_RE = re.compile(r"(?i)\bhttps?://[^\s<>\"]+")
 
 
 def _looks_like_internal_line(line: str) -> bool:
@@ -131,6 +132,14 @@ def _short_model_name(model: str | None) -> str:
     if "/" in text:
         text = text.split("/")[-1]
     return text if len(text) <= 42 else text[:39] + "..."
+
+
+def _display_model_used(metadata: dict[str, Any], fallback: str | None = None) -> str:
+    actual = _short_model_name(metadata.get("actual_model") or fallback or "model")
+    selected = _short_model_name(metadata.get("selected_model") or "")
+    if metadata.get("failover_used") and selected and selected != actual:
+        return f"{selected} -> {actual}"
+    return actual
 
 
 def _run_with_status(active_console: Any, func: Any, *, phase: str = "thinking") -> Any:
@@ -227,6 +236,7 @@ _UNQUOTED_LOCAL_PATH_RE = re.compile(
     rf"(?i)\b[A-Z]:[\\/][^\r\n\"'`<>|]+?\.{_LOCAL_FILE_SUFFIX_RE}\b"
 )
 _UNQUOTED_WINDOWS_PATH_LINE_RE = re.compile(r"(?i)\b[A-Z]:[\\/][^\r\n\"'`<>|]+(?=$|[\r\n])")
+_UNQUOTED_RELATIVE_PATH_RE = re.compile(r"(?<!https:)(?<!http:)\b(?:\.{1,2}[\\/]|(?:[\w.-]+[\\/])+[\w.-]+)\b")
 
 
 def _extract_hash_prefixes(text: str) -> list[str]:
@@ -365,15 +375,45 @@ def _normalise_local_path_ref(ref: str) -> str:
         if re.match(r"^/[A-Za-z]:/", value):
             value = value[1:]
         value = value.replace("/", "\\") if os.name == "nt" else value
-    if re.search(r"[A-Za-z]:[\\/]", value):
+    if re.search(r"[A-Za-z]:[\\/]", value) or "\\" in value or "/" in value:
         value = re.sub(r"\s*[\r\n]+\s*", "", value)
     else:
         value = re.sub(r"[\r\n]+", " ", value)
     return value.strip()
 
 
+def _path_ref_exists_in_repo_context(path_ref: str) -> bool:
+    candidate = Path(path_ref).expanduser()
+    bases = [
+        Path.cwd(),
+        REPO_ROOT,
+        REPO_ROOT / "workspace",
+        REPO_ROOT / "verification",
+    ]
+    candidates = [candidate] if candidate.is_absolute() else [base / candidate for base in bases]
+    for item in candidates:
+        try:
+            if item.exists():
+                return True
+        except Exception:
+            continue
+    return False
+
+
+def _extract_url_refs(text: str) -> list[str]:
+    refs: list[str] = []
+    seen: set[str] = set()
+    for match in _URL_REF_RE.finditer(str(text or "")):
+        url = str(match.group(0) or "").rstrip(").,;:")
+        if url and url not in seen:
+            refs.append(url)
+            seen.add(url)
+    return refs
+
+
 def _extract_local_path_refs(text: str) -> list[str]:
     raw = str(text or "")
+    url_refs = _extract_url_refs(raw)
     refs: list[str] = []
     seen: set[str] = set()
 
@@ -385,7 +425,8 @@ def _extract_local_path_refs(text: str) -> list[str]:
         markers = (
             re.search(r"[A-Za-z]:[\\/]", path_ref) is not None,
             lowered.startswith(("~\\", "~/", ".\\", "./", "..\\", "../")),
-            bool(Path(path_ref).suffix and ("\\" in path_ref or "/" in path_ref)),
+            ("\\" in path_ref or "/" in path_ref),
+            _path_ref_exists_in_repo_context(path_ref),
         )
         if any(markers) and path_ref not in seen:
             refs.append(path_ref)
@@ -397,6 +438,11 @@ def _extract_local_path_refs(text: str) -> list[str]:
         _add(match.group(0))
     for match in _UNQUOTED_WINDOWS_PATH_LINE_RE.finditer(raw):
         _add(match.group(0))
+    for match in _UNQUOTED_RELATIVE_PATH_RE.finditer(raw):
+        candidate = match.group(0)
+        if any(candidate in url for url in url_refs):
+            continue
+        _add(candidate)
     return refs
 
 
@@ -827,6 +873,8 @@ class ProviderSpec:
     default_model: str
     requires_token: bool
     description: str
+    native_capabilities: tuple[str, ...] = ()
+    native_constraints: tuple[str, ...] = ()
 
     @property
     def token_available(self) -> bool:
@@ -855,6 +903,18 @@ class ModelProfile:
     input_per_million: float | None
     output_per_million: float | None
     notes: str
+    supports_function_calling: bool = False
+    supports_parallel_tools: bool = False
+    supports_url_context: bool = False
+    supports_search_grounding: bool = False
+    supports_file_search: bool = False
+    supports_vision: bool = False
+    supports_long_context: bool = False
+    supports_structured_output: bool = False
+    latency_tier: str = "medium"
+    cost_tier: str = "unknown"
+    stability_tier: str = "stable"
+    preferred_workloads: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -894,6 +954,8 @@ def _provider_registry() -> dict[str, ProviderSpec]:
             default_model="Qwen/Qwen3.6-35B-A3B",
             requires_token=True,
             description="OpenAI-compatible cloud provider",
+            native_capabilities=("chat_completions", "structured_output"),
+            native_constraints=("Capabilities are curated in-repo; HeliX does not do live model discovery at runtime.",),
         )
     providers.update(
         {
@@ -905,6 +967,8 @@ def _provider_registry() -> dict[str, ProviderSpec]:
                 default_model="gpt-5.4-mini",
                 requires_token=True,
                 description="OpenAI Chat Completions compatible endpoint",
+                native_capabilities=("chat_completions", "structured_output"),
+                native_constraints=("Capabilities are curated in-repo; HeliX does not do live model discovery at runtime.",),
             ),
             "anthropic": ProviderSpec(
                 name="anthropic",
@@ -914,6 +978,8 @@ def _provider_registry() -> dict[str, ProviderSpec]:
                 default_model="claude-4-sonnet",
                 requires_token=True,
                 description="Anthropic Messages API",
+                native_capabilities=("messages_api", "vision", "structured_output"),
+                native_constraints=("Capabilities are curated in-repo; HeliX does not do live model discovery at runtime.",),
             ),
             "gemini": ProviderSpec(
                 name="gemini",
@@ -923,6 +989,20 @@ def _provider_registry() -> dict[str, ProviderSpec]:
                 default_model="gemini-3-flash-preview",
                 requires_token=True,
                 description="Google Gemini generateContent API",
+                native_capabilities=(
+                    "function_calling",
+                    "parallel_tools",
+                    "url_context",
+                    "search_grounding",
+                    "file_search",
+                    "vision",
+                    "long_context",
+                    "structured_output",
+                ),
+                native_constraints=(
+                    "HeliX keeps local repo/filesystem grounding on file.inspect instead of Gemini File Search.",
+                    "In this CLI pass, URL Context and Google Search grounding are not mixed with Gemini function calling.",
+                ),
             ),
             "ollama": ProviderSpec(
                 name="ollama",
@@ -932,6 +1012,8 @@ def _provider_registry() -> dict[str, ProviderSpec]:
                 default_model="llama3.1",
                 requires_token=False,
                 description="Local Ollama OpenAI-compatible endpoint",
+                native_capabilities=("chat_completions",),
+                native_constraints=("Capabilities depend on the local model server; HeliX keeps metadata static.",),
             ),
             "llamacpp": ProviderSpec(
                 name="llamacpp",
@@ -941,6 +1023,8 @@ def _provider_registry() -> dict[str, ProviderSpec]:
                 default_model="local-model",
                 requires_token=False,
                 description="Local llama.cpp server OpenAI-compatible endpoint",
+                native_capabilities=("chat_completions",),
+                native_constraints=("Capabilities depend on the local server; HeliX keeps metadata static.",),
             ),
             "local": ProviderSpec(
                 name="local",
@@ -950,6 +1034,8 @@ def _provider_registry() -> dict[str, ProviderSpec]:
                 default_model="",
                 requires_token=False,
                 description="Prepared local HeliX model alias via HelixRuntime",
+                native_capabilities=("helix_runtime",),
+                native_constraints=("Capabilities are determined by the local runtime alias and are not auto-discovered.",),
             ),
         }
     )
@@ -967,6 +1053,12 @@ DEEPINFRA_MODEL_PROFILES: dict[str, ModelProfile] = {
         input_per_million=0.05,
         output_per_million=0.10,
         notes="Fast everyday chat model with strong instruction following and lower infinite-generation risk.",
+        supports_long_context=True,
+        supports_structured_output=True,
+        latency_tier="fast",
+        cost_tier="low",
+        stability_tier="stable",
+        preferred_workloads=("chat", "drafts", "quick_help"),
     ),
     "mistral": ModelProfile(
         model_id="mistralai/Mistral-Small-3.2-24B-Instruct-2506",
@@ -999,6 +1091,14 @@ DEEPINFRA_MODEL_PROFILES: dict[str, ModelProfile] = {
         input_per_million=0.20,
         output_per_million=1.00,
         notes="Balanced default for normal chat, repo Q&A, light reasoning, and Spanish/English work.",
+        supports_function_calling=True,
+        supports_parallel_tools=True,
+        supports_long_context=True,
+        supports_structured_output=True,
+        latency_tier="medium",
+        cost_tier="medium",
+        stability_tier="stable",
+        preferred_workloads=("chat", "reasoning", "repo_qa"),
     ),
     "code": ModelProfile(
         model_id="Qwen/Qwen3-Coder-480B-A35B-Instruct-Turbo",
@@ -1007,6 +1107,14 @@ DEEPINFRA_MODEL_PROFILES: dict[str, ModelProfile] = {
         input_per_million=0.30,
         output_per_million=1.20,
         notes="Primary agentic coding model: repo-scale understanding, tool use, function calling, and 256K context.",
+        supports_function_calling=True,
+        supports_parallel_tools=True,
+        supports_long_context=True,
+        supports_structured_output=True,
+        latency_tier="medium",
+        cost_tier="high",
+        stability_tier="stable",
+        preferred_workloads=("repo_code", "agentic_code", "patch_planning", "tool_use"),
     ),
     "qwen-big": ModelProfile(
         model_id="Qwen/Qwen3.5-122B-A10B",
@@ -1015,6 +1123,14 @@ DEEPINFRA_MODEL_PROFILES: dict[str, ModelProfile] = {
         input_per_million=0.29,
         output_per_million=2.90,
         notes="Primary large-Qwen profile for research, HeliX self-questions, synthesis, long context, and agentic planning.",
+        supports_function_calling=True,
+        supports_parallel_tools=True,
+        supports_long_context=True,
+        supports_structured_output=True,
+        latency_tier="medium",
+        cost_tier="high",
+        stability_tier="stable",
+        preferred_workloads=("research", "helix_meta", "long_context", "agentic_planning"),
     ),
     "qwen-122b": ModelProfile(
         model_id="Qwen/Qwen3.5-122B-A10B",
@@ -1031,6 +1147,12 @@ DEEPINFRA_MODEL_PROFILES: dict[str, ModelProfile] = {
         input_per_million=None,
         output_per_million=None,
         notes="Gemma reasoning/general profile for careful mid-weight analysis, decomposition, and precise answers.",
+        supports_long_context=True,
+        supports_structured_output=True,
+        latency_tier="medium",
+        cost_tier="medium",
+        stability_tier="stable",
+        preferred_workloads=("reasoning", "analysis", "mid_weight_synthesis"),
     ),
     "llama-vision": ModelProfile(
         model_id="meta-llama/Llama-3.2-11B-Vision-Instruct",
@@ -1039,6 +1161,12 @@ DEEPINFRA_MODEL_PROFILES: dict[str, ModelProfile] = {
         input_per_million=None,
         output_per_million=None,
         notes="Vision-capable Llama profile for screenshots, images, OCR-like descriptions, and visual debugging.",
+        supports_vision=True,
+        supports_structured_output=True,
+        latency_tier="medium",
+        cost_tier="medium",
+        stability_tier="stable",
+        preferred_workloads=("vision", "ocr_like", "screenshot_debug"),
     ),
     "llama-70b": ModelProfile(
         model_id="meta-llama/Llama-3.3-70B-Instruct-Turbo",
@@ -1047,6 +1175,12 @@ DEEPINFRA_MODEL_PROFILES: dict[str, ModelProfile] = {
         input_per_million=None,
         output_per_million=None,
         notes="Large Llama generalist for broad instruction following, fallback synthesis, and high-context prose.",
+        supports_long_context=True,
+        supports_structured_output=True,
+        latency_tier="slow",
+        cost_tier="medium",
+        stability_tier="stable",
+        preferred_workloads=("chat", "fallback_synthesis", "generalist_prose"),
     ),
     "reasoning": ModelProfile(
         model_id="google/gemma-4-31B",
@@ -1055,6 +1189,12 @@ DEEPINFRA_MODEL_PROFILES: dict[str, ModelProfile] = {
         input_per_million=None,
         output_per_million=None,
         notes="Balanced reasoning profile backed by Gemma for decomposition, analysis, and deliberate medium-depth work.",
+        supports_long_context=True,
+        supports_structured_output=True,
+        latency_tier="medium",
+        cost_tier="medium",
+        stability_tier="stable",
+        preferred_workloads=("reasoning", "decomposition", "analysis"),
     ),
     "agentic": ModelProfile(
         model_id="Qwen/Qwen3.5-122B-A10B",
@@ -1063,6 +1203,14 @@ DEEPINFRA_MODEL_PROFILES: dict[str, ModelProfile] = {
         input_per_million=None,
         output_per_million=None,
         notes="Balanced agentic profile backed by Qwen 122B for long tasks, search-heavy work, and broad synthesis.",
+        supports_function_calling=True,
+        supports_parallel_tools=True,
+        supports_long_context=True,
+        supports_structured_output=True,
+        latency_tier="medium",
+        cost_tier="high",
+        stability_tier="stable",
+        preferred_workloads=("agentic", "search_heavy", "synthesis"),
     ),
     "research": ModelProfile(
         model_id="Qwen/Qwen3.5-122B-A10B",
@@ -1071,6 +1219,14 @@ DEEPINFRA_MODEL_PROFILES: dict[str, ModelProfile] = {
         input_per_million=0.29,
         output_per_million=2.90,
         notes="Research/search-oriented Qwen 122B profile for long context synthesis and careful uncertainty handling.",
+        supports_function_calling=True,
+        supports_parallel_tools=True,
+        supports_long_context=True,
+        supports_structured_output=True,
+        latency_tier="medium",
+        cost_tier="high",
+        stability_tier="stable",
+        preferred_workloads=("research", "long_context", "synthesis", "uncertainty_handling"),
     ),
     "legacy-reasoning": ModelProfile(
         model_id="stepfun-ai/Step-3.5-Flash",
@@ -1103,6 +1259,14 @@ DEEPINFRA_MODEL_PROFILES: dict[str, ModelProfile] = {
         input_per_million=1.40,
         output_per_million=4.40,
         notes="Premium agentic engineering model for hard multi-step code and terminal workflows.",
+        supports_function_calling=True,
+        supports_parallel_tools=True,
+        supports_long_context=True,
+        supports_structured_output=True,
+        latency_tier="slow",
+        cost_tier="high",
+        stability_tier="stable",
+        preferred_workloads=("agentic_code", "engineering", "hard_debugging"),
     ),
     "deep-reasoning": ModelProfile(
         model_id="deepseek-ai/DeepSeek-V3.2",
@@ -1111,6 +1275,14 @@ DEEPINFRA_MODEL_PROFILES: dict[str, ModelProfile] = {
         input_per_million=0.26,
         output_per_million=0.38,
         notes="Reasoning and agentic tool-use model with efficient long-context behavior.",
+        supports_function_calling=True,
+        supports_parallel_tools=True,
+        supports_long_context=True,
+        supports_structured_output=True,
+        latency_tier="medium",
+        cost_tier="medium",
+        stability_tier="stable",
+        preferred_workloads=("reasoning", "agentic", "long_context"),
     ),
     "sonnet": ModelProfile(
         model_id="anthropic/claude-4-sonnet",
@@ -1119,6 +1291,12 @@ DEEPINFRA_MODEL_PROFILES: dict[str, ModelProfile] = {
         input_per_million=None,
         output_per_million=None,
         notes="Existing HeliX premium auditor model. Used for high-stakes audit/legal/claim-boundary turns.",
+        supports_long_context=True,
+        supports_structured_output=True,
+        latency_tier="slow",
+        cost_tier="high",
+        stability_tier="stable",
+        preferred_workloads=("audit", "legal", "claim_boundaries"),
     ),
 }
 
@@ -1131,6 +1309,38 @@ GEMINI_MODEL_PROFILES: dict[str, ModelProfile] = {
         input_per_million=None,
         output_per_million=None,
         notes="Gemini 3.1 Pro preview for high-depth reasoning, synthesis, and complex non-code analysis.",
+        supports_function_calling=True,
+        supports_parallel_tools=True,
+        supports_url_context=True,
+        supports_search_grounding=True,
+        supports_file_search=True,
+        supports_vision=True,
+        supports_long_context=True,
+        supports_structured_output=True,
+        latency_tier="slow",
+        cost_tier="high",
+        stability_tier="preview",
+        preferred_workloads=("long_analysis", "reasoning", "url_comparison", "docs_synthesis"),
+    ),
+    "gemini-pro-tools": ModelProfile(
+        model_id="gemini-3.1-pro-preview-customtools",
+        role="gemini-pro-tools",
+        provider="gemini",
+        input_per_million=None,
+        output_per_million=None,
+        notes="Gemini 3.1 Pro custom-tools preview for agentic workflows that must prioritize custom tools.",
+        supports_function_calling=True,
+        supports_parallel_tools=True,
+        supports_url_context=True,
+        supports_search_grounding=True,
+        supports_file_search=True,
+        supports_vision=True,
+        supports_long_context=True,
+        supports_structured_output=True,
+        latency_tier="slow",
+        cost_tier="high",
+        stability_tier="preview",
+        preferred_workloads=("agentic", "custom_tools", "long_analysis"),
     ),
     "gemini-flash": ModelProfile(
         model_id="gemini-3-flash-preview",
@@ -1139,6 +1349,18 @@ GEMINI_MODEL_PROFILES: dict[str, ModelProfile] = {
         input_per_million=None,
         output_per_million=None,
         notes="Gemini 3 Flash preview for fast general chat, research drafts, and lower-latency turns.",
+        supports_function_calling=True,
+        supports_parallel_tools=True,
+        supports_url_context=True,
+        supports_search_grounding=True,
+        supports_file_search=True,
+        supports_vision=True,
+        supports_long_context=True,
+        supports_structured_output=True,
+        latency_tier="fast",
+        cost_tier="medium",
+        stability_tier="preview",
+        preferred_workloads=("chat", "web_grounding", "drafts", "fast_url_reads"),
     ),
     "gemini-lite": ModelProfile(
         model_id="gemini-3.1-flash-lite-preview",
@@ -1147,6 +1369,78 @@ GEMINI_MODEL_PROFILES: dict[str, ModelProfile] = {
         input_per_million=None,
         output_per_million=None,
         notes="Gemini 3.1 Flash Lite preview for cheap/fast classification, summaries, and lightweight chat.",
+        supports_function_calling=True,
+        supports_parallel_tools=True,
+        supports_url_context=True,
+        supports_search_grounding=True,
+        supports_file_search=True,
+        supports_vision=True,
+        supports_long_context=True,
+        supports_structured_output=True,
+        latency_tier="fast",
+        cost_tier="low",
+        stability_tier="preview",
+        preferred_workloads=("classification", "cheap_summaries", "lightweight_chat"),
+    ),
+    "gemini-2.5-pro": ModelProfile(
+        model_id="gemini-2.5-pro",
+        role="gemini-2.5-pro",
+        provider="gemini",
+        input_per_million=None,
+        output_per_million=None,
+        notes="Stable Gemini 2.5 Pro for reliable deep reasoning, code, long-context analysis, and fallback from preview Pro.",
+        supports_function_calling=True,
+        supports_parallel_tools=True,
+        supports_url_context=True,
+        supports_search_grounding=True,
+        supports_file_search=True,
+        supports_vision=True,
+        supports_long_context=True,
+        supports_structured_output=True,
+        latency_tier="slow",
+        cost_tier="high",
+        stability_tier="stable",
+        preferred_workloads=("reasoning", "code", "long_context", "reliable_fallback"),
+    ),
+    "gemini-2.5-flash": ModelProfile(
+        model_id="gemini-2.5-flash",
+        role="gemini-2.5-flash",
+        provider="gemini",
+        input_per_million=None,
+        output_per_million=None,
+        notes="Stable Gemini 2.5 Flash for reliable low-latency agentic and high-volume fallback work.",
+        supports_function_calling=True,
+        supports_parallel_tools=True,
+        supports_url_context=True,
+        supports_search_grounding=True,
+        supports_file_search=True,
+        supports_vision=True,
+        supports_long_context=True,
+        supports_structured_output=True,
+        latency_tier="fast",
+        cost_tier="medium",
+        stability_tier="stable",
+        preferred_workloads=("chat", "agentic_light", "reliable_web_grounding"),
+    ),
+    "gemini-2.5-flash-lite": ModelProfile(
+        model_id="gemini-2.5-flash-lite",
+        role="gemini-2.5-flash-lite",
+        provider="gemini",
+        input_per_million=None,
+        output_per_million=None,
+        notes="Stable Gemini 2.5 Flash-Lite for cheap, fast lightweight fallback tasks.",
+        supports_function_calling=True,
+        supports_parallel_tools=True,
+        supports_url_context=True,
+        supports_search_grounding=True,
+        supports_file_search=True,
+        supports_vision=True,
+        supports_long_context=True,
+        supports_structured_output=True,
+        latency_tier="fast",
+        cost_tier="low",
+        stability_tier="stable",
+        preferred_workloads=("classification", "cheap_chat", "fallback"),
     ),
 }
 
@@ -1379,6 +1673,13 @@ SUITES: dict[str, SuiteSpec] = {
         description="Infinite-depth memory methodology and latency boundary suite",
         output_dir="verification/nuclear-methodology/infinite-depth-memory",
     ),
+    "cognitive-gauntlet": SuiteSpec(
+        suite_id="cognitive-gauntlet",
+        script="tools/run_cognitive_gauntlet_v1.py",
+        description="Cognitive contradiction, fork, shadow-root and drift gauntlet suite",
+        output_dir="verification/nuclear-methodology/cognitive-gauntlet",
+        supports_deepinfra_flag=True,
+    ),
     "nuclear-methodology": SuiteSpec(
         suite_id="nuclear-methodology",
         script="tools/run_nuclear_methodology_suite_v1.py",
@@ -1394,6 +1695,44 @@ def _slugish(value: str) -> str:
     return clean or "helix"
 
 
+def _provider_ready(provider_name: str) -> bool:
+    provider = PROVIDERS[provider_name]
+    if not provider.requires_token:
+        return True
+    if provider.token_env and os.environ.get(provider.token_env):
+        return True
+    return bool(_config_token(provider.name))
+
+
+def _provider_capability_payload(provider: ProviderSpec) -> dict[str, Any]:
+    return {
+        "native_capabilities": list(provider.native_capabilities),
+        "native_constraints": list(provider.native_constraints),
+    }
+
+
+def _profile_capability_payload(profile: ModelProfile) -> dict[str, Any]:
+    return {
+        "supports_function_calling": profile.supports_function_calling,
+        "supports_parallel_tools": profile.supports_parallel_tools,
+        "supports_url_context": profile.supports_url_context,
+        "supports_search_grounding": profile.supports_search_grounding,
+        "supports_file_search": profile.supports_file_search,
+        "supports_vision": profile.supports_vision,
+        "supports_long_context": profile.supports_long_context,
+        "supports_structured_output": profile.supports_structured_output,
+        "latency_tier": profile.latency_tier,
+        "cost_tier": profile.cost_tier,
+        "stability_tier": profile.stability_tier,
+        "preferred_workloads": list(profile.preferred_workloads),
+    }
+
+
+def _model_profile_for_id(model_id: str | None) -> ModelProfile | None:
+    alias = _profile_alias_for_model_id(str(model_id or ""))
+    return MODEL_PROFILES.get(alias or "")
+
+
 def model_profiles_report() -> list[dict[str, Any]]:
     return [
         {
@@ -1404,6 +1743,7 @@ def model_profiles_report() -> list[dict[str, Any]]:
             "input_per_million": profile.input_per_million,
             "output_per_million": profile.output_per_million,
             "notes": profile.notes,
+            **_profile_capability_payload(profile),
         }
         for alias, profile in sorted(MODEL_PROFILES.items())
     ]
@@ -1415,6 +1755,7 @@ def models_payload() -> dict[str, Any]:
         "model_profiles": profiles,
         "deepinfra_model_profiles": [item for item in profiles if item.get("provider") == "deepinfra"],
         "gemini_model_profiles": [item for item in profiles if item.get("provider") == "gemini"],
+        "providers": provider_report(probe_local=False),
         "router_blueprints": router_blueprints_report(),
     }
 
@@ -1490,6 +1831,10 @@ def resolve_model_alias(value: str) -> str:
         "gemini-3.1-pro": "gemini-pro",
         "gemini 3.1 pro": "gemini-pro",
         "gemini-3.1-pro-preview": "gemini-pro",
+        "gemini-pro-tools": "gemini-pro-tools",
+        "gemini pro tools": "gemini-pro-tools",
+        "gemini customtools": "gemini-pro-tools",
+        "gemini-3.1-pro-preview-customtools": "gemini-pro-tools",
         "gemini flash": "gemini-flash",
         "gemini-flash": "gemini-flash",
         "gemini-3-flash": "gemini-flash",
@@ -1501,6 +1846,12 @@ def resolve_model_alias(value: str) -> str:
         "gemini-3.1-flash-lite": "gemini-lite",
         "gemini 3.1 flash lite": "gemini-lite",
         "gemini-3.1-flash-lite-preview": "gemini-lite",
+        "gemini-2.5-pro": "gemini-2.5-pro",
+        "gemini 2.5 pro": "gemini-2.5-pro",
+        "gemini-2.5-flash": "gemini-2.5-flash",
+        "gemini 2.5 flash": "gemini-2.5-flash",
+        "gemini-2.5-flash-lite": "gemini-2.5-flash-lite",
+        "gemini 2.5 flash lite": "gemini-2.5-flash-lite",
         "llama": "llama-70b",
         "llama-70b": "llama-70b",
         "llama 70b": "llama-70b",
@@ -1551,6 +1902,10 @@ def _explicit_model_control_alias(text: str) -> str | None:
         ("llama-70b", ("llama", "llama 70b", "llama-70b")),
         ("gemma", ("gemma", "gemma 4", "gemma-4")),
         ("gemini-pro", ("gemini pro", "gemini-3.1-pro", "gemini 3.1 pro", "gemini-3.1-pro-preview")),
+        ("gemini-pro-tools", ("gemini pro tools", "gemini customtools", "gemini-3.1-pro-preview-customtools")),
+        ("gemini-2.5-pro", ("gemini 2.5 pro", "gemini-2.5-pro")),
+        ("gemini-2.5-flash", ("gemini 2.5 flash", "gemini-2.5-flash")),
+        ("gemini-2.5-flash-lite", ("gemini 2.5 flash lite", "gemini-2.5-flash-lite")),
         ("gemini-lite", ("gemini lite", "gemini flash lite", "gemini-3.1-flash-lite", "gemini 3.1 flash lite")),
         ("gemini-flash", ("gemini flash", "gemini-3-flash", "gemini 3 flash", "gemini-3-flash-preview", "gemini")),
         ("code", ("qwen coder", "qwen-coder", "coder")),
@@ -1576,41 +1931,197 @@ def _profile_alias_for_model_id(model_id: str) -> str | None:
     return None
 
 
-def _manual_route_for_model(model_id: str, *, provider_name: str, policy: str) -> dict[str, Any]:
+def _capability_requirements_for_prompt(
+    text: str,
+    *,
+    intent: str,
+    url_refs: list[str],
+    path_refs: list[str],
+    suite_focus: bool = False,
+    web_focus: bool = False,
+) -> dict[str, Any]:
+    lowered = str(text or "").lower()
+    needs_long_context = (
+        len(str(text or "")) > 1200
+        or len(url_refs) > 1
+        or intent in {"research", "web_research", "suite_forensics", "helix_self", "agentic", "agentic_code", "audit"}
+    )
+    return {
+        "function_calling": bool(intent in {"agentic", "agentic_code"}),
+        "parallel_tools": bool(intent in {"agentic", "agentic_code", "suite_forensics"}),
+        "url_context": bool(url_refs),
+        "search_grounding": bool(web_focus or (url_refs and any(term in lowered for term in ("latest", "actual", "actuales", "current", "reciente", "news", "fuentes", "sources")))),
+        "file_search": False,
+        "vision": bool(intent == "vision"),
+        "long_context": needs_long_context,
+        "structured_output": False,
+        "local_file_grounding": bool(path_refs),
+        "suite_grounding": bool(suite_focus),
+    }
+
+
+def _empty_native_tool_plan(provider_name: str) -> dict[str, Any]:
+    return {
+        "provider": provider_name,
+        "mode": "helix-only",
+        "url_context_urls": [],
+        "enable_search_grounding": False,
+        "function_declarations": [],
+        "function_calling_mode": None,
+        "file_search_store_ids": [],
+        "why_not": [],
+    }
+
+
+def _gemini_alias_for_prompt(
+    text: str,
+    *,
+    intent: str,
+    capability_requirements: dict[str, Any],
+) -> str:
+    lowered = str(text or "").lower()
+    if intent == "vision":
+        return "gemini-flash"
+    if intent in {"agentic_code", "code", "audit", "suite_forensics", "helix_self"}:
+        return "gemini-pro"
+    if capability_requirements.get("url_context") and (
+        capability_requirements.get("long_context")
+        or len(_extract_url_refs(text)) > 1
+        or any(term in lowered for term in ("compar", "compare", "docs", "documentacion", "documentation", "sintetiza", "synthesis"))
+    ):
+        return "gemini-pro"
+    if any(term in lowered for term in ("clasifica", "classify", "etiqueta", "tag", "breve", "one line", "una linea")):
+        return "gemini-lite"
+    if intent in {"reasoning", "research", "web_research"}:
+        return "gemini-pro" if capability_requirements.get("long_context") else "gemini-flash"
+    return "gemini-flash"
+
+
+def _native_tool_plan_for_route(route: dict[str, Any], text: str) -> dict[str, Any]:
+    provider_name = str(route.get("provider") or "")
+    profile = _model_profile_for_id(str(route.get("model") or ""))
+    url_refs = _extract_url_refs(text)
+    path_refs = _extract_local_path_refs(text)
+    suite_focus = _is_suite_evidence_request(text)
+    web_focus = _is_web_search_request(text)
+    capability_requirements = _capability_requirements_for_prompt(
+        text,
+        intent=str(route.get("intent") or "chat"),
+        url_refs=url_refs,
+        path_refs=path_refs,
+        suite_focus=suite_focus,
+        web_focus=web_focus,
+    )
+    plan = _empty_native_tool_plan(provider_name)
+    why_not: list[str] = []
+    if provider_name != "gemini":
+        if url_refs:
+            why_not.append("URL Context is only wired for Gemini in this HeliX pass.")
+        if capability_requirements.get("search_grounding"):
+            why_not.append("Native web grounding stays disabled outside Gemini; HeliX web tools remain available.")
+    else:
+        if capability_requirements.get("url_context"):
+            if profile and profile.supports_url_context:
+                plan["mode"] = "gemini-native"
+                plan["url_context_urls"] = url_refs[:8]
+            else:
+                why_not.append("The selected Gemini profile does not advertise URL Context support.")
+        if capability_requirements.get("search_grounding"):
+            if profile and profile.supports_search_grounding:
+                plan["mode"] = "gemini-native"
+                plan["enable_search_grounding"] = True
+            else:
+                why_not.append("The selected Gemini profile does not advertise Google Search grounding support.")
+        if capability_requirements.get("function_calling"):
+            why_not.append("HeliX keeps local tool orchestration in its own planner; Gemini function calling is not auto-enabled here.")
+        if capability_requirements.get("file_search"):
+            why_not.append("Gemini File Search is reserved for remote stores; local repo files stay on file.inspect.")
+    if path_refs:
+        why_not.append("Local paths and directories are grounded via HeliX file.inspect before any provider-native remote context.")
+    plan["why_not"] = why_not
+    return plan
+
+
+def _augment_route_metadata(route: dict[str, Any], text: str) -> dict[str, Any]:
+    payload = dict(route)
+    url_refs = _extract_url_refs(text)
+    path_refs = _extract_local_path_refs(text)
+    suite_focus = _is_suite_evidence_request(text)
+    web_focus = _is_web_search_request(text)
+    capability_requirements = _capability_requirements_for_prompt(
+        text,
+        intent=str(payload.get("intent") or "chat"),
+        url_refs=url_refs,
+        path_refs=path_refs,
+        suite_focus=suite_focus,
+        web_focus=web_focus,
+    )
+    native_tool_plan = _native_tool_plan_for_route(payload, text)
+    payload.update(
+        {
+            "path_refs": path_refs,
+            "url_refs": url_refs,
+            "capability_requirements": capability_requirements,
+            "native_tool_plan": native_tool_plan,
+            "why_not": list(native_tool_plan.get("why_not") or []),
+        }
+    )
+    profile = _model_profile_for_id(str(payload.get("model") or ""))
+    provider = PROVIDERS.get(str(payload.get("provider") or ""))
+    if profile:
+        payload.update(_profile_capability_payload(profile))
+    if provider:
+        payload["provider_native_capabilities"] = list(provider.native_capabilities)
+        payload["provider_native_constraints"] = list(provider.native_constraints)
+    return payload
+
+
+def _manual_route_for_model(model_id: str, *, provider_name: str, policy: str, user_text: str = "") -> dict[str, Any]:
     alias = _profile_alias_for_model_id(model_id)
     profile = MODEL_PROFILES.get(alias or "")
     fallback_chain = list(_fallback_aliases_for_alias(alias or ""))
     route_provider = profile.provider if profile else provider_name
-    return {
-        "provider": route_provider,
-        "model": model_id,
-        "profile": alias or "manual",
-        "role": profile.role if profile else "manual",
-        "intent": "manual",
-        "confidence": 1.0,
-        "signals": ["manual_model"],
-        "policy": policy,
-        "blueprint": _resolve_router_blueprint(policy).name,
-        "blueprint_description": _resolve_router_blueprint(policy).description,
-        "intent_scores": {"manual": 1.0},
-        "top_intents": [["manual", 1.0]],
-        "ambiguity": False,
-        "ambiguity_resolver": "not_used",
-        "manual_model_alias": alias,
-        "fallback_chain": fallback_chain,
-        "reason": profile.notes if profile else "User-selected model for this action/session.",
-        "input_per_million": profile.input_per_million if profile else None,
-        "output_per_million": profile.output_per_million if profile else None,
-    }
+    return _augment_route_metadata(
+        {
+            "provider": route_provider,
+            "model": model_id,
+            "profile": alias or "manual",
+            "role": profile.role if profile else "manual",
+            "intent": "manual",
+            "confidence": 1.0,
+            "signals": ["manual_model"],
+            "policy": policy,
+            "blueprint": _resolve_router_blueprint(policy).name,
+            "blueprint_description": _resolve_router_blueprint(policy).description,
+            "intent_scores": {"manual": 1.0},
+            "top_intents": [["manual", 1.0]],
+            "ambiguity": False,
+            "ambiguity_resolver": "not_used",
+            "manual_model_alias": alias,
+            "fallback_chain": fallback_chain,
+            "reason": profile.notes if profile else "User-selected model for this action/session.",
+            "input_per_million": profile.input_per_million if profile else None,
+            "output_per_million": profile.output_per_million if profile else None,
+        },
+        user_text,
+    )
 
 
 def _fallback_aliases_for_alias(alias: str) -> tuple[str, ...]:
     if alias == "gemini-pro":
-        return ("gemini-flash", "gemini-lite")
+        return ("gemini-pro-tools", "gemini-2.5-pro", "gemini-flash", "gemini-2.5-flash", "gemini-lite", "gemini-2.5-flash-lite")
+    if alias == "gemini-pro-tools":
+        return ("gemini-pro", "gemini-2.5-pro", "gemini-flash", "gemini-2.5-flash", "gemini-lite", "gemini-2.5-flash-lite")
     if alias == "gemini-flash":
-        return ("gemini-lite",)
+        return ("gemini-2.5-flash", "gemini-lite", "gemini-2.5-flash-lite")
     if alias == "qwen-big":
         return ("qwen-122b", "default", "chat")
+    if alias == "gemini-lite":
+        return ("gemini-2.5-flash-lite",)
+    if alias == "gemini-2.5-pro":
+        return ("gemini-flash", "gemini-2.5-flash", "gemini-lite")
+    if alias == "gemini-2.5-flash":
+        return ("gemini-lite", "gemini-2.5-flash-lite")
     if alias == "qwen-122b":
         return ("default", "chat")
     if alias == "code":
@@ -1641,6 +2152,8 @@ def route_model_for_task(
     """
 
     lowered = str(text or "").lower()
+    url_refs = _extract_url_refs(text)
+    path_refs = _extract_local_path_refs(text)
     blueprint = _resolve_router_blueprint(policy)
     policy = blueprint.name
     signals: list[str] = []
@@ -1862,6 +2375,19 @@ def route_model_for_task(
     if explicit_alias:
         scores["model_control"] = 10.0
         signals.append("model_control")
+    if url_refs:
+        signals.append("url_refs")
+        if not path_refs:
+            scores["web_research"] += 0.8
+            scores["research"] += 0.6
+    if path_refs:
+        signals.append("local_path_refs")
+        scores["code"] += 0.4
+        scores["agentic_code"] += 0.3
+        if any(term in lowered for term in ("patch", "diff", "repo", "archivo", "archivos", "codigo", "code", "bug", "fix", "refactor", "src/")):
+            scores["code"] += 2.2
+        if any(term in lowered for term in ("patch", "fix", "implementa", "refactor", "arregla", "propon", "propose")):
+            scores["agentic_code"] += 1.8
     if len(text) > 1200:
         scores["agentic"] += 1.2
         scores["reasoning"] += 0.8
@@ -1916,13 +2442,17 @@ def route_model_for_task(
     ranked = sorted(scores.items(), key=lambda item: (item[1], priority.get(item[0], 0)), reverse=True)
     intent, top_score = ranked[0]
     second_intent, second_score = ranked[1] if len(ranked) > 1 else ("none", 0.0)
+    if path_refs and intent in {"web_research", "research"} and max(scores["code"], scores["agentic_code"]) >= 3.5:
+        intent = "agentic_code" if scores["agentic_code"] >= scores["code"] else "code"
+        top_score = scores[intent]
     if top_score <= 1.0:
         intent = "chat"
     ambiguity = bool(top_score > 1.0 and second_score > 1.0 and (top_score - second_score) <= 1.25)
 
     if intent == "model_control" and explicit_alias and explicit_alias in MODEL_PROFILES:
         profile = MODEL_PROFILES[explicit_alias]
-        return {
+        return _augment_route_metadata(
+            {
             "provider": profile.provider,
             "model": profile.model_id,
             "profile": explicit_alias,
@@ -1942,30 +2472,91 @@ def route_model_for_task(
             "reason": profile.notes,
             "input_per_million": profile.input_per_million,
             "output_per_million": profile.output_per_million,
-        }
+            },
+            text,
+        )
+
+    gemini_override = bool(url_refs and not path_refs and provider_name == "deepinfra" and _provider_ready("gemini"))
+    if provider_name == "gemini":
+        alias = _gemini_alias_for_prompt(
+            text,
+            intent=intent,
+            capability_requirements=_capability_requirements_for_prompt(
+                text,
+                intent=intent,
+                url_refs=url_refs,
+                path_refs=path_refs,
+                suite_focus=bool(scores["suite_forensics"]),
+                web_focus=bool(scores["web_research"]),
+            ),
+        )
+        profile = GEMINI_MODEL_PROFILES[alias]
+        confidence = 0.58 if not signals else min(0.97, 0.66 + max(0.0, top_score - second_score) * 0.06 + top_score * 0.03)
+        if ambiguity:
+            confidence = min(confidence, 0.7)
+        return _augment_route_metadata(
+            {
+                "provider": "gemini",
+                "model": profile.model_id,
+                "profile": alias,
+                "role": profile.role,
+                "intent": intent,
+                "confidence": round(confidence, 4),
+                "signals": sorted(set(signals)),
+                "policy": policy,
+                "blueprint": blueprint.name,
+                "blueprint_description": blueprint.description,
+                "intent_scores": {key: round(value, 4) for key, value in scores.items() if value > 0},
+                "top_intents": [[name, round(score, 4)] for name, score in ranked[:3]],
+                "ambiguity": ambiguity,
+                "ambiguity_resolver": "deterministic_scoring",
+                "manual_model_alias": explicit_alias if intent == "model_control" else None,
+                "fallback_chain": list(_fallback_aliases_for_alias(alias)),
+                "reason": profile.notes,
+                "input_per_million": profile.input_per_million,
+                "output_per_million": profile.output_per_million,
+            },
+            text,
+        )
 
     if provider_name != "deepinfra":
-        return {
-            "provider": provider_name,
-            "model": None,
-            "profile": "provider-default",
-            "intent": intent,
-            "confidence": 0.55,
-            "signals": signals,
-            "policy": policy,
-            "blueprint": blueprint.name,
-            "blueprint_description": blueprint.description,
-            "intent_scores": scores,
-            "top_intents": ranked[:3],
-            "ambiguity": ambiguity,
-            "ambiguity_resolver": "not_used",
-            "reason": "non-DeepInfra providers currently keep their configured/default model",
-        }
+        return _augment_route_metadata(
+            {
+                "provider": provider_name,
+                "model": None,
+                "profile": "provider-default",
+                "intent": intent,
+                "confidence": 0.55,
+                "signals": sorted(set(signals)),
+                "policy": policy,
+                "blueprint": blueprint.name,
+                "blueprint_description": blueprint.description,
+                "intent_scores": {key: round(value, 4) for key, value in scores.items() if value > 0},
+                "top_intents": [[name, round(score, 4)] for name, score in ranked[:3]],
+                "ambiguity": ambiguity,
+                "ambiguity_resolver": "not_used",
+                "reason": "Non-DeepInfra providers keep their configured/default model unless the provider has a dedicated router.",
+            },
+            text,
+        )
 
     if intent == "model_control" and explicit_alias:
         alias = explicit_alias
     else:
-        if intent == "vision":
+        if gemini_override and intent in {"chat", "reasoning", "research", "web_research", "helix_self", "suite_forensics"}:
+            alias = _gemini_alias_for_prompt(
+                text,
+                intent=intent,
+                capability_requirements=_capability_requirements_for_prompt(
+                    text,
+                    intent=intent,
+                    url_refs=url_refs,
+                    path_refs=path_refs,
+                    suite_focus=bool(scores["suite_forensics"]),
+                    web_focus=bool(scores["web_research"]),
+                ),
+            )
+        elif intent == "vision":
             alias = blueprint.vision_alias
         elif intent == "audit":
             alias = blueprint.audit_alias
@@ -1984,13 +2575,16 @@ def route_model_for_task(
         else:
             alias = blueprint.chat_alias or blueprint.default_alias
 
-    profile = DEEPINFRA_MODEL_PROFILES[alias]
+    profile = MODEL_PROFILES[alias]
     fallback_chain = list(_fallback_aliases_for_alias(alias))
     confidence = 0.45 if not signals else min(0.97, 0.62 + max(0.0, top_score - second_score) * 0.07 + top_score * 0.03)
     if ambiguity:
         confidence = min(confidence, 0.68)
-    return {
-        "provider": "deepinfra",
+    if gemini_override and profile.provider == "gemini":
+        signals.append("gemini_url_context_candidate")
+    return _augment_route_metadata(
+        {
+        "provider": profile.provider,
         "model": profile.model_id,
         "profile": alias,
         "role": profile.role,
@@ -2009,7 +2603,9 @@ def route_model_for_task(
         "reason": profile.notes,
         "input_per_million": profile.input_per_million,
         "output_per_million": profile.output_per_million,
-    }
+        },
+        text,
+    )
 
 
 def _json_ready(value: Any) -> Any:
@@ -2420,6 +3016,53 @@ def _anthropic_chat(
     }
 
 
+def _prepare_gemini_native_request(model: str, native_request: dict[str, Any] | None) -> dict[str, Any]:
+    request_payload = dict(native_request or {})
+    profile = _model_profile_for_id(model)
+    url_context_urls = [str(item) for item in (request_payload.get("url_context_urls") or []) if str(item).strip()]
+    enable_search_grounding = bool(request_payload.get("enable_search_grounding"))
+    function_declarations = request_payload.get("function_declarations") or []
+    function_calling_mode = request_payload.get("function_calling_mode")
+    file_search_store_ids = [str(item) for item in (request_payload.get("file_search_store_ids") or []) if str(item).strip()]
+    if (url_context_urls or enable_search_grounding) and (function_declarations or function_calling_mode):
+        raise ValueError("Gemini URL Context / Google Search grounding cannot be combined with function calling in this HeliX pass")
+    if url_context_urls and len(url_context_urls) > 20:
+        raise ValueError("Gemini URL Context accepts at most 20 URLs per request")
+    if url_context_urls and profile and not profile.supports_url_context:
+        raise ValueError(f"{model} is not marked as supporting Gemini URL Context")
+    if enable_search_grounding and profile and not profile.supports_search_grounding:
+        raise ValueError(f"{model} is not marked as supporting Gemini Search grounding")
+    if function_declarations and profile and not profile.supports_function_calling:
+        raise ValueError(f"{model} is not marked as supporting Gemini function calling")
+    if file_search_store_ids and profile and not profile.supports_file_search:
+        raise ValueError(f"{model} is not marked as supporting Gemini File Search")
+
+    tools: list[dict[str, Any]] = []
+    tool_config: dict[str, Any] | None = None
+    if url_context_urls:
+        tools.append({"url_context": {}})
+    if enable_search_grounding:
+        tools.append({"google_search": {}})
+    if function_declarations:
+        tools.append({"functionDeclarations": function_declarations})
+    if file_search_store_ids:
+        tools.append({"fileSearch": {"fileSearchStoreNames": file_search_store_ids}})
+    if function_calling_mode:
+        tool_config = {"functionCallingConfig": {"mode": str(function_calling_mode)}}
+        allowed_function_names = request_payload.get("allowed_function_names") or []
+        if allowed_function_names:
+            tool_config["functionCallingConfig"]["allowedFunctionNames"] = [str(item) for item in allowed_function_names if str(item).strip()]
+    return {
+        "tools": tools,
+        "toolConfig": tool_config,
+        "url_context_urls": url_context_urls,
+        "enable_search_grounding": enable_search_grounding,
+        "function_declarations": function_declarations,
+        "function_calling_mode": function_calling_mode,
+        "file_search_store_ids": file_search_store_ids,
+    }
+
+
 def _gemini_chat(
     provider: ProviderSpec,
     *,
@@ -2430,6 +3073,7 @@ def _gemini_chat(
     temperature: float,
     timeout: float,
     base_url: str | None = None,
+    native_request: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     system_parts = [str(item.get("content") or "") for item in messages if item.get("role") == "system"]
     contents: list[dict[str, Any]] = []
@@ -2450,8 +3094,13 @@ def _gemini_chat(
             "temperature": temperature,
         },
     }
+    native_payload = _prepare_gemini_native_request(model, native_request)
     if system_parts:
         payload["systemInstruction"] = {"parts": [{"text": "\n\n".join(system_parts)}]}
+    if native_payload["tools"]:
+        payload["tools"] = native_payload["tools"]
+    if native_payload["toolConfig"]:
+        payload["toolConfig"] = native_payload["toolConfig"]
 
     started = time.perf_counter()
     try:
@@ -2476,6 +3125,9 @@ def _gemini_chat(
     content = candidate.get("content") if isinstance(candidate.get("content"), dict) else {}
     parts = content.get("parts") if isinstance(content.get("parts"), list) else []
     text = "".join(str(part.get("text") or "") for part in parts if isinstance(part, dict)).strip()
+    function_calls = [part.get("functionCall") for part in parts if isinstance(part, dict) and isinstance(part.get("functionCall"), dict)]
+    if not text and function_calls:
+        text = json.dumps({"function_calls": function_calls}, ensure_ascii=False)
     if not text:
         raise RuntimeError(f"Provider returned empty content. Raw response: {json.dumps(response)}")
     return {
@@ -2486,6 +3138,11 @@ def _gemini_chat(
         "finish_reason": candidate.get("finishReason"),
         "usage": response.get("usageMetadata"),
         "latency_ms": latency_ms,
+        "function_calls": function_calls,
+        "native_tool_metadata": {
+            "url_context_metadata": candidate.get("urlContextMetadata") or candidate.get("url_context_metadata"),
+            "grounding_metadata": candidate.get("groundingMetadata") or candidate.get("grounding_metadata"),
+        },
         "raw": response,
     }
 
@@ -2503,6 +3160,7 @@ def run_chat(
     base_url: str | None = None,
     prompt_token: bool = True,
     workspace_root: Path | None = None,
+    native_request: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     provider = PROVIDERS[provider_name]
     selected_model = model or provider.default_model
@@ -2563,6 +3221,7 @@ def run_chat(
             temperature=temperature,
             timeout=timeout,
             base_url=base_url,
+            native_request=native_request,
         )
     return _openai_compatible_chat(
         provider,
@@ -2581,11 +3240,13 @@ def _fallback_model_ids_for_route(
     *,
     primary_model: str | None,
     agent_blueprint: AgentBlueprint | None = None,
+    include_route_fallbacks: bool = True,
 ) -> list[str]:
     aliases: list[str] = []
     if agent_blueprint is not None:
         aliases.extend(agent_blueprint.fallback_aliases)
-    aliases.extend(str(item) for item in ((route or {}).get("fallback_chain") or []))
+    if include_route_fallbacks:
+        aliases.extend(str(item) for item in ((route or {}).get("fallback_chain") or []))
     models: list[str] = []
     seen = {str(primary_model or "")}
     for alias in aliases:
@@ -2662,12 +3323,129 @@ def _truncate_text(text: str, limit: int = 12000) -> dict[str, Any]:
     return {"text": value[:limit] + "\n...[truncated by HeliX]...", "truncated": True, "chars": len(value)}
 
 
+def _repo_display_path(path: Path) -> str:
+    try:
+        return path.resolve(strict=False).relative_to(REPO_ROOT.resolve(strict=False)).as_posix()
+    except Exception:
+        return str(path)
+
+
+def _architecture_excerpt(
+    path: Path,
+    *,
+    label: str,
+    needles: tuple[str, ...],
+    radius: int = 4,
+    max_chars: int = 1800,
+) -> dict[str, Any]:
+    try:
+        lines = path.read_text(encoding="utf-8-sig", errors="ignore").splitlines()
+    except Exception as exc:  # noqa: BLE001
+        return {
+            "path": _repo_display_path(path),
+            "label": label,
+            "found": False,
+            "error": f"{type(exc).__name__}: {exc}",
+            "excerpt": "",
+        }
+
+    windows: list[tuple[int, int, str]] = []
+    seen: set[tuple[int, int]] = set()
+    lowered_needles = [str(item).lower() for item in needles]
+    for needle, lowered in zip(needles, lowered_needles):
+        for index, line in enumerate(lines):
+            if lowered not in line.lower():
+                continue
+            start = max(0, index - radius)
+            end = min(len(lines), index + radius + 1)
+            key = (start, end)
+            if key in seen:
+                break
+            seen.add(key)
+            windows.append((start, end, needle))
+            break
+    if not windows:
+        windows.append((0, min(len(lines), radius * 2 + 4), "file"))
+
+    blocks: list[str] = []
+    for start, end, needle in windows[:2]:
+        block = "\n".join(f"{line_number + 1}: {lines[line_number]}" for line_number in range(start, end))
+        blocks.append(f"[focus: {needle}]\n{block}")
+    excerpt = "\n...\n".join(blocks)
+    trimmed = _truncate_text(excerpt, max_chars)
+    return {
+        "path": _repo_display_path(path),
+        "label": label,
+        "found": bool(windows),
+        "excerpt": trimmed["text"],
+        "truncated": trimmed["truncated"],
+        "focus_needles": list(needles),
+    }
+
+
+def _architecture_excerpt_specs() -> list[dict[str, Any]]:
+    return [
+        {
+            "path": REPO_ROOT / "helix_kv" / "memory_catalog.py",
+            "label": "canonical head, lineage verification and quarantine",
+            "needles": (
+                "def session_lineage",
+                "def verify_session_lineage",
+                "self._session_lineage",
+                "def verify_chain",
+            ),
+        },
+        {
+            "path": REPO_ROOT / "helix_kv" / "merkle_dag.py",
+            "label": "parent-linked Merkle-DAG structure",
+            "needles": (
+                "class MerkleNode",
+                "def _insert_unlocked",
+                "def audit_chain",
+            ),
+        },
+        {
+            "path": REPO_ROOT / "src" / "helix_proto" / "signed_receipts.py",
+            "label": "receipt authenticity boundaries",
+            "needles": (
+                "does not",
+                "def sign_receipt_payload",
+                "def verify_signed_receipt",
+            ),
+        },
+        {
+            "path": REPO_ROOT / "src" / "helix_proto" / "helix_cli.py",
+            "label": "CLI prompt grounding and tool routing",
+            "needles": (
+                "def _chat_system",
+                "def _task_system",
+                "def _planner_callback_factory",
+            ),
+        },
+    ]
+
+
+def _architecture_context_blob(pack: dict[str, Any] | None, *, limit: int = 16000) -> str:
+    if not pack:
+        return "{}"
+    serialized = json.dumps(pack, ensure_ascii=False, indent=2)
+    return _truncate_text(serialized, limit)["text"]
+
+
 def _safe_int(value: Any, default: int, *, minimum: int, maximum: int) -> int:
     try:
         parsed = int(value)
     except Exception:
         parsed = default
     return max(minimum, min(maximum, parsed))
+
+
+def _is_relative_to(path: Path, root: Path) -> bool:
+    try:
+        path.resolve().relative_to(root.resolve())
+        return True
+    except Exception:
+        return False
 
 
 def _normalise_command(command: Any) -> list[str]:
@@ -2709,6 +3487,13 @@ class SuiteEvidenceCatalog:
     """Read-only index over verification suites, artifacts, manifests and transcripts."""
 
     TEXT_SUFFIXES = {".json", ".jsonl", ".md", ".log", ".txt"}
+    GLOBAL_SKIP_DIRS = {
+        "cli-sessions",
+        "fixtures",
+        "viewer",
+        "session-os",
+        "sessions",
+    }
 
     def __init__(self, *, evidence_root: Path) -> None:
         self.evidence_root = Path(evidence_root).resolve()
@@ -2734,6 +3519,59 @@ class SuiteEvidenceCatalog:
                 return path
         return None
 
+    def _iter_text_files(
+        self,
+        root: Path,
+        *,
+        limit: int = 2000,
+        recursive: bool = True,
+        skip_dirs: set[str] | None = None,
+    ) -> list[Path]:
+        if not root.exists():
+            return []
+        if root.is_file():
+            return [root] if root.suffix.lower() in self.TEXT_SUFFIXES else []
+        files: list[Path] = []
+        walker = os.walk(root, onerror=lambda _exc: None) if recursive else [(str(root), [], [item.name for item in sorted(root.iterdir()) if item.is_file()])]
+        blocked = {name.lower() for name in (skip_dirs or set())}
+        for current, dirs, names in walker:
+            dirs[:] = [
+                name
+                for name in sorted(dirs)
+                if not name.startswith("_")
+                and not name.startswith(".")
+                and name.lower() not in blocked
+            ]
+            for name in sorted(names):
+                path = Path(current) / name
+                if path.suffix.lower() not in self.TEXT_SUFFIXES:
+                    continue
+                files.append(path)
+                if len(files) >= limit:
+                    return files
+        return files
+
+    def _iter_global_files(self, *, limit: int = 5000) -> list[Path]:
+        files = self._iter_text_files(
+            self.evidence_root,
+            limit=limit,
+            recursive=True,
+            skip_dirs=self.GLOBAL_SKIP_DIRS,
+        )
+        suite_root = self.nuclear_root.resolve()
+        return [
+            path
+            for path in files
+            if not self.nuclear_root.exists() or not _is_relative_to(path.resolve(), suite_root)
+        ]
+
+    def _suite_dir_for_path(self, path: Path) -> Path | None:
+        resolved = path.resolve()
+        for suite_dir in self._suite_dirs():
+            if _is_relative_to(resolved, suite_dir.resolve()):
+                return suite_dir
+        return None
+
     def _kind_for(self, path: Path) -> str:
         name = path.name.lower()
         suffix = path.suffix.lower()
@@ -2754,17 +3592,7 @@ class SuiteEvidenceCatalog:
         return "other"
 
     def _iter_suite_files(self, suite_dir: Path, *, limit: int = 2000) -> list[Path]:
-        files: list[Path] = []
-        for current, dirs, names in os.walk(suite_dir):
-            dirs[:] = [name for name in sorted(dirs) if not name.startswith("_") and not name.startswith(".")]
-            for name in sorted(names):
-                path = Path(current) / name
-                if path.suffix.lower() not in self.TEXT_SUFFIXES:
-                    continue
-                files.append(path)
-                if len(files) >= limit:
-                    return files
-        return files
+        return self._iter_text_files(suite_dir, limit=limit, recursive=True)
 
     def _rel(self, path: Path) -> str:
         try:
@@ -2795,16 +3623,29 @@ class SuiteEvidenceCatalog:
             "transcript_exports": payload.get("transcript_exports"),
         }
 
-    def _record_for(self, suite_dir: Path, path: Path) -> dict[str, Any]:
+    def _record_for(self, suite_dir: Path | None, path: Path) -> dict[str, Any]:
         summary = self._json_summary(path)
-        try:
-            rel_case = path.parent.resolve().relative_to(suite_dir.resolve())
-            case_id = None if str(rel_case) == "." else str(rel_case).replace("\\", "/")
-        except Exception:
-            case_id = None
+        if suite_dir is not None:
+            try:
+                rel_case = path.parent.resolve().relative_to(suite_dir.resolve())
+                case_id = None if str(rel_case) == "." else str(rel_case).replace("\\", "/")
+            except Exception:
+                case_id = None
+            suite_id = suite_dir.name
+            catalog_scope = "suite"
+        else:
+            rel_parent = None
+            try:
+                rel_parent = path.parent.resolve().relative_to(self.evidence_root.resolve())
+            except Exception:
+                rel_parent = None
+            case_id = None if rel_parent in {None, Path(".")} else str(rel_parent).replace("\\", "/")
+            suite_id = summary.get("suite_id")
+            catalog_scope = "global"
         return {
-            "suite_id": suite_dir.name,
+            "suite_id": suite_id,
             "case_id": summary.get("case_id") or case_id,
+            "catalog_scope": catalog_scope,
             "kind": self._kind_for(path),
             "path": self._rel(path),
             "name": path.name,
@@ -2817,6 +3658,58 @@ class SuiteEvidenceCatalog:
             "artifact_payload_sha256": summary.get("artifact_payload_sha256"),
             "transcript_exports": summary.get("transcript_exports"),
         }
+
+    def _search_rank(self, path: Path, *, query_l: str, content_hit: bool) -> int:
+        rel_l = self._rel(path).lower()
+        name_l = path.name.lower()
+        stem_l = path.stem.lower()
+        score = 0
+        if query_l == stem_l:
+            score += 400
+        elif query_l == name_l:
+            score += 380
+        elif name_l.startswith(query_l) or stem_l.startswith(query_l):
+            score += 340
+        elif query_l in name_l or query_l in stem_l:
+            score += 320
+        elif rel_l.endswith(query_l):
+            score += 300
+        elif query_l in rel_l:
+            score += 260
+        if content_hit:
+            score += 180
+        if path.parent.resolve() == self.evidence_root.resolve():
+            score += 25
+        kind = self._kind_for(path)
+        if kind.startswith("transcript"):
+            score += 20
+        elif kind == "artifact":
+            score += 15
+        elif kind == "manifest":
+            score += 10
+        return score
+
+    def _search_record(self, path: Path, *, query_l: str) -> dict[str, Any] | None:
+        rel_l = self._rel(path).lower()
+        name_l = path.name.lower()
+        content_hit = False
+        snippet = ""
+        if path.stat().st_size <= 1_000_000:
+            try:
+                text = path.read_text(encoding="utf-8", errors="replace")
+            except Exception:
+                text = ""
+            lowered_text = text.lower()
+            if query_l in lowered_text:
+                content_hit = True
+                idx = lowered_text.find(query_l)
+                snippet = text[max(0, idx - 160): idx + 360].replace("\n", " ")
+        if query_l not in name_l and query_l not in rel_l and not content_hit:
+            return None
+        record = self._record_for(self._suite_dir_for_path(path), path)
+        record["snippet"] = snippet
+        record["_match_score"] = self._search_rank(path, query_l=query_l, content_hit=content_hit)
+        return record
 
     def list_suites(self) -> dict[str, Any]:
         suites = []
@@ -2897,27 +3790,36 @@ class SuiteEvidenceCatalog:
         if not query_l:
             return {"status": "error", "error": "query is required", "results": []}
         results: list[dict[str, Any]] = []
+        seen: set[str] = set()
         for suite_dir in self._suite_dirs():
             for path in self._iter_suite_files(suite_dir, limit=2500):
-                haystacks = [path.name.lower(), self._rel(path).lower()]
-                snippet = ""
-                if path.stat().st_size <= 1_000_000:
-                    try:
-                        text = path.read_text(encoding="utf-8", errors="replace")
-                    except Exception:
-                        text = ""
-                    lowered_text = text.lower()
-                    if query_l in lowered_text:
-                        idx = lowered_text.find(query_l)
-                        snippet = text[max(0, idx - 160): idx + 360].replace("\n", " ")
-                        haystacks.append(lowered_text)
-                if any(query_l in item for item in haystacks):
-                    record = self._record_for(suite_dir, path)
-                    record["snippet"] = snippet
+                key = str(path.resolve())
+                if key in seen:
+                    continue
+                seen.add(key)
+                record = self._search_record(path, query_l=query_l)
+                if record is not None:
                     results.append(record)
-                    if len(results) >= limit:
-                        return {"status": "ok", "query": query, "result_count": len(results), "results": results}
-        return {"status": "ok", "query": query, "result_count": len(results), "results": results}
+        for path in self._iter_global_files(limit=6000):
+            key = str(path.resolve())
+            if key in seen:
+                continue
+            seen.add(key)
+            record = self._search_record(path, query_l=query_l)
+            if record is not None:
+                results.append(record)
+        results.sort(
+            key=lambda item: (
+                int(item.get("_match_score") or 0),
+                str(item.get("updated_utc") or ""),
+                str(item.get("path") or ""),
+            ),
+            reverse=True,
+        )
+        for record in results:
+            record.pop("_match_score", None)
+        limited = results[:limit]
+        return {"status": "ok", "query": query, "result_count": len(limited), "results": limited}
 
     def read(self, ref: str, *, max_bytes: int = 16000) -> dict[str, Any]:
         raw = str(ref or "").strip().strip('"')
@@ -2928,13 +3830,16 @@ class SuiteEvidenceCatalog:
             path = candidate.resolve()
         else:
             repo_candidate = (REPO_ROOT / candidate).resolve()
-            evidence_candidate = (self._base_root() / candidate).resolve()
+            evidence_candidate = (self.evidence_root / candidate).resolve()
+            base_candidate = (self._base_root() / candidate).resolve()
             if repo_candidate.exists():
                 path = repo_candidate
             elif evidence_candidate.exists():
                 path = evidence_candidate
+            elif base_candidate.exists():
+                path = base_candidate
             else:
-                matches = self.search(raw, limit=2).get("results", [])
+                matches = self.search(raw, limit=10).get("results", [])
                 if matches:
                     path = (REPO_ROOT / str(matches[0]["path"])).resolve()
                 else:
@@ -2946,7 +3851,22 @@ class SuiteEvidenceCatalog:
                 path.relative_to(self.evidence_root)
             except ValueError:
                 return {"status": "blocked", "error": "path escapes repository/evidence root", "path": str(path)}
-        if not path.exists() or not path.is_file():
+        if not path.exists():
+            return {"status": "not_found", "path": str(path)}
+        if path.is_dir():
+            entries = [
+                self._record_for(self._suite_dir_for_path(item), item)
+                for item in self._iter_text_files(path, limit=24, recursive=True)
+            ]
+            entries.sort(key=lambda item: str(item.get("updated_utc") or ""), reverse=True)
+            return {
+                "status": "ok",
+                "path": self._rel(path),
+                "type": "directory",
+                "entry_count": len(entries),
+                "entries": entries,
+            }
+        if not path.is_file():
             return {"status": "not_found", "path": str(path)}
         max_bytes = _safe_int(max_bytes, 16000, minimum=512, maximum=60000)
         data = path.read_bytes()
@@ -3264,6 +4184,14 @@ def _agent_observation_prompt(
         instructions.append(
             "For file.inspect observations, answer from the actual file or directory result. If status is not_found/blocked/error, report that status and any suggestions; do not claim the file was moved, renamed, pruned, or deleted unless the observation proves it."
         )
+    if any(str(item.get("tool") or "") == "helix.architecture" for item in observations):
+        instructions.append(
+            "For helix.architecture observations, use the attached invariants, lineage state, excerpts, and claim boundaries as the primary source of truth for HeliX architecture claims."
+        )
+    if any(str(item.get("tool") or "") == "helix.trust" for item in observations):
+        instructions.append(
+            "For helix.trust observations, separate local signed-checkpoint verification from semantic truth or global transparency; report canonical head, equivocation/quarantine and legacy warnings directly."
+        )
     if helix_focus:
         instructions.extend(
             [
@@ -3285,6 +4213,76 @@ def _agent_observation_prompt(
     return _truncate_text(text, max_chars)["text"]
 
 
+_QUERY_TOOL_NAMES = {
+    "helix.search",
+    "memory.search",
+    "rag.search",
+    "search_text",
+    "query_evidence",
+    "suite.search",
+    "web.search",
+}
+
+
+def _repair_planner_tool_arguments(tool_name: str, arguments: dict[str, Any], goal: str) -> dict[str, Any]:
+    repaired = dict(arguments or {})
+    name = str(tool_name or "")
+    if name in _QUERY_TOOL_NAMES and not str(repaired.get("query") or "").strip():
+        repaired["query"] = str(goal or "").strip()
+    if name == "search_text" and not str(repaired.get("path") or "").strip():
+        repaired["path"] = "."
+    if name in {"suite.latest", "suite.transcripts"} and not str(repaired.get("suite_id") or "").strip():
+        suite_id = _suite_from_text(goal)
+        if suite_id:
+            repaired["suite_id"] = suite_id
+    if name == "suite.read" and not str(repaired.get("ref") or "").strip():
+        suite_id = _suite_from_text(goal)
+        if suite_id:
+            repaired["ref"] = suite_id
+    if name == "file.inspect" and not str(repaired.get("path") or "").strip():
+        refs = _extract_local_path_refs(goal)
+        if refs:
+            repaired["path"] = refs[0]
+    return repaired
+
+
+def _format_runner_fallback_answer(trace: dict[str, Any], *, goal: str) -> str | None:
+    if trace.get("final_planner") != "fallback-summary":
+        return None
+    observations = list(trace.get("observations") or [])
+    if not observations:
+        return None
+    latest = observations[-1]
+    observation = latest.get("observation") if isinstance(latest, dict) else None
+    if not isinstance(observation, dict):
+        return None
+    tool_name = str(observation.get("tool") or latest.get("tool_name") or "")
+    arguments = observation.get("arguments") if isinstance(observation.get("arguments"), dict) else {}
+    result = observation.get("result") if isinstance(observation.get("result"), dict) else {}
+    lines = [
+        "No llegué a una respuesta final del modelo después de usar herramientas; resumo la última observación en vez de mostrar JSON crudo.",
+        "",
+        f"- Tool: `{tool_name or 'unknown'}`",
+    ]
+    if arguments.get("query"):
+        lines.append(f"- Query: `{arguments.get('query')}`")
+    if arguments.get("suite_id"):
+        lines.append(f"- Suite: `{arguments.get('suite_id')}`")
+    if result.get("status"):
+        lines.append(f"- Status: `{result.get('status')}`")
+    if "result_count" in result:
+        lines.append(f"- Results: `{result.get('result_count')}`")
+    if "record_count" in result:
+        lines.append(f"- Records: `{result.get('record_count')}`")
+    if tool_name == "suite.search" and result.get("result_count") == 0:
+        suite_id = _suite_from_text(goal)
+        if suite_id:
+            lines.append(f"- Next useful lookup: `/suite latest {suite_id}` or `/suite transcripts {suite_id}`")
+    lines.append("")
+    lines.append("La tarea necesita otro turno o una herramienta más específica para producir el reporte final.")
+    return "\n".join(lines)
+
+
 @contextmanager
 def _cli_receipt_signing(run_id: str, event_type: str, role: str):
     previous = {
@@ -3292,9 +4290,12 @@ def _cli_receipt_signing(run_id: str, event_type: str, role: str):
         "HELIX_RECEIPT_SIGNER_ID": os.environ.get("HELIX_RECEIPT_SIGNER_ID"),
         "HELIX_RECEIPT_SIGNING_SEED": os.environ.get("HELIX_RECEIPT_SIGNING_SEED"),
     }
-    os.environ["HELIX_RECEIPT_SIGNING_MODE"] = "ephemeral_preregistered"
+    os.environ["HELIX_RECEIPT_SIGNING_MODE"] = previous["HELIX_RECEIPT_SIGNING_MODE"] or "local_self_signed"
     os.environ["HELIX_RECEIPT_SIGNER_ID"] = "helix-cli"
-    os.environ["HELIX_RECEIPT_SIGNING_SEED"] = f"helix-cli:{run_id}:{event_type}:{role}:{time.time_ns()}"
+    if os.environ["HELIX_RECEIPT_SIGNING_MODE"] == "ephemeral_preregistered":
+        os.environ["HELIX_RECEIPT_SIGNING_SEED"] = f"helix-cli:{run_id}:{event_type}:{role}:{time.time_ns()}"
+    else:
+        os.environ.pop("HELIX_RECEIPT_SIGNING_SEED", None)
     try:
         yield
     finally:
@@ -3506,6 +4507,52 @@ class InteractiveSession:
             "tool_policy": self.tool_policy,
         }
 
+    def trust_report(
+        self,
+        thread_id: str | None = None,
+        *,
+        ref: str | None = None,
+        include_quarantined: bool = False,
+    ) -> dict[str, Any]:
+        target = _slugish(thread_id or self.ensure_active_thread("interactive"))
+        catalog = hmem.open_catalog(self.workspace_root)
+        try:
+            trust_root = catalog.trust_root()
+        finally:
+            catalog.close()
+        lineage = hmem.verify_session_lineage(
+            root=self.workspace_root,
+            session_id=target,
+            include_quarantined=include_quarantined,
+        )
+        checkpoint = hmem.head_checkpoint(root=self.workspace_root, session_id=target)
+        proof = hmem.export_session_proof(
+            root=self.workspace_root,
+            session_id=target,
+            ref=ref,
+            include_quarantined=include_quarantined,
+        )
+        return {
+            "kind": "helix-local-trust-report",
+            "thread_id": target,
+            "workspace_root": str(self.workspace_root),
+            "trust_root": {
+                "path": str(self.workspace_root / "session-os" / "trust" / "trust_root.json"),
+                "version": trust_root.get("version"),
+                "active_key_id": trust_root.get("active_key_id"),
+                "threshold": trust_root.get("threshold"),
+                "external_anchor": trust_root.get("external_anchor"),
+            },
+            "lineage": lineage,
+            "head_checkpoint": checkpoint,
+            "proof": proof,
+            "limits": [
+                "Receipts prove local payload integrity/provenance for a stored memory; they do not prove semantic truth.",
+                "Signed checkpoints prove the local canonical head selected by this workspace key; they are not global transparency or consensus.",
+                "Quarantine preserves equivocation branches for forensics and excludes them from normal retrieval.",
+            ],
+        }
+
     def record(
         self,
         *,
@@ -3670,6 +4717,7 @@ class InteractiveSession:
                 "node_hash": node_hash,
                 "receipt": catalog.get_memory_receipt(memory_id),
                 "chain": catalog.verify_chain(node_hash) if node_hash else None,
+                "lineage": catalog.session_lineage(item.session_id, include_quarantined=True, limit=8) if item.session_id else None,
             }
         finally:
             catalog.close()
@@ -3700,6 +4748,7 @@ class InteractiveSession:
                         "receipt": receipt,
                         "signature_verified": bool((receipt or {}).get("signature_verified")),
                         "chain": catalog.verify_chain(node_hash) if node_hash else None,
+                        "lineage": catalog.session_lineage(item.session_id, include_quarantined=True, limit=8) if item.session_id else None,
                     }
                 )
                 return payload
@@ -3996,6 +5045,11 @@ class InteractiveSession:
             limit=12,
             retrieval_scope="workspace",
         )
+        lineage = hmem.verify_session_lineage(
+            root=self.workspace_root,
+            session_id=self.thread_id,
+            include_quarantined=True,
+        )
         latest_evidence = self.latest_evidence(limit=5)
         return {
             "claim": "This HeliX CLI session is backed by HeliX memory and evidence exports.",
@@ -4020,6 +5074,7 @@ class InteractiveSession:
                 "nodes": graph.get("nodes", [])[:8],
                 "edges": graph.get("edges", [])[:8],
             },
+            "lineage": lineage,
             "repository_evidence": {
                 "evidence_root": str(self.evidence_root),
                 "latest_count": len(latest_evidence),
@@ -4044,6 +5099,103 @@ class InteractiveSession:
                 "The CLI records signed memories and can call HeliX fence/tombstone primitives, "
                 "but this interactive shell does not yet auto-tombstone normal chat turns."
             ),
+        }
+
+    def architecture_context_pack(self, query: str | None = None, *, include_excerpts: bool = True) -> dict[str, Any]:
+        query_text = str(query or "").strip()
+        thread_lineage = hmem.verify_session_lineage(
+            root=self.workspace_root,
+            session_id=self.thread_id,
+            include_quarantined=True,
+        )
+        thread_history = hmem.session_lineage(
+            root=self.workspace_root,
+            session_id=self.thread_id,
+            include_quarantined=True,
+            limit=8,
+        )
+        graph = hmem.graph(
+            root=self.workspace_root,
+            project=self.project,
+            agent_id=self.agent_id,
+            session_id=self.thread_id,
+            limit=10,
+            retrieval_scope="workspace",
+            include_quarantined=True,
+        )
+        suite_hits = []
+        if query_text:
+            suite_hits = list((self.suite_catalog.search(query_text, limit=6).get("results") or [])[:6])
+        if not suite_hits:
+            discovered = list((self.suite_catalog.list_suites().get("suites") or [])[:6])
+            suite_hits = [
+                {
+                    "suite_id": item.get("suite_id"),
+                    "path": item.get("path"),
+                    "kind": "suite",
+                    "catalog_scope": "suite",
+                    "description": item.get("description"),
+                    "latest": item.get("latest"),
+                }
+                for item in discovered
+            ]
+        latest_evidence = [
+            {
+                "memory_id": item.get("memory_id"),
+                "node_hash": item.get("node_hash"),
+                "summary": item.get("summary"),
+                "signature_verified": bool(item.get("signature_verified")),
+                "canonical": bool(item.get("canonical", True)),
+                "quarantined": bool(item.get("quarantined", False)),
+            }
+            for item in self.latest_evidence(limit=4)
+        ]
+        excerpts = [
+            _architecture_excerpt(
+                Path(spec["path"]),
+                label=str(spec["label"]),
+                needles=tuple(spec["needles"]),
+            )
+            for spec in _architecture_excerpt_specs()
+        ] if include_excerpts else []
+        return {
+            "kind": "helix-architecture-context-pack",
+            "focus_query": query_text or None,
+            "thread_id": self.thread_id,
+            "workspace_root": str(self.workspace_root),
+            "project": self.project,
+            "agent_id": self.agent_id,
+            "verified_invariants": [
+                "Memory nodes are chained by parent_hash inside the current Merkle-DAG implementation.",
+                "verify_chain checks hash continuity of a branch; it is not a proof of canonical head uniqueness.",
+                "Signed receipts prove provenance/integrity of the canonical receipt payload, not semantic truth or branch authenticity.",
+                "Signed head checkpoints prove the local workspace key selected a canonical head for this thread; they do not provide global non-equivocation.",
+                "Canonical head and equivocation semantics are tracked per thread/session and quarantined branches are excluded from normal retrieval.",
+            ],
+            "claim_boundaries": [
+                "Treat `Recursive Witness` and `Branch-Pruning Forensics` as local methodology/evidence terms unless the cited code excerpt shows runtime enforcement.",
+                "Do not describe `Ouroboros` as the storage core unless the current turn includes direct local code or evidence for that claim.",
+                "If a concept only appears in verification artifacts or suite outputs, label it as evidence or methodology, not guaranteed runtime behavior.",
+                "Do not claim CT/Rekor-style public transparency yet; current checkpoints are local signed heads with exportable proof metadata.",
+            ],
+            "module_map": [
+                {"path": "helix_kv/memory_catalog.py", "role": "session lineage, canonical head, retrieval filtering, receipts attachment"},
+                {"path": "helix_kv/merkle_dag.py", "role": "parent-linked Merkle-DAG node storage and chain traversal"},
+                {"path": "src/helix_proto/hmem.py", "role": "workspace memory wrappers used by CLI and runner"},
+                {"path": "src/helix_proto/helix_cli.py", "role": "interactive prompts, router, tool registry, and meta-grounding injection"},
+                {"path": "src/helix_proto/signed_receipts.py", "role": "receipt signing and verification boundaries"},
+            ],
+            "thread_lineage": thread_lineage,
+            "thread_history": thread_history,
+            "graph_excerpt": {
+                "node_count": graph.get("node_count"),
+                "edge_count": graph.get("edge_count"),
+                "nodes": graph.get("nodes", [])[:6],
+                "edges": graph.get("edges", [])[:6],
+            },
+            "evidence_pointers": latest_evidence,
+            "suite_pointers": suite_hits,
+            "excerpts": excerpts,
         }
 
     def _agent_memory_tool_manifest(self) -> list[dict[str, Any]]:
@@ -4137,6 +5289,38 @@ class InteractiveSession:
                     handler=lambda args: self.memory_resolve(
                         str(args["ref"]),
                         max_chars=_safe_int(args.get("max_chars"), 40000, minimum=1000, maximum=120000),
+                    ),
+                ),
+                ToolSpec(
+                    name="helix.architecture",
+                    description="Return a grounded HeliX architecture pack with lineage state, claim boundaries, evidence pointers, and curated code excerpts.",
+                    input_schema={
+                        "type": "object",
+                        "properties": {
+                            "query": {"type": "string"},
+                            "include_excerpts": {"type": "boolean"},
+                        },
+                    },
+                    handler=lambda args: self.architecture_context_pack(
+                        str(args.get("query") or "") or None,
+                        include_excerpts=bool(args.get("include_excerpts", True)),
+                    ),
+                ),
+                ToolSpec(
+                    name="helix.trust",
+                    description="Return local signed checkpoint, canonical lineage and proof metadata for a HeliX thread.",
+                    input_schema={
+                        "type": "object",
+                        "properties": {
+                            "thread_id": {"type": "string"},
+                            "ref": {"type": "string"},
+                            "include_quarantined": {"type": "boolean"},
+                        },
+                    },
+                    handler=lambda args: self.trust_report(
+                        str(args.get("thread_id") or "") or None,
+                        ref=str(args.get("ref") or "") or None,
+                        include_quarantined=bool(args.get("include_quarantined", False)),
                     ),
                 ),
                 ToolSpec(
@@ -4257,6 +5441,8 @@ class InteractiveSession:
                 {"name": "evidence.refresh", "description": "Incrementally refresh evidence into memory.", "safety": "auto", "kind": "evidence"},
                 {"name": "evidence.show", "description": "Inspect one evidence memory and receipt.", "safety": "auto", "kind": "evidence"},
                 {"name": "memory.resolve", "description": "Resolve memory_id or node_hash prefix to exact content.", "safety": "auto", "kind": "memory"},
+                {"name": "helix.architecture", "description": "Return a grounded HeliX architecture pack.", "safety": "auto", "kind": "memory"},
+                {"name": "helix.trust", "description": "Return local signed checkpoint and lineage proof.", "safety": "auto", "kind": "memory"},
                 {"name": "file.inspect", "description": "Read text files or list directories from explicit local paths.", "safety": "auto", "kind": "filesystem-read"},
                 {"name": "suite.list", "description": "List verification suites.", "safety": "auto", "kind": "suite"},
                 {"name": "suite.catalog", "description": "Discover local suite artifacts and transcripts.", "safety": "auto", "kind": "suite"},
@@ -4295,6 +5481,7 @@ class InteractiveSession:
         tool_manifest: list[dict[str, Any]],
         helix_focus: bool = False,
         helix_auditability: bool = False,
+        architecture_context_pack: dict[str, Any] | None = None,
     ) -> str:
         helix_focus_instruction = (
             "The user is explicitly asking to understand HeliX. Give a grounded explanation first, then list 3-6 concrete things it enables in practice. "
@@ -4306,7 +5493,18 @@ class InteractiveSession:
             if helix_auditability
             else ""
         )
-        return (
+        helix_architecture_instruction = (
+            "An architecture context pack is attached for this turn. Use it as the primary anchor for HeliX claims, and separate verified implementation facts from inference or suite-only terminology. "
+            if architecture_context_pack
+            else ""
+        )
+        architecture_pack_section = (
+            "HeliX architecture context pack:\n"
+            f"{_architecture_context_blob(architecture_context_pack)}\n\n"
+            if architecture_context_pack
+            else ""
+        )
+        body = (
             "You are HeliX interactive, a practical coding and research shell running through the unified HeliX runtime. "
             "HeliX is the deterministic orchestration, memory, routing, and evidence layer around local or cloud models; "
             "do not claim that HeliX itself is the language model. "
@@ -4328,20 +5526,21 @@ class InteractiveSession:
             "Prefer plain statements about what HeliX stores, signs, searches, routes, verifies, exposes, or automates in this session. "
             "If the evidence is partial, say what is verified and what remains unverified instead of filling gaps with theory. "
             "Do not pad HeliX explanations with generic industry examples such as healthcare, finance, education, or security unless the evidence pack actually mentions them. "
-            + helix_focus_instruction
-            + helix_auditability_instruction
-            + f"{_preferred_language_instruction(user_text)} "
-            "Certified HeliX evidence pack:\n"
-            f"{json.dumps(identity_evidence or {}, ensure_ascii=False, indent=2)}\n\n"
-            "Certified repository evidence pack:\n"
-            f"{json.dumps(repository_evidence_pack or self.last_evidence_pack or {}, ensure_ascii=False, indent=2)}\n\n"
-            "Deep Memory:\n"
-            f"{memory_context.get('context') or '(empty)'}\n\n"
-            "Recent terminal turns:\n"
-            f"{json.dumps(self.recent_history(limit=6, exclude_latest_user=True), ensure_ascii=False, indent=2)}\n\n"
-            "Available tools:\n"
-            f"{json.dumps(tool_manifest, ensure_ascii=False, indent=2)}"
         )
+        body += helix_focus_instruction + helix_auditability_instruction + helix_architecture_instruction
+        body += f"{_preferred_language_instruction(user_text)} "
+        body += "Certified HeliX evidence pack:\n"
+        body += f"{json.dumps(identity_evidence or {}, ensure_ascii=False, indent=2)}\n\n"
+        body += "Certified repository evidence pack:\n"
+        body += f"{json.dumps(repository_evidence_pack or self.last_evidence_pack or {}, ensure_ascii=False, indent=2)}\n\n"
+        body += architecture_pack_section
+        body += "Deep Memory:\n"
+        body += f"{memory_context.get('context') or '(empty)'}\n\n"
+        body += "Recent terminal turns:\n"
+        body += f"{json.dumps(self.recent_history(limit=6, exclude_latest_user=True), ensure_ascii=False, indent=2)}\n\n"
+        body += "Available tools:\n"
+        body += f"{json.dumps(tool_manifest, ensure_ascii=False, indent=2)}"
+        return body
 
     def _task_system(
         self,
@@ -4349,8 +5548,23 @@ class InteractiveSession:
         tool_manifest: list[dict[str, Any]],
         memory_context: dict[str, Any],
         repository_evidence_pack: dict[str, Any] | None,
+        helix_focus: bool = False,
+        helix_auditability: bool = False,
+        architecture_context_pack: dict[str, Any] | None = None,
     ) -> str:
-        return (
+        helix_meta_instruction = (
+            "This task is about HeliX itself. Prioritize the attached architecture context pack, local evidence, and local code-grounding over theory. "
+            if (helix_focus or helix_auditability or architecture_context_pack)
+            else ""
+        )
+        architecture_pack_section = (
+            "\nHeliX architecture context pack:\n"
+            + _architecture_context_blob(architecture_context_pack)
+            + "\n\n"
+            if architecture_context_pack
+            else ""
+        )
+        body = (
             "You are HeliX Agent Shell running through the unified HeliX runtime with persistent thread memory. "
             f"Thread ID: {self.thread_id}. Task root: {self.task_root}. "
             "Use at most one tool per turn. Request tools only with <tool_call> JSON. "
@@ -4361,14 +5575,18 @@ class InteractiveSession:
             "For explicit memory-review requests, a sentence like 'voy a buscar...' is not a final answer: "
             "either call helix.search / memory.search or provide the actual summary. "
             "For explicit local file paths, read or list them with file.inspect/read_file before making claims about their content. "
+            "When reasoning about HeliX architecture, distinguish verified implementation facts, design inference, and methodology/evidence terminology. "
             "If code changes are needed, you may propose a unified diff in the final answer, but never claim a patch was applied automatically.\n\n"
-            "Current deep memory:\n"
-            f"{memory_context.get('context') or '(empty)'}\n\n"
-            "Certified repository evidence pack:\n"
-            f"{json.dumps(repository_evidence_pack or self.last_evidence_pack or {}, ensure_ascii=False, indent=2)}\n\n"
-            "Available tools:\n"
-            f"{json.dumps(tool_manifest, ensure_ascii=False, indent=2)}"
         )
+        body += helix_meta_instruction
+        body += architecture_pack_section
+        body += "Current deep memory:\n"
+        body += f"{memory_context.get('context') or '(empty)'}\n\n"
+        body += "Certified repository evidence pack:\n"
+        body += f"{json.dumps(repository_evidence_pack or self.last_evidence_pack or {}, ensure_ascii=False, indent=2)}\n\n"
+        body += "Available tools:\n"
+        body += f"{json.dumps(tool_manifest, ensure_ascii=False, indent=2)}"
+        return body
 
     def _planner_callback_factory(
         self,
@@ -4385,8 +5603,10 @@ class InteractiveSession:
         helix_auditability: bool = False,
         suite_focus: bool = False,
         web_focus: bool = False,
+        architecture_context_pack: dict[str, Any] | None = None,
         hash_recovery_ref: str | None = None,
         file_path_ref: str | None = None,
+        native_request: dict[str, Any] | None = None,
         fallback_models: list[str] | None = None,
         timeout: float | None,
     ) -> tuple[Any, list[dict[str, Any]]]:
@@ -4430,7 +5650,7 @@ class InteractiveSession:
                     planner="file-grounding",
                     raw_text="",
                 )
-            if mode == "chat" and suite_focus and not observations:
+            if mode in {"chat", "task"} and suite_focus and not observations:
                 if _looks_like_pasted_suite_evidence(goal):
                     return PlannerDecision(
                         kind="tool",
@@ -4467,16 +5687,16 @@ class InteractiveSession:
                     planner="web-grounding",
                     raw_text="",
                 )
+            if mode in {"chat", "task"} and (helix_focus or helix_auditability) and architecture_context_pack and not observations:
+                return PlannerDecision(
+                    kind="tool",
+                    thought="ground meta-HeliX questions in the local architecture pack before answering",
+                    tool_name="helix.architecture",
+                    arguments={"query": goal, "include_excerpts": True},
+                    planner="helix-grounding",
+                    raw_text="",
+                )
             if mode == "chat" and helix_focus and not observations:
-                if helix_auditability:
-                    return PlannerDecision(
-                        kind="tool",
-                        thought="ground HeliX auditability questions in certified evidence metadata before answering",
-                        tool_name="evidence.latest",
-                        arguments={"limit": 6},
-                        planner="helix-grounding",
-                        raw_text="",
-                    )
                 return PlannerDecision(
                     kind="tool",
                     thought="ground HeliX explanation requests in actual workspace memory before answering",
@@ -4510,6 +5730,9 @@ class InteractiveSession:
                     tool_manifest=tool_manifest,
                     memory_context=memory_context,
                     repository_evidence_pack=repository_evidence_pack,
+                    helix_focus=helix_focus,
+                    helix_auditability=helix_auditability,
+                    architecture_context_pack=architecture_context_pack,
                 )
                 if mode == "task"
                 else self._chat_system(
@@ -4520,6 +5743,7 @@ class InteractiveSession:
                     tool_manifest=tool_manifest,
                     helix_focus=helix_focus,
                     helix_auditability=helix_auditability,
+                    architecture_context_pack=architecture_context_pack,
                 )
             )
             result = run_chat_with_failover(
@@ -4534,6 +5758,7 @@ class InteractiveSession:
                 workspace_root=self.workspace_root,
                 prompt_token=False,
                 timeout=timeout,
+                native_request=native_request,
             )
             raw_text = str(result.get("text") or "").strip()
             calls = _parse_agent_tool_calls(raw_text)
@@ -4545,6 +5770,8 @@ class InteractiveSession:
                     "latency_ms": result.get("latency_ms"),
                     "finish_reason": result.get("finish_reason"),
                     "usage": result.get("usage"),
+                    "native_request": native_request,
+                    "native_tool_metadata": result.get("native_tool_metadata"),
                     "failover_used": result.get("failover_used"),
                     "failover_attempts": result.get("failover_attempts") or [],
                     "tool_call_count": len(calls),
@@ -4554,11 +5781,17 @@ class InteractiveSession:
             )
             if calls:
                 first = calls[0]
+                tool_name = str(first.get("tool") or "")
+                tool_arguments = _repair_planner_tool_arguments(
+                    tool_name,
+                    first.get("arguments") if isinstance(first.get("arguments"), dict) else {},
+                    goal,
+                )
                 return PlannerDecision(
                     kind="tool",
                     thought="provider planner requested a tool",
-                    tool_name=str(first.get("tool") or ""),
-                    arguments=first.get("arguments") if isinstance(first.get("arguments"), dict) else {},
+                    tool_name=tool_name,
+                    arguments=tool_arguments,
                     planner=f"{self.provider_name}:{selected_model}",
                     raw_text=raw_text,
                 )
@@ -4600,12 +5833,14 @@ class InteractiveSession:
         suite_focus = _is_suite_evidence_request(user_text, recent_history)
         web_focus = _is_web_search_request(user_text)
         hash_recovery_ref = _latest_hash_reference(user_text, recent_history) if _is_hash_recovery_request(user_text, recent_history) else None
-        file_path_refs = _extract_local_path_refs(user_text) if _is_local_file_request(user_text) else []
+        url_refs = _extract_url_refs(user_text)
+        file_path_refs = _extract_local_path_refs(user_text)
         file_path_ref = file_path_refs[0] if file_path_refs else None
         route = None
         selected_model = self.model
         selected_provider_name = self.provider_name
-        if self.model.lower() in {"auto", "router:auto"}:
+        model_is_auto = self.model.lower() in {"auto", "router:auto"}
+        if model_is_auto:
             route = route_model_for_task(
                 f"{user_text}\nMode: chat",
                 provider_name=self.provider_name,
@@ -4614,27 +5849,53 @@ class InteractiveSession:
             if self.provider_name == "deepinfra" and helix_focus and isinstance(route, dict) and route.get("intent") == "chat":
                 route = _override_route_for_helix_focus(
                     route,
+                    user_text=user_text,
                     policy=self.router_policy,
                     auditability=helix_auditability,
                 )
             selected_provider_name = str(route.get("provider") or self.provider_name)
             selected_model = route.get("model") or PROVIDERS[selected_provider_name].default_model
         else:
-            route = _manual_route_for_model(selected_model, provider_name=self.provider_name, policy=self.router_policy)
+            route = _manual_route_for_model(
+                selected_model,
+                provider_name=self.provider_name,
+                policy=self.router_policy,
+                user_text=user_text,
+            )
             selected_provider_name = str(route.get("provider") or self.provider_name)
-        fallback_models = _fallback_model_ids_for_route(route, primary_model=selected_model)
+        native_tool_plan = dict(route.get("native_tool_plan") or {}) if isinstance(route, dict) else {}
+        capability_requirements = dict(route.get("capability_requirements") or {}) if isinstance(route, dict) else {}
+        fallback_models = _fallback_model_ids_for_route(
+            route,
+            primary_model=selected_model,
+            include_route_fallbacks=True,
+        )
 
         repository_evidence_pack = None
         if _needs_repository_evidence(user_text, route):
             repository_evidence_pack = self.refresh_evidence(user_text, limit=8)
 
         context = self.memory_context(user_text)
+        architecture_context_pack = (
+            self.architecture_context_pack(user_text, include_excerpts=True)
+            if (helix_focus or helix_auditability or str((route or {}).get("intent") or "") == "helix_self")
+            else None
+        )
         memory_ids = list(context.get("memory_ids") or [])
         user_event = self.record(
             role="user",
             content=user_text,
             event_type="user_turn",
-            metadata={"recall_memory_ids": memory_ids, "route": route, "thread_id": self.thread_id},
+            metadata={
+                "recall_memory_ids": memory_ids,
+                "route": route,
+                "thread_id": self.thread_id,
+                "path_refs": file_path_refs,
+                "url_refs": url_refs,
+                "native_tool_plan": native_tool_plan,
+                "capability_requirements": capability_requirements,
+                "architecture_context_enabled": bool(architecture_context_pack),
+            },
         )
         excluded_memory_ids = [str((user_event.get("helix_memory") or {}).get("memory_id") or "")]
         excluded_memory_ids = [item for item in excluded_memory_ids if item]
@@ -4662,8 +5923,10 @@ class InteractiveSession:
             helix_auditability=helix_auditability,
             suite_focus=suite_focus,
             web_focus=web_focus,
+            architecture_context_pack=architecture_context_pack,
             hash_recovery_ref=hash_recovery_ref,
             file_path_ref=file_path_ref,
+            native_request=native_tool_plan,
             fallback_models=fallback_models,
             timeout=None,
         )
@@ -4690,6 +5953,9 @@ class InteractiveSession:
             for error_text in attempt.get("errors", [])
         ]
         text = _task_visible_output(str(trace.get("final_answer") or ""))
+        fallback_text = _format_runner_fallback_answer(trace, goal=user_text)
+        if fallback_text:
+            text = fallback_text
         if trace.get("final_planner") == "none" and planner_errors:
             text = f"Task failed: {planner_errors[-1]}"
         raw_text = str(model_turns[-1].get("raw_text") if model_turns else text)
@@ -4707,6 +5973,11 @@ class InteractiveSession:
                 "finish_reason": model_turns[-1].get("finish_reason") if model_turns else None,
                 "usage": model_turns[-1].get("usage") if model_turns else None,
                 "recall_memory_ids": memory_ids,
+                "path_refs": file_path_refs,
+                "url_refs": url_refs,
+                "native_tool_plan": native_tool_plan,
+                "capability_requirements": capability_requirements,
+                "architecture_context_enabled": bool(architecture_context_pack),
                 "raw_model_text": raw_text,
                 "visible_output_cleaned": text != raw_text,
                 "reasoning_internal": "",
@@ -4729,17 +6000,41 @@ class InteractiveSession:
             provider_name=self.provider_name,
             policy=self.router_policy,
         )
+        url_refs = _extract_url_refs(goal)
+        path_refs = _extract_local_path_refs(goal)
         selected_model = self.model
-        if agent_blueprint is not None and self.model.lower() in {"auto", "router:auto"}:
+        selected_provider_name = self.provider_name
+        model_is_auto = self.model.lower() in {"auto", "router:auto"}
+        blueprint_controls_model = agent_blueprint is not None and model_is_auto
+        if blueprint_controls_model:
             selected_model = resolve_model_alias(agent_blueprint.preferred_model_alias)
-            route = _manual_route_for_model(selected_model, provider_name=self.provider_name, policy=self.router_policy)
+            route = _manual_route_for_model(
+                selected_model,
+                provider_name=self.provider_name,
+                policy=self.router_policy,
+                user_text=goal,
+            )
             route["intent"] = "agentic_blueprint"
             route["agent_blueprint"] = agent_blueprint.blueprint_id
-        elif self.model.lower() in {"auto", "router:auto"}:
+            route = _augment_route_metadata(route, goal)
+        elif model_is_auto:
             selected_model = route.get("model") or PROVIDERS[self.provider_name].default_model
         else:
-            route = _manual_route_for_model(selected_model, provider_name=self.provider_name, policy=self.router_policy)
-        fallback_models = _fallback_model_ids_for_route(route, primary_model=selected_model, agent_blueprint=agent_blueprint)
+            route = _manual_route_for_model(
+                selected_model,
+                provider_name=self.provider_name,
+                policy=self.router_policy,
+                user_text=goal,
+            )
+        selected_provider_name = str(route.get("provider") or self.provider_name)
+        native_tool_plan = dict(route.get("native_tool_plan") or {}) if isinstance(route, dict) else {}
+        capability_requirements = dict(route.get("capability_requirements") or {}) if isinstance(route, dict) else {}
+        fallback_models = _fallback_model_ids_for_route(
+            route,
+            primary_model=selected_model,
+            agent_blueprint=agent_blueprint if blueprint_controls_model else None,
+            include_route_fallbacks=True,
+        )
         active_agent_mode = mode_override or self.agent_mode
         active_tool_policy = self.tool_policy
         if agent_blueprint is not None:
@@ -4755,6 +6050,15 @@ class InteractiveSession:
         repository_evidence_pack = self.refresh_evidence(goal, limit=8)
         context = self.memory_context(goal)
         memory_ids = list(context.get("memory_ids") or [])
+        suite_focus = _is_suite_evidence_request(goal)
+        recent_history = self.recent_history(limit=4, exclude_latest_user=False)
+        helix_focus = _is_explicit_helix_meta_task_request(goal, recent_history)
+        helix_auditability = _is_helix_auditability_request(goal, recent_history)
+        architecture_context_pack = (
+            self.architecture_context_pack(goal, include_excerpts=True)
+            if (helix_focus or helix_auditability)
+            else None
+        )
         task_start_event = self.record(
             role="user",
             content=goal,
@@ -4767,6 +6071,11 @@ class InteractiveSession:
                 "route": route,
                 "thread_id": self.thread_id,
                 "recall_memory_ids": memory_ids,
+                "path_refs": path_refs,
+                "url_refs": url_refs,
+                "native_tool_plan": native_tool_plan,
+                "capability_requirements": capability_requirements,
+                "architecture_context_enabled": bool(architecture_context_pack),
             },
         )
         excluded_memory_ids = [str((task_start_event.get("helix_memory") or {}).get("memory_id") or "")]
@@ -4781,11 +6090,17 @@ class InteractiveSession:
             goal=goal,
             mode="task",
             selected_model=selected_model,
-            selected_provider_name=self.provider_name,
+            selected_provider_name=selected_provider_name,
             tool_manifest=tool_manifest,
             memory_context=context,
             identity_evidence=None,
             repository_evidence_pack=repository_evidence_pack,
+            helix_focus=helix_focus,
+            helix_auditability=helix_auditability,
+            suite_focus=suite_focus,
+            architecture_context_pack=architecture_context_pack,
+            file_path_ref=path_refs[0] if path_refs else None,
+            native_request=native_tool_plan,
             fallback_models=fallback_models,
             timeout=AGENT_TASK_TIMEOUT_SECONDS,
         )
@@ -4817,6 +6132,10 @@ class InteractiveSession:
                 "selected_model": selected_model,
                 "fallback_models": fallback_models,
                 "route": route,
+                "path_refs": path_refs,
+                "url_refs": url_refs,
+                "native_tool_plan": native_tool_plan,
+                "capability_requirements": capability_requirements,
                 "final": final_text,
                 "tool_events": [],
                 "model_turns": model_turns,
@@ -4834,6 +6153,11 @@ class InteractiveSession:
                     "selected_model": selected_model,
                     "fallback_models": fallback_models,
                     "route": route,
+                    "path_refs": path_refs,
+                    "url_refs": url_refs,
+                    "native_tool_plan": native_tool_plan,
+                    "capability_requirements": capability_requirements,
+                    "architecture_context_enabled": bool(architecture_context_pack),
                     "error_type": type(exc).__name__,
                     "error": str(exc),
                 },
@@ -4848,6 +6172,9 @@ class InteractiveSession:
             for error_text in attempt.get("errors", [])
         ]
         final_text = _task_visible_output(str(trace.get("final_answer") or ""))
+        fallback_text = _format_runner_fallback_answer(trace, goal=goal)
+        if fallback_text:
+            final_text = fallback_text
         status = "completed"
         if trace.get("final_planner") == "none" and planner_errors:
             status = "error"
@@ -4882,6 +6209,10 @@ class InteractiveSession:
             "selected_model": selected_model,
             "fallback_models": fallback_models,
             "route": route,
+            "path_refs": path_refs,
+            "url_refs": url_refs,
+            "native_tool_plan": native_tool_plan,
+            "capability_requirements": capability_requirements,
             "final": final_text,
             "tool_events": tool_events,
             "model_turns": model_turns,
@@ -4906,6 +6237,11 @@ class InteractiveSession:
                 "failover_used": model_turns[-1].get("failover_used") if model_turns else None,
                 "failover_attempts": model_turns[-1].get("failover_attempts") if model_turns else [],
                 "route": route,
+                "path_refs": path_refs,
+                "url_refs": url_refs,
+                "native_tool_plan": native_tool_plan,
+                "capability_requirements": capability_requirements,
+                "architecture_context_enabled": bool(architecture_context_pack),
                 "tool_event_count": len(tool_events),
                 "patch_available": bool(patch),
                 "trace_path": trace.get("trace_path"),
@@ -4914,11 +6250,14 @@ class InteractiveSession:
         return task_result
 
     def status(self) -> dict[str, Any]:
+        profile = _model_profile_for_id(self.model if self.model.lower() not in {"auto", "router:auto"} else None)
         return {
             "run_id": self.run_id,
             "thread_id": self.thread_id,
             "provider": self.provider_name,
             "model": self.model,
+            "provider_capabilities": _provider_capability_payload(self.provider),
+            "model_capabilities": _profile_capability_payload(profile) if profile else None,
             "project": self.project,
             "agent_id": self.agent_id,
             "workspace_root": str(self.workspace_root),
@@ -4942,7 +6281,7 @@ HELP_TEXT = """Commands:
   /help                         Show this help
   /status                       Show provider, model, workspace and transcript paths
   /provider NAME                Switch provider: deepinfra, gemini, openai, anthropic, ollama, llamacpp, local, ...
-  /model NAME                   Switch model; aliases include auto, qwen-big, mistral, qwen, gemma, gemini-pro, coder, llama-vision, sonnet
+  /model NAME                   Switch model; aliases include auto, qwen-big, mistral, qwen, gemma, gemini-pro, gemini-pro-tools, gemini-flash, gemini-2.5-pro, coder, llama-vision, sonnet
   /model use NAME               Same as /model NAME; persists until /model auto
   /model list                   List model aliases and router blueprints
   /with MODEL PROMPT            Use one model for a single action, then restore the previous model
@@ -4978,6 +6317,7 @@ HELP_TEXT = """Commands:
   /file PATH                    Inspect a local file or directory path under allowed HeliX roots
   /memory QUERY                 Search unified HeliX memory for this workspace, prioritizing the active thread
   /memory resolve HASH_OR_ID    Resolve a memory_id or node_hash prefix to exact stored content
+  /trust [current|THREAD_ID]     Verify local canonical head, checkpoint chain and lineage trust status
   /thread new [TITLE]           Create and switch to a new persistent thread
   /thread list                  List known workspace threads
   /thread open THREAD_ID        Reopen an existing thread
@@ -4994,6 +6334,7 @@ HELP_TEXT = """Commands:
   /exit                         Leave the session
 
 Natural language defaults to chat. Repo/debug/patch requests are routed to /task; certification suite requests are routed to /cert.
+You can also ask naturally: "lee src/helix_proto", "compará cognitive-gauntlet con local-ghost-in-the-shell-live", or "revisá esta URL y resumila".
 """
 
 
@@ -5087,6 +6428,8 @@ def _suite_from_text(text: str) -> str | None:
         "long-horizon": "long-horizon-checkpoints",
         "post-nuclear": "post-nuclear-methodology",
         "infinite-depth": "infinite-depth-memory",
+        "cognitive-gauntlet": "cognitive-gauntlet",
+        "cognitive gauntlet": "cognitive-gauntlet",
     }
     for alias, suite_id in aliases.items():
         if alias in normalized:
@@ -5334,6 +6677,108 @@ def _is_helix_auditability_request(text: str, history: list[dict[str, str]] | No
     return any(term in lowered for term in auditability_terms)
 
 
+def _is_explicit_helix_meta_task_request(text: str, history: list[dict[str, str]] | None = None) -> bool:
+    lowered = " ".join(str(text or "").lower().strip().split())
+    if not lowered or _is_clear_non_helix_topic_shift(lowered):
+        return False
+    if _is_helix_auditability_request(lowered, history):
+        return True
+    direct_meta_terms = (
+        "helix",
+        "merkle",
+        "merkle-dag",
+        "receipt",
+        "receipts",
+        "node_hash",
+        "node hash",
+        "hash",
+        "hashes",
+        "firma",
+        "firmas",
+        "signature",
+        "signatures",
+        "canonical head",
+        "head canonico",
+        "head canónico",
+        "cabeza canonica",
+        "cabeza canónica",
+        "canonica",
+        "canónica",
+        "canonico",
+        "canónico",
+        "equivocation",
+        "equivocacion",
+        "equivocación",
+        "lineage",
+        "quarantine",
+        "quarantined",
+        "cuarentena",
+        "cuarentenada",
+        "cuarentenado",
+        "arquitectura",
+        "architecture",
+        "runtime",
+        "router",
+        "thread_id",
+        "session_id",
+        "signed receipt",
+        "signed receipts",
+        "signed_receipts",
+        "helix-state-core",
+        "state core",
+        "recursive witness",
+        "branch-pruning",
+        "branch pruning",
+        "metodologia nuclear",
+        "metodología nuclear",
+        "ouroboros",
+    )
+    if any(term in lowered for term in direct_meta_terms):
+        return True
+    if not _recent_history_mentions_helix(history):
+        return False
+    contextual_meta_terms = (
+        "arquitectura",
+        "architecture",
+        "implementarias",
+        "implementarías",
+        "implementarlo",
+        "implementación",
+        "implementacion",
+        "cabeza canonica",
+        "cabeza canónica",
+        "head canonico",
+        "head canónico",
+        "canonica",
+        "canónica",
+        "canonico",
+        "canónico",
+        "equivocation",
+        "equivocacion",
+        "equivocación",
+        "lineage",
+        "quarantine",
+        "cuarentena",
+        "receipt",
+        "receipts",
+        "firma",
+        "firmas",
+        "signature",
+        "signatures",
+        "hash",
+        "hashes",
+        "merkle",
+        "dag",
+        "thread",
+        "threads",
+        "session",
+        "runtime",
+        "router",
+        "tool registry",
+    )
+    return any(term in lowered for term in contextual_meta_terms)
+
+
 def _is_helix_explanation_request(text: str, history: list[dict[str, str]] | None = None) -> bool:
     lowered = str(text or "").lower()
     if _is_affective_reaction(lowered) or _is_clear_non_helix_topic_shift(lowered):
@@ -5400,7 +6845,7 @@ def _helix_grounding_query(text: str) -> str:
     )
 
 
-def _override_route_for_helix_focus(route: dict[str, Any], *, policy: str, auditability: bool) -> dict[str, Any]:
+def _override_route_for_helix_focus(route: dict[str, Any], *, user_text: str, policy: str, auditability: bool) -> dict[str, Any]:
     blueprint = _resolve_router_blueprint(policy)
     alias = blueprint.audit_alias if auditability else "qwen-big"
     profile = DEEPINFRA_MODEL_PROFILES[alias]
@@ -5408,24 +6853,27 @@ def _override_route_for_helix_focus(route: dict[str, Any], *, policy: str, audit
     signals.append("helix_focus")
     if auditability:
         signals.append("helix_auditability")
-    return {
-        **route,
-        "provider": "deepinfra",
-        "model": profile.model_id,
-        "profile": alias,
-        "role": profile.role,
-        "intent": "audit" if auditability else "reasoning",
-        "confidence": max(float(route.get("confidence") or 0.0), 0.88),
-        "signals": sorted(set(signals)),
-        "policy": blueprint.name,
-        "blueprint": blueprint.name,
-        "blueprint_description": blueprint.description,
-        "reason": (
-            "Contextual HeliX auditability question promoted to the blueprint audit profile for grounded answers."
-            if auditability
-            else "Contextual HeliX explanation request promoted to the blueprint large-Qwen research profile for grounded answers."
-        ),
-    }
+    return _augment_route_metadata(
+        {
+            **route,
+            "provider": "deepinfra",
+            "model": profile.model_id,
+            "profile": alias,
+            "role": profile.role,
+            "intent": "audit" if auditability else "reasoning",
+            "confidence": max(float(route.get("confidence") or 0.0), 0.88),
+            "signals": sorted(set(signals)),
+            "policy": blueprint.name,
+            "blueprint": blueprint.name,
+            "blueprint_description": blueprint.description,
+            "reason": (
+                "Contextual HeliX auditability question promoted to the blueprint audit profile for grounded answers."
+                if auditability
+                else "Contextual HeliX explanation request promoted to the blueprint large-Qwen research profile for grounded answers."
+            ),
+        },
+        user_text,
+    )
 
 
 def _needs_certified_evidence(
@@ -5506,16 +6954,21 @@ def _needs_repository_evidence(text: str, route: dict[str, Any] | None = None) -
 
 def _route_natural_language(text: str) -> str | None:
     lowered = text.lower()
+    local_refs = _extract_local_path_refs(text)
     if _is_pasted_suite_analysis_request(text):
         return None
     if "/verify" in lowered and not any(term in lowered for term in ("resultado", "transcript", "corrida", "artifact", "manifest")):
         return "/suites"
+    if local_refs and _is_local_file_request(text) and not _looks_like_agent_task(text):
+        return f"/read {local_refs[0]}"
     execution_terms = ("corre", "ejecuta", "run ", "certifica")
-    analysis_terms = ("quiero info", "quiero data", "dame info", "dame data", "contame", "analiza", "explica")
+    analysis_terms = ("quiero info", "quiero data", "dame info", "dame data", "contame", "analiza", "explica", "compara", "compará", "reporte", "resum")
     if any(term in lowered for term in execution_terms) and not any(term in lowered for term in analysis_terms):
         suite_id = _suite_from_text(text)
         if suite_id:
             return f"/cert {suite_id}"
+    if _is_suite_evidence_request(text) and any(term in lowered for term in ("analiza", "compara", "compará", "explica", "reporte", "resumi", "resume")):
+        return f"/task {text}"
     if _looks_like_agent_task(text):
         return f"/task {text}"
     if lowered.strip() in {"doctor", "diagnostico", "estado"}:
@@ -5550,8 +7003,11 @@ def _looks_like_agent_task(text: str) -> bool:
         "modo agente",
         "modo agentico",
         "modo agentic",
+        "compará",
+        "compara",
+        "contrasta",
     )
-    task_objects = ("repo", "archivo", "archivos", "test", "tests", "pytest", "diff", "patch", "código", "codigo")
+    task_objects = ("repo", "archivo", "archivos", "test", "tests", "pytest", "diff", "patch", "código", "codigo", "suite", "artifact", "transcript", "verification", "url", "urls", "link", "links")
     if any(verb in lowered for verb in task_verbs):
         return True
     return any(action in lowered for action in ("fijate", "mirá", "mira", "revisa", "busca")) and any(
@@ -5629,8 +7085,12 @@ def _select_model(session: InteractiveSession) -> str | None:
         ("qwen", "qwen - alias for qwen-big"),
         ("gemma", "gemma - careful reasoning and decomposition"),
         ("gemini-pro", "gemini-pro - Gemini 3.1 Pro preview via GEMINI_API_KEY"),
+        ("gemini-pro-tools", "gemini-pro-tools - Gemini 3.1 Pro custom-tools preview"),
         ("gemini-flash", "gemini-flash - Gemini 3 Flash preview via GEMINI_API_KEY"),
         ("gemini-lite", "gemini-lite - Gemini 3.1 Flash Lite preview via GEMINI_API_KEY"),
+        ("gemini-2.5-pro", "gemini-2.5-pro - stable Gemini 2.5 Pro fallback"),
+        ("gemini-2.5-flash", "gemini-2.5-flash - stable Gemini 2.5 Flash fallback"),
+        ("gemini-2.5-flash-lite", "gemini-2.5-flash-lite - stable Gemini 2.5 Flash-Lite fallback"),
         ("coder", "coder - repository and patch-heavy coding work"),
         ("engineering", "engineering - premium GLM agentic engineering path"),
         ("deep-reasoning", "deep-reasoning - DeepSeek reasoning fallback"),
@@ -5929,7 +7389,7 @@ def _handle_interactive_command(session: InteractiveSession, line: str) -> bool:
                     _render_chat_response(
                         console,
                         clean_text=response_obj.get("text") or "",
-                        model_used=_short_model_name(metadata.get("actual_model", session.model)),
+                        model_used=_display_model_used(metadata, session.model),
                         intent="manual_once",
                         latency_label=(
                             f"{float(metadata.get('latency_ms')):.0f}ms"
@@ -6150,6 +7610,17 @@ def _handle_interactive_command(session: InteractiveSession, line: str) -> bool:
             )
         )
         return True
+    if name == "trust":
+        parts = _split_command(rest)
+        include_quarantined = any(part.lower() in {"--forensics", "--include-quarantined", "--quarantined"} for part in parts)
+        clean_parts = [part for part in parts if part.lower() not in {"--forensics", "--include-quarantined", "--quarantined"}]
+        target = clean_parts[0] if clean_parts and clean_parts[0].lower() not in {"current", "show"} else None
+        ref = None
+        if clean_parts and clean_parts[0].lower() in {"proof", "export"}:
+            target = clean_parts[1] if len(clean_parts) > 1 and clean_parts[1].lower() != "current" else None
+            ref = clean_parts[2] if len(clean_parts) > 2 else None
+        _print_json(session.trust_report(target, ref=ref, include_quarantined=include_quarantined))
+        return True
     if name == "tools":
         report = session.tool_registry_report()
         if rest.lower() == "json":
@@ -6352,17 +7823,17 @@ def run_interactive(args: argparse.Namespace | None = None) -> int:
         completer = WordCompleter([
             '/help', '/status', '/thread', '/provider', '/model', '/models', '/route', '/web', '/file',
             '/router', '/key', '/doctor', '/providers', '/cert', '/cert-dry', 
-            '/evidence', '/verify', '/suites', '/suite', '/memory', '/task', '/tools', '/agents', '/mode', '/apply', '/agent', '/with', '/theme', '/style', '/raw', '/clear', '/config', '/exit', '/quit',
+            '/evidence', '/verify', '/suites', '/suite', '/memory', '/trust', '/task', '/tools', '/agents', '/mode', '/apply', '/agent', '/with', '/theme', '/style', '/raw', '/clear', '/config', '/exit', '/quit',
             '/provider deepinfra', '/provider gemini', '/provider list',
-            '/models json', '/model auto', '/model use ', '/model sonnet', '/model mistral', '/model devstral', '/model qwen', '/model qwen-big', '/model gemma', '/model gemini-pro', '/model gemini-flash', '/model gemini-lite', '/model coder', '/model engineering', '/model deep-reasoning', '/model llama', '/model llama-vision',
-            '/with sonnet ', '/with qwen-big ', '/with gemma ', '/with gemini-pro ', '/with gemini-flash ', '/with gemini-lite ', '/with coder ', '/with mistral ',
+            '/models json', '/model auto', '/model use ', '/model sonnet', '/model mistral', '/model devstral', '/model qwen', '/model qwen-big', '/model gemma', '/model gemini-pro', '/model gemini-pro-tools', '/model gemini-flash', '/model gemini-lite', '/model gemini-2.5-pro', '/model gemini-2.5-flash', '/model gemini-2.5-flash-lite', '/model coder', '/model engineering', '/model deep-reasoning', '/model llama', '/model llama-vision',
+            '/with sonnet ', '/with qwen-big ', '/with gemma ', '/with gemini-pro ', '/with gemini-pro-tools ', '/with gemini-flash ', '/with gemini-lite ', '/with gemini-2.5-pro ', '/with gemini-2.5-flash ', '/with gemini-2.5-flash-lite ', '/with coder ', '/with mistral ',
             '/router balanced', '/router qwen-heavy', '/router current', '/router qwen-gemma-mistral', '/router cheap', '/router premium', '/router list', '/router why ',
             '/web ', '/file ',
             '/theme industrial-brutalist', '/theme industrial-neon', '/theme xerox', '/theme brown-console', '/theme brown', '/theme cyberpunk', '/theme cyberpunk-gray', '/theme list', '/raw on', '/raw off',
             '/style balanced', '/style technical', '/style forensic', '/style vivid', '/style terse', '/style list',
             '/key save', '/key save gemini', '/key gemini', '/key forget', '/key forget gemini', '/key status', '/key status gemini',
             '/evidence refresh', '/evidence latest', '/evidence search', '/verify latest', '/verify search',
-            '/memory resolve ', '/memory show ', '/memory hash ',
+            '/memory resolve ', '/memory show ', '/memory hash ', '/trust', '/trust current', '/trust --forensics', '/trust proof current ',
             '/suites json', '/suite list', '/suite latest ', '/suite show ', '/suite transcripts ', '/suite search ', '/suite read ', '/suite ingest ',
             '/thread new', '/thread list', '/thread open', '/thread close', '/thread current',
             '/task ', '/agent suggest ', '/agent use repo-scout ', '/agent use patch-planner ', '/agent use suite-run-analyst ', '/agent use transcript-forensics ', '/agent use evidence-auditor ', '/agent auto-edit ',
@@ -6396,7 +7867,7 @@ def run_interactive(args: argparse.Namespace | None = None) -> int:
                 latest = session.events[-1] if session.events else {}
                 metadata = latest.get("metadata", {})
                 route = metadata.get("route") or response_obj.get("route") or {}
-                model_used = _short_model_name(metadata.get("actual_model", session.model))
+                model_used = _display_model_used(metadata, session.model)
                 latency = metadata.get("latency_ms")
                 receipt = latest.get("helix_memory") or {}
                 node_hash = str(receipt.get("node_hash") or "")
@@ -6483,6 +7954,7 @@ def provider_report(*, probe_local: bool = False) -> list[dict[str, Any]]:
                 "default_model": provider.default_model,
                 "endpoint_status": endpoint_status,
                 "description": provider.description,
+                **_provider_capability_payload(provider),
             }
         )
     return rows

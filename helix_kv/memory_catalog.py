@@ -15,8 +15,11 @@ from helix_kv.merkle_dag import MerkleDAG
 from helix_kv.semantic_router import RoutedQuery, SemanticQueryRouter, tokenize as _router_tokenize
 from helix_proto.signed_receipts import (
     attach_verification,
+    canonical_payload_sha256,
     derive_ephemeral_keypair,
     enforce_retrieval_signatures,
+    generate_ed25519_keypair,
+    key_id_for_public_key,
     sign_receipt_payload,
     unsigned_legacy_receipt,
 )
@@ -75,6 +78,9 @@ SECRET_MARKERS = (
 MEMORY_TYPES = {"working", "episodic", "semantic", "procedural"}
 SIGNATURE_ENFORCEMENT_MODES = {"permissive", "warn", "strict"}
 RERANK_MODES = {"bm25_only", "bm25_dense_rerank", "receipt_adjudicated"}
+TRUST_ROOT_VERSION = "helix-local-trust-root-v1"
+TRUST_POLICY_VERSION = "helix-local-trust-policy-v1"
+CHECKPOINT_VERSION = "helix-session-head-checkpoint-v1"
 
 
 def _now_ms() -> float:
@@ -178,6 +184,10 @@ class MemoryCatalog:
         self.busy_timeout_ms = busy_timeout_ms
         self.journal_mode = "memory"
         self.fts_enabled = False
+        self._trust_dir = self.db_path.parent / "trust"
+        self._trust_root_path = self._trust_dir / "trust_root.json"
+        self._local_signing_key_path = self._trust_dir / "local_signing_key.json"
+        self._local_signing_key_cache: dict[str, Any] | None = None
         
         self.dag = MerkleDAG()
         rust_index_disabled = os.environ.get("HELIX_MEMORY_RUST_INDEX", "1").lower() in {"0", "false", "off", "no"}
@@ -207,9 +217,16 @@ class MemoryCatalog:
         self._memory_node_hashes: dict[str, str] = {}
         self._observations: dict[str, dict[str, Any]] = {}
         self._links: list[dict[str, Any]] = []
-        
+
         # Track the latest node hash per session to build the parent_hash chains
         self._session_heads: dict[str, str] = {}
+        self._session_lineage: dict[str, dict[str, Any]] = {}
+        self._session_transitions: dict[str, list[dict[str, Any]]] = {}
+        self._node_lineage: dict[str, dict[str, Any]] = {}
+        self._session_checkpoints: dict[str, list[dict[str, Any]]] = {}
+        self._checkpoint_by_hash: dict[str, dict[str, Any]] = {}
+        self._node_checkpoint_hashes: dict[str, str] = {}
+        self._quarantine_records: dict[str, list[dict[str, Any]]] = {}
         self._journal_enabled = os.environ.get("HELIX_MEMORY_JOURNAL", "1").lower() not in {"0", "false", "off", "no"}
         self._journal_path = self.db_path.with_name("memory.journal.jsonl")
         self._journal_error: str | None = None
@@ -231,6 +248,441 @@ class MemoryCatalog:
 
     def close(self) -> None:
         pass
+
+    def _read_json_file_unlocked(self, path: Path) -> dict[str, Any] | None:
+        try:
+            if not path.exists():
+                return None
+            payload = json.loads(path.read_text(encoding="utf-8"))
+            return payload if isinstance(payload, dict) else None
+        except Exception:  # noqa: BLE001
+            return None
+
+    def _write_json_file_unlocked(self, path: Path, payload: dict[str, Any]) -> None:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps(payload, indent=2, ensure_ascii=True, sort_keys=True), encoding="utf-8")
+
+    def _local_signing_key_unlocked(self) -> dict[str, Any]:
+        if self._local_signing_key_cache:
+            return dict(self._local_signing_key_cache)
+        stored = self._read_json_file_unlocked(self._local_signing_key_path) or {}
+        public_key = str(stored.get("public_key") or "")
+        private_key = str(stored.get("private_key") or "")
+        key_id = str(stored.get("key_id") or "")
+        if not private_key or not public_key:
+            generated = generate_ed25519_keypair()
+            private_key = generated["private_key"]
+            public_key = generated["public_key"]
+            key_id = key_id_for_public_key(public_key)
+            stored = {
+                "version": "helix-local-signing-key-v1",
+                "created_at_utc": _utc_now(),
+                "key_id": key_id,
+                "private_key": private_key,
+                "public_key": public_key,
+                "key_provenance": "local_self_signed",
+            }
+            self._write_json_file_unlocked(self._local_signing_key_path, stored)
+        if not key_id:
+            key_id = key_id_for_public_key(public_key)
+            stored["key_id"] = key_id
+            self._write_json_file_unlocked(self._local_signing_key_path, stored)
+
+        trust_root = self._read_json_file_unlocked(self._trust_root_path) or {}
+        keys = trust_root.get("keys") if isinstance(trust_root.get("keys"), list) else []
+        known = {str(item.get("key_id") or "") for item in keys if isinstance(item, dict)}
+        if key_id not in known or trust_root.get("active_key_id") != key_id:
+            keys = [
+                item
+                for item in keys
+                if isinstance(item, dict) and str(item.get("key_id") or "") != key_id
+            ]
+            keys.append(
+                {
+                    "key_id": key_id,
+                    "public_key": public_key,
+                    "signature_alg": "ed25519",
+                    "key_provenance": "local_self_signed",
+                    "status": "active",
+                    "created_at_utc": str(stored.get("created_at_utc") or _utc_now()),
+                }
+            )
+            trust_root = {
+                **trust_root,
+                "version": TRUST_ROOT_VERSION,
+                "policy_version": TRUST_POLICY_VERSION,
+                "active_key_id": key_id,
+                "threshold": 1,
+                "updated_at_utc": _utc_now(),
+                "external_anchor": trust_root.get("external_anchor"),
+                "keys": keys,
+            }
+            trust_root.setdefault("created_at_utc", str(stored.get("created_at_utc") or _utc_now()))
+            self._write_json_file_unlocked(self._trust_root_path, trust_root)
+
+        self._local_signing_key_cache = {
+            "key_id": key_id,
+            "private_key": private_key,
+            "public_key": public_key,
+            "key_provenance": "local_self_signed",
+            "trust_root_path": str(self._trust_root_path),
+        }
+        return dict(self._local_signing_key_cache)
+
+    def trust_root(self) -> dict[str, Any]:
+        with self._lock:
+            self._local_signing_key_unlocked()
+            payload = self._read_json_file_unlocked(self._trust_root_path) or {}
+            return dict(payload)
+
+    def _sign_with_local_key_unlocked(
+        self,
+        payload: dict[str, Any],
+        *,
+        signer_id: str,
+        attestation: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        key = self._local_signing_key_unlocked()
+        signable = {
+            **payload,
+            "trust_root_version": TRUST_ROOT_VERSION,
+            "trust_policy_version": TRUST_POLICY_VERSION,
+            "signing_key_id": key["key_id"],
+        }
+        return attach_verification(
+            sign_receipt_payload(
+                signable,
+                private_key_b64=str(key["private_key"]),
+                public_key_b64=str(key["public_key"]),
+                signer_id=signer_id,
+                key_provenance="local_self_signed",
+                attestation=attestation,
+            )
+        )
+
+    def _session_lineage_state_unlocked(self, session_id: str) -> dict[str, Any]:
+        return self._session_lineage.setdefault(
+            str(session_id),
+            {
+                "session_id": str(session_id),
+                "canonical_head": None,
+                "head_seq": 0,
+                "transition_count": 0,
+                "status": "active",
+                "last_transition_ms": None,
+                "equivocation_count": 0,
+                "latest_transition_seq": 0,
+                "checkpoint_count": 0,
+                "latest_checkpoint_hash": None,
+            },
+        )
+
+    def _lineage_status_for_state_unlocked(self, state: dict[str, Any]) -> str:
+        if int(state.get("equivocation_count") or 0) > 0:
+            return "equivocation_detected"
+        return "active"
+
+    def _record_lineage_transition_unlocked(
+        self,
+        *,
+        session_id: str | None,
+        parent_hash: str | None,
+        node_hash: str,
+        record_kind: str,
+        created_ms: float,
+    ) -> dict[str, Any]:
+        if not session_id:
+            payload = {
+                "session_id": None,
+                "thread_id": None,
+                "previous_head": parent_hash,
+                "candidate_head": node_hash,
+                "record_kind": record_kind,
+                "seq": 1,
+                "canonical_seq": 1,
+                "canonical": True,
+                "quarantined": False,
+                "non_canonical": False,
+                "equivocation_id": None,
+                "quarantined_reason": None,
+                "created_ms": created_ms,
+            }
+            self._node_lineage[str(node_hash)] = dict(payload)
+            return payload
+
+        session_key = str(session_id)
+        state = self._session_lineage_state_unlocked(session_key)
+        canonical_head = state.get("canonical_head")
+        transition_seq = int(state.get("transition_count") or 0) + 1
+        canonical_seq = int(state.get("head_seq") or 0)
+        previous_checkpoint_hash = state.get("latest_checkpoint_hash")
+        is_equivocation = bool(canonical_head and parent_hash != canonical_head)
+        equivocation_id = None
+        quarantined_reason = None
+        canonical = not is_equivocation
+        if canonical:
+            canonical_seq += 1
+            state["canonical_head"] = str(node_hash)
+            state["head_seq"] = canonical_seq
+            self._session_heads[session_key] = str(node_hash)
+        else:
+            state["equivocation_count"] = int(state.get("equivocation_count") or 0) + 1
+            equivocation_id = f"eqv-{session_key}-{state['equivocation_count']}"
+            quarantined_reason = (
+                f"candidate parent {parent_hash or '<root>'} does not continue canonical head "
+                f"{canonical_head or '<none>'}"
+            )
+            if canonical_head:
+                self._session_heads[session_key] = str(canonical_head)
+        state["transition_count"] = transition_seq
+        state["latest_transition_seq"] = transition_seq
+        state["last_transition_ms"] = float(created_ms)
+        state["status"] = self._lineage_status_for_state_unlocked(state)
+        payload = {
+            "session_id": session_key,
+            "thread_id": session_key,
+            "previous_head": parent_hash,
+            "candidate_head": str(node_hash),
+            "record_kind": record_kind,
+            "seq": transition_seq,
+            "canonical_seq": canonical_seq,
+            "canonical": canonical,
+            "quarantined": not canonical,
+            "non_canonical": not canonical,
+            "equivocation_id": equivocation_id,
+            "quarantined_reason": quarantined_reason,
+            "previous_checkpoint_hash": previous_checkpoint_hash,
+            "created_ms": float(created_ms),
+        }
+        self._node_lineage[str(node_hash)] = dict(payload)
+        self._session_transitions.setdefault(session_key, []).append(dict(payload))
+        return payload
+
+    def _checkpoint_body_unlocked(self, *, session_key: str, lineage: dict[str, Any]) -> dict[str, Any]:
+        state = self._session_lineage_state_unlocked(session_key)
+        return {
+            "checkpoint_version": CHECKPOINT_VERSION,
+            "session_id": session_key,
+            "thread_id": session_key,
+            "canonical_head": state.get("canonical_head"),
+            "head_seq": int(state.get("head_seq") or 0),
+            "transition_count": int(state.get("transition_count") or 0),
+            "previous_checkpoint_hash": lineage.get("previous_checkpoint_hash") or None,
+            "equivocation_count": int(state.get("equivocation_count") or 0),
+            "status": str(state.get("status") or "active"),
+            "issued_at_utc": _utc_now(),
+            "policy_version": TRUST_POLICY_VERSION,
+            "external_anchor": None,
+        }
+
+    @staticmethod
+    def _checkpoint_hash_body(checkpoint: dict[str, Any]) -> dict[str, Any]:
+        return {
+            "checkpoint_version": checkpoint.get("checkpoint_version"),
+            "session_id": checkpoint.get("session_id"),
+            "thread_id": checkpoint.get("thread_id"),
+            "canonical_head": checkpoint.get("canonical_head"),
+            "head_seq": int(checkpoint.get("head_seq") or 0),
+            "transition_count": int(checkpoint.get("transition_count") or 0),
+            "previous_checkpoint_hash": checkpoint.get("previous_checkpoint_hash") or None,
+            "equivocation_count": int(checkpoint.get("equivocation_count") or 0),
+            "status": str(checkpoint.get("status") or "active"),
+            "issued_at_utc": checkpoint.get("issued_at_utc"),
+            "policy_version": checkpoint.get("policy_version"),
+            "external_anchor": checkpoint.get("external_anchor"),
+        }
+
+    def _verify_checkpoint_unlocked(self, checkpoint: dict[str, Any] | None) -> dict[str, Any]:
+        if not checkpoint:
+            return {"checkpoint_verified": False, "verification_error": "missing_checkpoint"}
+        verified = attach_verification(dict(checkpoint))
+        try:
+            expected_hash = canonical_payload_sha256(self._checkpoint_hash_body(verified))
+        except Exception as exc:  # noqa: BLE001
+            expected_hash = None
+            hash_ok = False
+            hash_error = str(exc)
+        else:
+            hash_ok = expected_hash == verified.get("checkpoint_hash")
+            hash_error = None if hash_ok else "checkpoint_hash mismatch"
+        return {
+            "checkpoint_verified": bool(verified.get("signature_verified")) and hash_ok,
+            "signature_verified": bool(verified.get("signature_verified")),
+            "checkpoint_hash_verified": hash_ok,
+            "expected_checkpoint_hash": expected_hash,
+            "verification_error": verified.get("verification_error") or hash_error,
+        }
+
+    def _record_session_checkpoint_unlocked(self, *, session_id: str | None, lineage: dict[str, Any]) -> dict[str, Any] | None:
+        if not session_id or not lineage.get("canonical", True):
+            return None
+        session_key = str(session_id)
+        body = self._checkpoint_body_unlocked(session_key=session_key, lineage=lineage)
+        checkpoint_hash = canonical_payload_sha256(body)
+        checkpoint = self._sign_with_local_key_unlocked(
+            {
+                **body,
+                "checkpoint_hash": checkpoint_hash,
+            },
+            signer_id="helix-local-checkpoint",
+        )
+        state = self._session_lineage_state_unlocked(session_key)
+        state["latest_checkpoint_hash"] = checkpoint_hash
+        state["checkpoint_count"] = int(state.get("checkpoint_count") or 0) + 1
+        lineage["checkpoint_hash"] = checkpoint_hash
+        self._node_checkpoint_hashes[str(lineage.get("candidate_head") or "")] = checkpoint_hash
+        self._session_checkpoints.setdefault(session_key, []).append(dict(checkpoint))
+        self._checkpoint_by_hash[checkpoint_hash] = dict(checkpoint)
+        return checkpoint
+
+    def _record_quarantine_record_unlocked(self, *, session_id: str | None, lineage: dict[str, Any]) -> dict[str, Any] | None:
+        if not session_id or not lineage.get("quarantined"):
+            return None
+        session_key = str(session_id)
+        state = self._session_lineage_state_unlocked(session_key)
+        payload = {
+            "quarantine_record_version": "helix-lineage-quarantine-v1",
+            "session_id": session_key,
+            "thread_id": session_key,
+            "candidate_head": lineage.get("candidate_head"),
+            "previous_head": lineage.get("previous_head"),
+            "canonical_head": state.get("canonical_head"),
+            "equivocation_id": lineage.get("equivocation_id"),
+            "quarantined_reason": lineage.get("quarantined_reason"),
+            "transition_seq": int(lineage.get("seq") or 0),
+            "canonical_seq": int(lineage.get("canonical_seq") or 0),
+            "checkpoint_hash": state.get("latest_checkpoint_hash"),
+            "issued_at_utc": _utc_now(),
+            "policy_version": TRUST_POLICY_VERSION,
+        }
+        record = self._sign_with_local_key_unlocked(payload, signer_id="helix-local-quarantine")
+        self._quarantine_records.setdefault(session_key, []).append(dict(record))
+        lineage["checkpoint_hash"] = state.get("latest_checkpoint_hash")
+        return record
+
+    def _restore_session_checkpoint_unlocked(self, session_id: str | None, checkpoint: dict[str, Any] | None) -> None:
+        if not session_id or not isinstance(checkpoint, dict) or not checkpoint:
+            return
+        session_key = str(session_id)
+        checkpoint_hash = str(checkpoint.get("checkpoint_hash") or "")
+        if not checkpoint_hash:
+            return
+        self._session_checkpoints.setdefault(session_key, []).append(dict(checkpoint))
+        self._checkpoint_by_hash[checkpoint_hash] = dict(checkpoint)
+        state = self._session_lineage_state_unlocked(session_key)
+        state["latest_checkpoint_hash"] = checkpoint_hash
+        state["checkpoint_count"] = max(int(state.get("checkpoint_count") or 0), len(self._session_checkpoints.get(session_key, [])))
+
+    def _restore_quarantine_record_unlocked(self, session_id: str | None, record: dict[str, Any] | None) -> None:
+        if not session_id or not isinstance(record, dict) or not record:
+            return
+        self._quarantine_records.setdefault(str(session_id), []).append(dict(record))
+
+    def _restore_lineage_transition_unlocked(
+        self,
+        *,
+        session_id: str | None,
+        node_hash: str,
+        transition: dict[str, Any] | None,
+        parent_hash: str | None,
+        record_kind: str,
+        created_ms: float,
+    ) -> None:
+        if transition is None:
+            self._record_lineage_transition_unlocked(
+                session_id=session_id,
+                parent_hash=parent_hash,
+                node_hash=node_hash,
+                record_kind=record_kind,
+                created_ms=created_ms,
+            )
+            return
+        restored = dict(transition)
+        restored.setdefault("session_id", session_id)
+        restored.setdefault("thread_id", session_id)
+        restored.setdefault("previous_head", parent_hash)
+        restored.setdefault("candidate_head", str(node_hash))
+        restored.setdefault("record_kind", record_kind)
+        restored.setdefault("seq", 1)
+        restored.setdefault("canonical_seq", 1 if restored.get("canonical", True) else 0)
+        restored.setdefault("canonical", True)
+        restored.setdefault("quarantined", not bool(restored.get("canonical", True)))
+        restored.setdefault("non_canonical", not bool(restored.get("canonical", True)))
+        restored.setdefault("equivocation_id", None)
+        restored.setdefault("quarantined_reason", None)
+        restored.setdefault("checkpoint_hash", None)
+        restored.setdefault("previous_checkpoint_hash", None)
+        restored.setdefault("created_ms", float(created_ms))
+        self._node_lineage[str(node_hash)] = restored
+        if not session_id:
+            return
+        session_key = str(session_id)
+        state = self._session_lineage_state_unlocked(session_key)
+        state["transition_count"] = max(int(state.get("transition_count") or 0), int(restored.get("seq") or 0))
+        state["latest_transition_seq"] = max(int(state.get("latest_transition_seq") or 0), int(restored.get("seq") or 0))
+        state["last_transition_ms"] = max(float(state.get("last_transition_ms") or 0.0), float(restored.get("created_ms") or 0.0))
+        if restored.get("canonical", True):
+            state["canonical_head"] = str(node_hash)
+            state["head_seq"] = max(int(state.get("head_seq") or 0), int(restored.get("canonical_seq") or 0))
+            self._session_heads[session_key] = str(node_hash)
+        else:
+            state["equivocation_count"] = max(
+                int(state.get("equivocation_count") or 0),
+                int(restored.get("equivocation_id", "0").rsplit("-", 1)[-1]) if restored.get("equivocation_id") else int(state.get("equivocation_count") or 0) + 1,
+            )
+            if state.get("canonical_head"):
+                self._session_heads[session_key] = str(state["canonical_head"])
+        state["status"] = self._lineage_status_for_state_unlocked(state)
+        self._session_transitions.setdefault(session_key, []).append(restored)
+
+    def _lineage_for_node_unlocked(self, node_hash: str | None, session_id: str | None = None) -> dict[str, Any]:
+        lineage = dict(self._node_lineage.get(str(node_hash or "")) or {})
+        active_session = str(session_id or lineage.get("session_id") or "")
+        state = dict(self._session_lineage.get(active_session) or {})
+        return {
+            "thread_id": active_session or None,
+            "canonical": bool(lineage.get("canonical", True)),
+            "quarantined": bool(lineage.get("quarantined", False)),
+            "non_canonical": bool(lineage.get("non_canonical", False)),
+            "equivocation_id": lineage.get("equivocation_id"),
+            "quarantined_reason": lineage.get("quarantined_reason"),
+            "canonical_head": state.get("canonical_head"),
+            "head_seq": state.get("head_seq"),
+            "equivocation_count": state.get("equivocation_count", 0),
+            "lineage_status": state.get("status", "active"),
+            "lineage_transition_seq": lineage.get("seq"),
+            "lineage_previous_head": lineage.get("previous_head"),
+            "checkpoint_hash": lineage.get("checkpoint_hash") or self._node_checkpoint_hashes.get(str(node_hash or "")) or state.get("latest_checkpoint_hash"),
+            "checkpoint_status": "ok" if state.get("latest_checkpoint_hash") else "missing_legacy",
+        }
+
+    def _attach_lineage(self, payload: dict[str, Any], *, node_hash: str | None = None, session_id: str | None = None) -> dict[str, Any]:
+        lineage = self._lineage_for_node_unlocked(node_hash or str(payload.get("node_hash") or ""), session_id or payload.get("session_id"))
+        payload.update(lineage)
+        return payload
+
+    def _memory_visible_unlocked(self, memory_id: str, *, include_quarantined: bool) -> bool:
+        node_hash = self._memory_node_hashes.get(str(memory_id))
+        if not node_hash:
+            return True
+        lineage = self._node_lineage.get(str(node_hash))
+        if lineage is None:
+            return True
+        if include_quarantined:
+            return True
+        return bool(lineage.get("canonical", True)) and not bool(lineage.get("quarantined", False))
+
+    def _observation_visible_unlocked(self, observation_id: str, *, include_quarantined: bool) -> bool:
+        raw = self._observations.get(str(observation_id))
+        node_hash = str((raw or {}).get("node_hash") or "")
+        if not node_hash:
+            return True
+        lineage = self._node_lineage.get(node_hash)
+        if lineage is None:
+            return True
+        if include_quarantined:
+            return True
+        return bool(lineage.get("canonical", True)) and not bool(lineage.get("quarantined", False))
 
     def _append_journal(self, entry: dict[str, Any]) -> None:
         if not self._journal_enabled or self._replaying_journal:
@@ -280,6 +732,7 @@ class MemoryCatalog:
                 parent_hash=parent_hash,
                 metadata={
                     **payload,
+                    **(entry.get("lineage") or {}),
                     "record_kind": "observation",
                     "index_content": payload.get("content") or "",
                     "content_available": True,
@@ -287,8 +740,17 @@ class MemoryCatalog:
                 },
             )
             session_id = payload.get("session_id")
-            if session_id:
-                self._session_heads[str(session_id)] = node.hash
+            payload["node_hash"] = node.hash
+            self._restore_lineage_transition_unlocked(
+                session_id=str(session_id) if session_id else None,
+                node_hash=node.hash,
+                transition=entry.get("lineage") if isinstance(entry.get("lineage"), dict) else None,
+                parent_hash=parent_hash,
+                record_kind="observation",
+                created_ms=float(payload.get("created_ms") or _now_ms()),
+            )
+            self._restore_session_checkpoint_unlocked(str(session_id) if session_id else None, entry.get("checkpoint") if isinstance(entry.get("checkpoint"), dict) else None)
+            self._restore_quarantine_record_unlocked(str(session_id) if session_id else None, entry.get("quarantine_record") if isinstance(entry.get("quarantine_record"), dict) else None)
             self._observations[str(payload["observation_id"])] = payload
             return
         if op == "remember":
@@ -305,14 +767,23 @@ class MemoryCatalog:
                 parent_hash=parent_hash,
                 metadata={
                     **item.to_dict(),
+                    **(entry.get("lineage") or {}),
                     "record_kind": "memory",
                     "index_content": item.content,
                     "content_available": True,
                     "audit_status": "verified",
                 },
             )
-            if item.session_id:
-                self._session_heads[item.session_id] = node.hash
+            self._restore_lineage_transition_unlocked(
+                session_id=item.session_id,
+                node_hash=node.hash,
+                transition=entry.get("lineage") if isinstance(entry.get("lineage"), dict) else None,
+                parent_hash=parent_hash,
+                record_kind="memory",
+                created_ms=float(item.created_ms),
+            )
+            self._restore_session_checkpoint_unlocked(item.session_id, entry.get("checkpoint") if isinstance(entry.get("checkpoint"), dict) else None)
+            self._restore_quarantine_record_unlocked(item.session_id, entry.get("quarantine_record") if isinstance(entry.get("quarantine_record"), dict) else None)
             self._memories[item.memory_id] = item
             self._memory_node_hashes[item.memory_id] = node.hash
             self._memory_receipts[item.memory_id] = dict(entry.get("receipt") or {})
@@ -365,20 +836,28 @@ class MemoryCatalog:
             content_dump = json.dumps(payload, sort_keys=True)
             parent = self._session_heads.get(session_id) if session_id else None
             node = self.dag._insert_unlocked(content_dump, parent_hash=parent)
+            lineage = self._record_lineage_transition_unlocked(
+                session_id=session_id,
+                parent_hash=parent,
+                node_hash=node.hash,
+                record_kind="observation",
+                created_ms=now,
+            )
+            checkpoint = self._record_session_checkpoint_unlocked(session_id=session_id, lineage=lineage)
+            quarantine_record = self._record_quarantine_record_unlocked(session_id=session_id, lineage=lineage)
+            payload["node_hash"] = node.hash
             self._insert_rust_indexed(
                 content_dump=content_dump,
                 parent_hash=parent,
                 metadata={
                     **payload,
+                    **lineage,
                     "record_kind": "observation",
                     "index_content": clean_content,
                     "content_available": True,
                     "audit_status": "verified",
                 },
             )
-
-            if session_id:
-                self._session_heads[session_id] = node.hash
 
             self._observations[obs_id] = payload
             self._append_journal(
@@ -388,10 +867,14 @@ class MemoryCatalog:
                     "content_dump": content_dump,
                     "parent_hash": parent,
                     "node_hash": node.hash,
+                    "lineage": lineage,
+                    "checkpoint": checkpoint,
+                    "quarantine_record": quarantine_record,
                 }
             )
 
-        return {
+        return self._attach_lineage(
+            {
             "observation_id": obs_id,
             "project": project,
             "agent_id": agent_id,
@@ -400,7 +883,11 @@ class MemoryCatalog:
             "content": clean_content,
             "summary": clean_summary,
             "tags": tag_list,
-        }
+            "node_hash": node.hash,
+            },
+            node_hash=node.hash,
+            session_id=session_id,
+        )
 
     def remember(
         self,
@@ -449,26 +936,34 @@ class MemoryCatalog:
             content_dump = json.dumps(item.to_dict(), sort_keys=True)
             parent = self._session_heads.get(session_id) if session_id else None
             node = self.dag._insert_unlocked(content_dump, parent_hash=parent)
+            lineage = self._record_lineage_transition_unlocked(
+                session_id=session_id,
+                parent_hash=parent,
+                node_hash=node.hash,
+                record_kind="memory",
+                created_ms=now,
+            )
+            checkpoint = self._record_session_checkpoint_unlocked(session_id=session_id, lineage=lineage)
+            quarantine_record = self._record_quarantine_record_unlocked(session_id=session_id, lineage=lineage)
             receipt = self._build_receipt(
                 item=item,
                 node_hash=node.hash,
                 parent_hash=parent,
                 llm_call_id=llm_call_id,
+                lineage=lineage,
             )
             self._insert_rust_indexed(
                 content_dump=content_dump,
                 parent_hash=parent,
                 metadata={
                     **item.to_dict(),
+                    **lineage,
                     "record_kind": "memory",
                     "index_content": clean_content,
                     "content_available": True,
                     "audit_status": "verified",
                 },
             )
-
-            if session_id:
-                self._session_heads[session_id] = node.hash
 
             self._memories[mem_id] = item
             self._memory_node_hashes[mem_id] = node.hash
@@ -482,6 +977,9 @@ class MemoryCatalog:
                     "parent_hash": parent,
                     "node_hash": node.hash,
                     "receipt": receipt,
+                    "lineage": lineage,
+                    "checkpoint": checkpoint,
+                    "quarantine_record": quarantine_record,
                 }
             )
             
@@ -556,8 +1054,15 @@ class MemoryCatalog:
             for item, content_dump, llm_call_id in prepared:
                 parent = self._session_heads.get(item.session_id) if item.session_id else None
                 node = self.dag._insert_unlocked(content_dump, parent_hash=parent)
-                if item.session_id:
-                    self._session_heads[item.session_id] = node.hash
+                lineage = self._record_lineage_transition_unlocked(
+                    session_id=item.session_id,
+                    parent_hash=parent,
+                    node_hash=node.hash,
+                    record_kind="memory",
+                    created_ms=float(item.created_ms),
+                )
+                checkpoint = self._record_session_checkpoint_unlocked(session_id=item.session_id, lineage=lineage)
+                quarantine_record = self._record_quarantine_record_unlocked(session_id=item.session_id, lineage=lineage)
                 self._memories[item.memory_id] = item
                 self._memory_node_hashes[item.memory_id] = node.hash
                 receipt = self._build_receipt(
@@ -565,6 +1070,7 @@ class MemoryCatalog:
                     node_hash=node.hash,
                     parent_hash=parent,
                     llm_call_id=llm_call_id,
+                    lineage=lineage,
                 )
                 self._memory_receipts[item.memory_id] = receipt
                 self._index_router_item_unlocked(item)
@@ -576,6 +1082,9 @@ class MemoryCatalog:
                         "parent_hash": parent,
                         "node_hash": node.hash,
                         "receipt": receipt,
+                        "lineage": lineage,
+                        "checkpoint": checkpoint,
+                        "quarantine_record": quarantine_record,
                     }
                 )
 
@@ -658,7 +1167,7 @@ class MemoryCatalog:
     def get_memory_receipt(self, memory_id: str) -> dict[str, Any] | None:
         with self._lock:
             receipt = self._memory_receipts.get(str(memory_id))
-            return dict(receipt) if receipt else None
+            return attach_verification(dict(receipt)) if receipt else None
 
     def get_memory_node_hash(self, memory_id: str) -> str | None:
         with self._lock:
@@ -696,6 +1205,7 @@ class MemoryCatalog:
         signature_enforcement: str | None = None,
         rerank_mode: str | None = None,
         retrieval_scope: str = "workspace",
+        include_quarantined: bool = False,
     ) -> list[dict[str, Any]]:
         project = _safe_scope(project, field="project")
         agent_filter = None if agent_id is None else _safe_scope(agent_id, field="agent_id")
@@ -726,6 +1236,7 @@ class MemoryCatalog:
                 type_filter=type_filter,
                 exclude_ids=exclude_ids,
                 routed=routed,
+                include_quarantined=include_quarantined,
             )
             return self._finalize_search_results(
                 recent_results,
@@ -752,6 +1263,7 @@ class MemoryCatalog:
                 type_filter=type_filter,
                 exclude_ids=exclude_ids,
                 routed=routed,
+                include_quarantined=include_quarantined,
             )
             if results is not None:
                 return self._finalize_search_results(
@@ -772,6 +1284,7 @@ class MemoryCatalog:
             type_filter=type_filter,
             exclude_ids=exclude_ids,
             routed=routed,
+            include_quarantined=include_quarantined,
         )
         return self._finalize_search_results(
             results,
@@ -782,11 +1295,9 @@ class MemoryCatalog:
         )
 
     def _resolve_signature_enforcement(self, mode: str | None) -> str:
-        # Default is strict: only receipts with signature_verified=true are returned.
-        # warn/permissive must be opted into explicitly, either via the `mode` argument
-        # or the HELIX_RETRIEVAL_SIGNATURE_ENFORCEMENT env var. This is the retrieval-side
-        # half of the "strict signed retrieval end-to-end" contract.
-        selected = str(mode or os.environ.get("HELIX_RETRIEVAL_SIGNATURE_ENFORCEMENT", "strict")).lower()
+        # Default warn keeps legacy unsigned memory visible, but annotated. Strict
+        # remains available for hard audits via argument or environment variable.
+        selected = str(mode or os.environ.get("HELIX_RETRIEVAL_SIGNATURE_ENFORCEMENT", "warn")).lower()
         if selected not in SIGNATURE_ENFORCEMENT_MODES:
             raise ValueError(f"unsupported signature_enforcement: {selected}")
         return selected
@@ -805,13 +1316,25 @@ class MemoryCatalog:
         parent_hash: str | None,
         signer_id: str,
         llm_call_id: str | None,
+        lineage: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
+        lineage_payload = dict(lineage or {})
         return {
             "node_hash": str(node_hash),
             "parent_hash": parent_hash,
             "memory_id": item.memory_id,
             "project": item.project,
             "agent_id": item.agent_id,
+            "session_id": item.session_id,
+            "thread_id": item.session_id,
+            "record_kind": str(lineage_payload.get("record_kind") or "memory"),
+            "previous_head": lineage_payload.get("previous_head"),
+            "candidate_head": lineage_payload.get("candidate_head") or str(node_hash),
+            "canonical": bool(lineage_payload.get("canonical", True)),
+            "quarantined": bool(lineage_payload.get("quarantined", False)),
+            "canonical_seq": int(lineage_payload.get("canonical_seq") or 0),
+            "equivocation_id": lineage_payload.get("equivocation_id"),
+            "checkpoint_hash": lineage_payload.get("checkpoint_hash"),
             "llm_call_id": llm_call_id,
             "issued_at_utc": _utc_now(),
             "signer_id": signer_id,
@@ -825,8 +1348,9 @@ class MemoryCatalog:
         node_hash: str,
         parent_hash: str | None,
         llm_call_id: str | None,
+        lineage: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
-        mode = os.environ.get("HELIX_RECEIPT_SIGNING_MODE", "off").lower()
+        mode = os.environ.get("HELIX_RECEIPT_SIGNING_MODE", "local_self_signed").lower()
         signer_id = os.environ.get("HELIX_RECEIPT_SIGNER_ID") or item.agent_id
         payload = self._receipt_payload(
             item=item,
@@ -834,6 +1358,7 @@ class MemoryCatalog:
             parent_hash=parent_hash,
             signer_id=signer_id,
             llm_call_id=llm_call_id,
+            lineage=lineage,
         )
         if mode in {"", "0", "false", "off", "unsigned_legacy"}:
             return attach_verification(unsigned_legacy_receipt(payload))
@@ -846,6 +1371,8 @@ class MemoryCatalog:
             if not evidence_digest:
                 raise RuntimeError("sigstore_rekor signing requires HELIX_SIGSTORE_REKOR_BUNDLE_DIGEST")
             attestation = {"provider": "sigstore_rekor", "evidence_digest": evidence_digest, "verified": True}
+        if mode in {"local_self_signed", "sigstore_rekor"}:
+            return self._sign_with_local_key_unlocked(payload, signer_id=signer_id, attestation=attestation)
         seed = os.environ.get("HELIX_RECEIPT_SIGNING_SEED") or f"{self.db_path}:{item.memory_id}:{node_hash}"
         keys = derive_ephemeral_keypair(seed)
         return attach_verification(
@@ -870,18 +1397,35 @@ class MemoryCatalog:
                 "memory_id": memory_id,
                 "project": payload.get("project"),
                 "agent_id": payload.get("agent_id"),
+                "session_id": payload.get("session_id"),
+                "thread_id": payload.get("session_id"),
+                "record_kind": "memory",
+                "previous_head": None,
+                "candidate_head": node_hash,
+                "canonical": True,
+                "quarantined": False,
+                "canonical_seq": 0,
+                "equivocation_id": None,
+                "checkpoint_hash": None,
                 "llm_call_id": None,
                 "issued_at_utc": _utc_now(),
                 "signer_id": payload.get("agent_id"),
                 "receipt_payload_version": "helix-memory-receipt-payload-v1",
             }
             receipt = attach_verification(unsigned_legacy_receipt(legacy_payload))
+        else:
+            receipt = attach_verification(dict(receipt))
         payload["node_hash"] = payload.get("node_hash") or self._memory_node_hashes.get(memory_id)
         payload["signed_receipt"] = receipt
         payload["receipt"] = receipt
         payload["signature_verified"] = bool(receipt.get("signature_verified"))
         payload["key_provenance"] = receipt.get("key_provenance")
         payload["attestation_status"] = "verified" if (receipt.get("attestation") or {}).get("verified") else "none"
+        payload["legacy_unsigned"] = receipt.get("receipt_version") == "unsigned_legacy" or not bool(receipt.get("signature_verified"))
+        payload["checkpoint_hash"] = payload.get("checkpoint_hash") or receipt.get("checkpoint_hash")
+        payload = self._attach_lineage(payload, node_hash=payload.get("node_hash"), session_id=payload.get("session_id"))
+        if payload["legacy_unsigned"]:
+            payload["checkpoint_status"] = "missing_legacy" if not payload.get("checkpoint_hash") else "legacy_unsigned"
         return payload
 
     @staticmethod
@@ -984,6 +1528,7 @@ class MemoryCatalog:
         type_filter: set[str],
         exclude_ids: set[str],
         routed: RoutedQuery,
+        include_quarantined: bool,
     ) -> list[dict[str, Any]] | None:
         if self._rust_index is None:
             return None
@@ -1014,6 +1559,8 @@ class MemoryCatalog:
                     continue
                 item = self._memories.get(mem_id)
                 if item is None:
+                    continue
+                if not self._memory_visible_unlocked(mem_id, include_quarantined=include_quarantined):
                     continue
                 if item.project != project:
                     continue
@@ -1056,6 +1603,7 @@ class MemoryCatalog:
         type_filter: set[str],
         exclude_ids: set[str],
         routed: RoutedQuery,
+        include_quarantined: bool,
     ) -> list[dict[str, Any]]:
         now = _now_ms()
         with self._lock:
@@ -1065,6 +1613,8 @@ class MemoryCatalog:
             for mem_id in recent_ids:
                 item = self._memories.get(mem_id)
                 if item is None:
+                    continue
+                if not self._memory_visible_unlocked(mem_id, include_quarantined=include_quarantined):
                     continue
                 if retrieval_scope == "session" and item.session_id != session_filter:
                     continue
@@ -1078,6 +1628,8 @@ class MemoryCatalog:
                     if item.project != project:
                         continue
                     if agent_filter is not None and item.agent_id != agent_filter:
+                        continue
+                    if not self._memory_visible_unlocked(mem_id, include_quarantined=include_quarantined):
                         continue
                     if retrieval_scope == "session" and item.session_id != session_filter:
                         continue
@@ -1129,6 +1681,7 @@ class MemoryCatalog:
         type_filter: set[str],
         exclude_ids: set[str],
         routed: RoutedQuery,
+        include_quarantined: bool,
     ) -> list[dict[str, Any]]:
         """BM25-compatible Python fallback. Ranking matches Rust engine."""
         import math
@@ -1140,6 +1693,8 @@ class MemoryCatalog:
             global_field_counts: dict[str, tuple[dict[str, int], dict[str, int], dict[str, int], int]] = {}
             df: dict[str, int] = {}
             for mem_id, item in self._memories.items():
+                if not self._memory_visible_unlocked(mem_id, include_quarantined=include_quarantined):
+                    continue
                 content_counts: dict[str, int] = {}
                 summary_counts: dict[str, int] = {}
                 tag_counts: dict[str, int] = {}
@@ -1177,6 +1732,8 @@ class MemoryCatalog:
                 if item.project != project:
                     continue
                 if agent_filter is not None and item.agent_id != agent_filter:
+                    continue
+                if not self._memory_visible_unlocked(mem_id, include_quarantined=include_quarantined):
                     continue
                 if retrieval_scope == "session" and item.session_id != session_filter:
                     continue
@@ -1278,6 +1835,309 @@ class MemoryCatalog:
             "backend": "python_dag",
         }
 
+    def session_lineage(
+        self,
+        session_id: str,
+        *,
+        include_quarantined: bool = True,
+        limit: int = 20,
+    ) -> dict[str, Any]:
+        session_key = _safe_scope(session_id, field="session_id")
+        with self._lock:
+            state = dict(self._session_lineage.get(session_key) or {})
+            transitions = [dict(item) for item in self._session_transitions.get(session_key, [])]
+            if not include_quarantined:
+                transitions = [item for item in transitions if not item.get("quarantined")]
+            if limit > 0:
+                transitions = transitions[-int(limit) :]
+            if not state:
+                return {
+                    "status": "not_found",
+                    "session_id": session_key,
+                    "thread_id": session_key,
+                    "canonical_head": None,
+                    "head_seq": 0,
+                    "equivocation_count": 0,
+                    "transition_count": 0,
+                    "transitions": [],
+                }
+            canonical_head = state.get("canonical_head")
+            canonical_transition = dict(self._node_lineage.get(str(canonical_head or "")) or {})
+            return {
+                "status": str(state.get("status") or "active"),
+                "session_id": session_key,
+                "thread_id": session_key,
+                "canonical_head": canonical_head,
+                "head_seq": int(state.get("head_seq") or 0),
+                "equivocation_count": int(state.get("equivocation_count") or 0),
+                "transition_count": int(state.get("transition_count") or 0),
+                "checkpoint_count": int(state.get("checkpoint_count") or len(self._session_checkpoints.get(session_key, []))),
+                "latest_checkpoint_hash": state.get("latest_checkpoint_hash"),
+                "last_transition_ms": state.get("last_transition_ms"),
+                "latest_transition_seq": int(state.get("latest_transition_seq") or 0),
+                "canonical_transition": canonical_transition or None,
+                "transitions": transitions,
+            }
+
+    def head_checkpoint(self, session_id: str) -> dict[str, Any]:
+        session_key = _safe_scope(session_id, field="session_id")
+        with self._lock:
+            checkpoints = [dict(item) for item in self._session_checkpoints.get(session_key, [])]
+            if not checkpoints:
+                return {
+                    "status": "not_found",
+                    "session_id": session_key,
+                    "thread_id": session_key,
+                    "checkpoint_verified": False,
+                    "checkpoint_status": "missing_legacy",
+                }
+            latest = checkpoints[-1]
+            verification = self._verify_checkpoint_unlocked(latest)
+            return {
+                "status": "ok" if verification.get("checkpoint_verified") else "failed",
+                "session_id": session_key,
+                "thread_id": session_key,
+                "checkpoint": latest,
+                "checkpoint_hash": latest.get("checkpoint_hash"),
+                **verification,
+            }
+
+    def _legacy_unsigned_count_unlocked(self, session_key: str) -> int:
+        count = 0
+        for memory_id, item in self._memories.items():
+            if item.session_id != session_key:
+                continue
+            receipt = self._memory_receipts.get(memory_id) or {}
+            if receipt.get("receipt_version") == "unsigned_legacy" or not receipt.get("signature_verified"):
+                count += 1
+        return count
+
+    def _checkpoint_chain_status_unlocked(self, session_key: str) -> dict[str, Any]:
+        checkpoints = [dict(item) for item in self._session_checkpoints.get(session_key, [])]
+        if not checkpoints:
+            return {
+                "checkpoint_chain_verified": False,
+                "checkpoint_count": 0,
+                "latest_checkpoint": None,
+                "checkpoint_error": "missing_legacy",
+            }
+        previous_hash = None
+        for index, checkpoint in enumerate(checkpoints):
+            verification = self._verify_checkpoint_unlocked(checkpoint)
+            if not verification.get("checkpoint_verified"):
+                return {
+                    "checkpoint_chain_verified": False,
+                    "checkpoint_count": len(checkpoints),
+                    "latest_checkpoint": checkpoints[-1],
+                    "checkpoint_error": verification.get("verification_error") or "checkpoint_verification_failed",
+                    "failed_checkpoint_index": index,
+                }
+            if checkpoint.get("previous_checkpoint_hash") != previous_hash:
+                return {
+                    "checkpoint_chain_verified": False,
+                    "checkpoint_count": len(checkpoints),
+                    "latest_checkpoint": checkpoints[-1],
+                    "checkpoint_error": "checkpoint_previous_hash_mismatch",
+                    "failed_checkpoint_index": index,
+                }
+            previous_hash = checkpoint.get("checkpoint_hash")
+        state = self._session_lineage.get(session_key) or {}
+        latest = checkpoints[-1]
+        mismatch_fields = []
+        if latest.get("canonical_head") != state.get("canonical_head"):
+            mismatch_fields.append("canonical_head")
+        if int(latest.get("head_seq") or 0) != int(state.get("head_seq") or 0):
+            mismatch_fields.append("head_seq")
+        if mismatch_fields:
+            return {
+                "checkpoint_chain_verified": False,
+                "checkpoint_count": len(checkpoints),
+                "latest_checkpoint": latest,
+                "checkpoint_error": "latest_checkpoint_state_mismatch",
+                "mismatch_fields": mismatch_fields,
+            }
+        return {
+            "checkpoint_chain_verified": True,
+            "checkpoint_count": len(checkpoints),
+            "latest_checkpoint": latest,
+            "checkpoint_error": None,
+        }
+
+    def verify_session_lineage(self, session_id: str, *, include_quarantined: bool = False) -> dict[str, Any]:
+        session_key = _safe_scope(session_id, field="session_id")
+        with self._lock:
+            state = dict(self._session_lineage.get(session_key) or {})
+            if not state:
+                return {
+                    "status": "not_found",
+                    "trust_status": "not_found",
+                    "session_id": session_key,
+                    "thread_id": session_key,
+                    "checkpoint_verified": False,
+                    "checkpoint_count": 0,
+                    "latest_checkpoint": None,
+                    "legacy_unsigned_count": 0,
+                    "quarantined_count": 0,
+                }
+            canonical_head = str(state.get("canonical_head") or "")
+            canonical_chain = self.verify_chain(canonical_head) if canonical_head else None
+            transitions = [dict(item) for item in self._session_transitions.get(session_key, [])]
+            quarantined = [item for item in transitions if item.get("quarantined")]
+            visible_transitions = transitions if include_quarantined else [item for item in transitions if not item.get("quarantined")]
+            checkpoint_chain = self._checkpoint_chain_status_unlocked(session_key)
+            latest_checkpoint = checkpoint_chain.get("latest_checkpoint")
+            checkpoint_verification = self._verify_checkpoint_unlocked(latest_checkpoint) if latest_checkpoint else {"checkpoint_verified": False}
+            legacy_unsigned_count = self._legacy_unsigned_count_unlocked(session_key)
+            status = "verified"
+            if canonical_chain and canonical_chain.get("status") != "verified":
+                status = "failed"
+            elif latest_checkpoint and not checkpoint_chain.get("checkpoint_chain_verified"):
+                status = "failed"
+            elif quarantined:
+                status = "equivocation_detected"
+            if status == "failed":
+                trust_status = "failed"
+            elif not latest_checkpoint:
+                trust_status = "missing_legacy"
+            elif quarantined:
+                trust_status = "verified_with_quarantine"
+            elif legacy_unsigned_count:
+                trust_status = "verified_with_legacy_warnings"
+            else:
+                trust_status = "verified"
+            return {
+                "status": status,
+                "trust_status": trust_status,
+                "session_id": session_key,
+                "thread_id": session_key,
+                "canonical_head": canonical_head or None,
+                "head_seq": int(state.get("head_seq") or 0),
+                "equivocation_count": int(state.get("equivocation_count") or 0),
+                "transition_count": int(state.get("transition_count") or 0),
+                "quarantined_count": len(quarantined),
+                "checkpoint_verified": bool(checkpoint_verification.get("checkpoint_verified")) and bool(checkpoint_chain.get("checkpoint_chain_verified")),
+                "checkpoint_count": int(checkpoint_chain.get("checkpoint_count") or 0),
+                "latest_checkpoint": latest_checkpoint,
+                "latest_checkpoint_hash": state.get("latest_checkpoint_hash"),
+                "checkpoint_error": checkpoint_chain.get("checkpoint_error") or checkpoint_verification.get("verification_error"),
+                "legacy_unsigned_count": legacy_unsigned_count,
+                "canonical_chain": canonical_chain,
+                "transitions": visible_transitions,
+                "quarantined": quarantined if include_quarantined else [item.get("candidate_head") for item in quarantined],
+                "include_quarantined": include_quarantined,
+            }
+
+    def export_session_proof(
+        self,
+        session_id: str,
+        *,
+        ref: str | None = None,
+        include_quarantined: bool = False,
+    ) -> dict[str, Any]:
+        session_key = _safe_scope(session_id, field="session_id")
+        needle = str(ref or "").strip().lower()
+        with self._lock:
+            state = dict(self._session_lineage.get(session_key) or {})
+            if not state:
+                return {"status": "not_found", "session_id": session_key, "thread_id": session_key}
+            target_node_hash = str(state.get("canonical_head") or "")
+            target_memory_id = None
+            if needle:
+                for memory_id, node_hash in self._memory_node_hashes.items():
+                    if memory_id.lower() == needle or memory_id.lower().startswith(needle) or node_hash.lower() == needle or node_hash.lower().startswith(needle):
+                        item = self._memories.get(memory_id)
+                        if item and item.session_id == session_key:
+                            target_node_hash = node_hash
+                            target_memory_id = memory_id
+                            break
+                else:
+                    if needle in self.dag._nodes:
+                        target_node_hash = needle
+                    else:
+                        for node_hash in self.dag._nodes:
+                            if node_hash.lower().startswith(needle):
+                                target_node_hash = node_hash
+                                break
+                        else:
+                            return {
+                                "status": "not_found",
+                                "session_id": session_key,
+                                "thread_id": session_key,
+                                "ref": ref,
+                            }
+            else:
+                for memory_id, node_hash in self._memory_node_hashes.items():
+                    if node_hash == target_node_hash:
+                        target_memory_id = memory_id
+                        break
+            lineage = self._node_lineage.get(target_node_hash) or {}
+            if target_node_hash and lineage and str(lineage.get("session_id") or "") != session_key:
+                return {
+                    "status": "not_found",
+                    "session_id": session_key,
+                    "thread_id": session_key,
+                    "ref": ref,
+                    "error": "ref_not_in_session",
+                }
+            if lineage.get("quarantined") and not include_quarantined:
+                return {
+                    "status": "quarantined_hidden",
+                    "session_id": session_key,
+                    "thread_id": session_key,
+                    "ref": ref,
+                    "target_node_hash": target_node_hash,
+                    "equivocation_id": lineage.get("equivocation_id"),
+                }
+            chain = self.dag.audit_chain(target_node_hash) if target_node_hash else []
+            dag_chain = [
+                {
+                    "node_hash": node.hash,
+                    "parent_hash": node.parent_hash,
+                    "depth": int(node.depth),
+                    "timestamp": node.timestamp,
+                    "content_sha256": hashlib.sha256(str(node.content).encode("utf-8")).hexdigest(),
+                }
+                for node in chain
+            ]
+            receipt = self._memory_receipts.get(target_memory_id or "") if target_memory_id else None
+            all_transitions = [dict(item) for item in self._session_transitions.get(session_key, [])]
+            quarantined = [item for item in all_transitions if item.get("quarantined")]
+            checkpoint_chain = self._checkpoint_chain_status_unlocked(session_key)
+            chain_status = self.verify_chain(str(state.get("canonical_head") or "")) if state.get("canonical_head") else None
+            proof_status = "verified"
+            if chain_status and chain_status.get("status") != "verified":
+                proof_status = "failed"
+            elif checkpoint_chain.get("latest_checkpoint") and not checkpoint_chain.get("checkpoint_chain_verified"):
+                proof_status = "failed"
+            elif quarantined:
+                proof_status = "equivocation_detected"
+            return {
+                "status": "ok",
+                "session_id": session_key,
+                "thread_id": session_key,
+                "ref": ref,
+                "target_node_hash": target_node_hash or None,
+                "target_memory_id": target_memory_id,
+                "target_receipt": dict(receipt) if isinstance(receipt, dict) else None,
+                "target_lineage": dict(lineage),
+                "dag_chain": dag_chain,
+                "latest_checkpoint": self._session_checkpoints.get(session_key, [])[-1] if self._session_checkpoints.get(session_key) else None,
+                "lineage_verification": {
+                    "status": proof_status,
+                    "trust_status": "failed" if proof_status == "failed" else (
+                        "verified_with_quarantine" if quarantined else (
+                            "missing_legacy" if not checkpoint_chain.get("latest_checkpoint") else "verified"
+                        )
+                    ),
+                    "checkpoint_verified": bool(checkpoint_chain.get("checkpoint_chain_verified")),
+                    "checkpoint_count": int(checkpoint_chain.get("checkpoint_count") or 0),
+                    "legacy_unsigned_count": self._legacy_unsigned_count_unlocked(session_key),
+                    "quarantined_count": len(quarantined),
+                    "include_quarantined": include_quarantined,
+                },
+                "include_quarantined": include_quarantined,
+            }
+
     def gc_tombstone_index(self, node_hash: str) -> dict[str, Any]:
         if self._rust_index is None:
             return {"status": "skipped_no_rust_index", "tombstoned_count": 0}
@@ -1296,6 +2156,7 @@ class MemoryCatalog:
         limit: int = 20,
         exclude_memory_ids: Iterable[str] | None = None,
         retrieval_scope: str = "workspace",
+        include_quarantined: bool = False,
     ) -> list[dict[str, Any]]:
         proj_filter = None if project is None else _safe_scope(project, field="project")
         agent_filter = None if agent_id is None else _safe_scope(agent_id, field="agent_id")
@@ -1309,6 +2170,8 @@ class MemoryCatalog:
                 if proj_filter is not None and item.project != proj_filter:
                     continue
                 if agent_filter is not None and item.agent_id != agent_filter:
+                    continue
+                if not self._memory_visible_unlocked(mem_id, include_quarantined=include_quarantined):
                     continue
                 if selected_scope == "session" and item.session_id != session_filter:
                     continue
@@ -1356,6 +2219,10 @@ class MemoryCatalog:
                         "memory_count": 0,
                         "observation_count": 0,
                         "last_seen_ms": created_ms,
+                        "canonical_head": None,
+                        "head_seq": 0,
+                        "equivocation_count": 0,
+                        "status": "active",
                     },
                 )
                 payload["last_seen_ms"] = max(float(payload.get("last_seen_ms") or 0.0), float(created_ms or 0.0))
@@ -1379,6 +2246,14 @@ class MemoryCatalog:
                 sessions.values(),
                 key=lambda item: (-float(item.get("last_seen_ms") or 0.0), str(item.get("session_id") or "")),
             )
+            for item in ordered:
+                state = self._session_lineage.get(str(item.get("session_id") or ""))
+                if not state:
+                    continue
+                item["canonical_head"] = state.get("canonical_head")
+                item["head_seq"] = int(state.get("head_seq") or 0)
+                item["equivocation_count"] = int(state.get("equivocation_count") or 0)
+                item["status"] = state.get("status") or "active"
             return ordered[: int(limit)]
 
     def graph(
@@ -1389,6 +2264,7 @@ class MemoryCatalog:
         session_id: str | None = None,
         limit: int = 50,
         retrieval_scope: str = "workspace",
+        include_quarantined: bool = False,
     ) -> dict[str, Any]:
         proj_filter = None if project is None else _safe_scope(project, field="project")
         agent_filter = None if agent_id is None else _safe_scope(agent_id, field="agent_id")
@@ -1400,6 +2276,7 @@ class MemoryCatalog:
             for item in self._memories.values():
                 if proj_filter is not None and item.project != proj_filter: continue
                 if agent_filter is not None and item.agent_id != agent_filter: continue
+                if not self._memory_visible_unlocked(item.memory_id, include_quarantined=include_quarantined): continue
                 if selected_scope == "session" and item.session_id != session_filter: continue
                 items.append(item)
                 
@@ -1407,6 +2284,7 @@ class MemoryCatalog:
             for item in self._observations.values():
                 if proj_filter is not None and item["project"] != proj_filter: continue
                 if agent_filter is not None and item["agent_id"] != agent_filter: continue
+                if not self._observation_visible_unlocked(str(item["observation_id"]), include_quarantined=include_quarantined): continue
                 if selected_scope == "session" and item.get("session_id") != session_filter: continue
                 obs.append(item)
                 
@@ -1430,18 +2308,35 @@ class MemoryCatalog:
             for raw in obs:
                 if raw["session_id"]: session_ids.add(raw["session_id"])
             
-            nodes = [{"id": f"session:{sid}", "kind": "session", "label": sid} for sid in sorted(session_ids)]
+            nodes = []
+            for sid in sorted(session_ids):
+                state = dict(self._session_lineage.get(sid) or {})
+                nodes.append(
+                    {
+                        "id": f"session:{sid}",
+                        "kind": "session",
+                        "label": sid,
+                        "canonical_head": state.get("canonical_head"),
+                        "head_seq": int(state.get("head_seq") or 0),
+                        "equivocation_count": int(state.get("equivocation_count") or 0),
+                        "status": state.get("status") or "active",
+                    }
+                )
             for item in items:
+                lineage = self._lineage_for_node_unlocked(self._memory_node_hashes.get(item.memory_id), item.session_id)
                 nodes.append({
                     "id": f"memory:{item.memory_id}", "kind": "memory", "label": item.summary,
                     "memory_type": item.memory_type, "importance": item.importance,
-                    "decay_score": item.decay_score, "agent_id": item.agent_id
+                    "decay_score": item.decay_score, "agent_id": item.agent_id,
+                    **lineage,
                 })
             for raw in obs:
+                lineage = self._lineage_for_node_unlocked(raw.get("node_hash"), raw.get("session_id"))
                 nodes.append({
                     "id": f"observation:{raw['observation_id']}", "kind": "observation", "label": raw["summary"],
                     "observation_type": raw["observation_type"], "importance": raw["importance"],
-                    "agent_id": raw["agent_id"]
+                    "agent_id": raw["agent_id"],
+                    **lineage,
                 })
             
             edges = [{"source": f"session:{ln['session_id']}", "target": f"memory:{ln['memory_id']}", "relation": ln["relation"]} for ln in valid_links]
@@ -1451,7 +2346,11 @@ class MemoryCatalog:
                     
             return {
                 "nodes": nodes, "edges": edges, "node_count": len(nodes), "edge_count": len(edges),
-                "project": project, "agent_id": agent_id, "session_id": session_id, "retrieval_scope": selected_scope
+                "project": project,
+                "agent_id": agent_id,
+                "session_id": session_id,
+                "retrieval_scope": selected_scope,
+                "include_quarantined": include_quarantined,
             }
 
     def build_context(
@@ -1467,6 +2366,7 @@ class MemoryCatalog:
         exclude_memory_ids: Iterable[str] | None = None,
         signature_enforcement: str | None = None,
         retrieval_scope: str = "workspace",
+        include_quarantined: bool = False,
     ) -> dict[str, Any]:
         mode = str(mode or "off")
         if mode not in {"off", "summary", "search"}:
@@ -1484,6 +2384,7 @@ class MemoryCatalog:
                 exclude_memory_ids=exclude_ids,
                 signature_enforcement=signature_enforcement,
                 retrieval_scope=retrieval_scope,
+                include_quarantined=include_quarantined,
             )
         else:
             items = self.list_memories(
@@ -1493,6 +2394,7 @@ class MemoryCatalog:
                 limit=limit,
                 exclude_memory_ids=exclude_ids,
                 retrieval_scope=retrieval_scope,
+                include_quarantined=include_quarantined,
             )
         selected: list[str] = []
         selected_items: list[dict[str, Any]] = []
@@ -1518,6 +2420,9 @@ class MemoryCatalog:
             "excluded_memory_ids": exclude_ids,
             "session_id": session_id,
             "retrieval_scope": _resolve_retrieval_scope(retrieval_scope),
+            "include_quarantined": include_quarantined,
+            "thread_lineage": self.session_lineage(session_id, include_quarantined=include_quarantined, limit=8) if session_id else None,
+            "trust_summary": self.verify_session_lineage(session_id, include_quarantined=include_quarantined) if session_id else None,
         }
 
     def stats(self) -> dict[str, Any]:
@@ -1545,6 +2450,10 @@ class MemoryCatalog:
                 "rust_index_error": self._rust_index_error,
                 "rust_index_stats": rust_stats,
                 "semantic_query_router": dict(self._router_stats),
+                "session_lineage_count": len(self._session_lineage),
+                "session_checkpoint_count": sum(len(items) for items in self._session_checkpoints.values()),
+                "trust_root_path": str(self._trust_root_path),
+                "quarantined_node_count": sum(1 for item in self._node_lineage.values() if item.get("quarantined")),
             }
 
 

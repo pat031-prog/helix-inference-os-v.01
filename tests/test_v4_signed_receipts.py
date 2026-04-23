@@ -14,6 +14,8 @@ from helix_proto.signed_receipts import (
     canonical_payload_sha256,
     derive_ephemeral_keypair,
     enforce_retrieval_signatures,
+    generate_ed25519_keypair,
+    key_id_for_public_key,
     loads_strict_json,
     sign_receipt_payload,
     unsigned_legacy_receipt,
@@ -79,6 +81,22 @@ def test_local_self_signed_is_mechanics_only() -> None:
     verified = verify_signed_receipt(receipt)
     assert verified["signature_verified"] is True
     assert verified["public_claim_eligible"] is False
+
+
+def test_local_key_id_is_stable_for_generated_workspace_key() -> None:
+    keys = generate_ed25519_keypair()
+    key_id = key_id_for_public_key(keys["public_key"])
+    receipt = sign_receipt_payload(
+        {**_payload(), "signing_key_id": key_id},
+        private_key_b64=keys["private_key"],
+        public_key_b64=keys["public_key"],
+        signer_id="workspace-local",
+        key_provenance="local_self_signed",
+    )
+
+    assert key_id.startswith("ed25519-")
+    assert key_id_for_public_key(keys["public_key"]) == key_id
+    assert verify_signed_receipt(receipt)["signature_verified"] is True
 
 
 def test_canonical_payload_rejects_float_and_duplicate_keys() -> None:

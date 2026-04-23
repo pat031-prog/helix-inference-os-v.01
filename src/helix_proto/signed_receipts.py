@@ -129,6 +129,32 @@ def derive_ephemeral_keypair(seed: str) -> dict[str, str]:
     }
 
 
+def generate_ed25519_keypair() -> dict[str, str]:
+    private_key = Ed25519PrivateKey.generate()
+    public_key = private_key.public_key()
+    return {
+        "private_key": b64encode(
+            private_key.private_bytes(
+                encoding=serialization.Encoding.Raw,
+                format=serialization.PrivateFormat.Raw,
+                encryption_algorithm=serialization.NoEncryption(),
+            )
+        ),
+        "public_key": b64encode(
+            public_key.public_bytes(
+                encoding=serialization.Encoding.Raw,
+                format=serialization.PublicFormat.Raw,
+            )
+        ),
+        "key_provenance": "local_self_signed",
+    }
+
+
+def key_id_for_public_key(public_key_b64: str) -> str:
+    digest = hashlib.sha256(b64decode(public_key_b64)).hexdigest()
+    return f"ed25519-{digest[:16]}"
+
+
 def signable_payload(receipt: dict[str, Any]) -> dict[str, Any]:
     return {
         key: value

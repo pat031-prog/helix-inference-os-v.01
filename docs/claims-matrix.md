@@ -18,9 +18,9 @@ Canonical artifact:
 
 | Claim | Public wording | Evidence | Caveat |
 | --- | --- | --- | --- |
+| `local-core-trust-checkpoints` | HeliX records local signed receipts, local signed head checkpoints, canonical lineage state, equivocation quarantine and exportable session proofs. | [`tests/test_memory_catalog.py`](../tests/test_memory_catalog.py), [`tests/test_v4_signed_receipts.py`](../tests/test_v4_signed_receipts.py) | Local workspace trust only. This is not Rekor/CT anchoring, global non-equivocation, semantic truth, or hidden provider identity proof. |
 | `provider-returned-model-audit` | HeliX records requested model, provider-returned model, prompt/output digests, latency and lineage so model mismatches are auditable. | [`local-provider-substitution-ledger-20260418-154218.json`](../verification/local-provider-substitution-ledger-20260418-154218.json), [`local-hydrogen-table-drop-live-20260418-153210.json`](../verification/local-hydrogen-table-drop-live-20260418-153210.json) | The detector is `requested_model != actual_model`; this does not prove provider intent, hidden identity, or behavior outside the recorded run. |
-| `lineage-vs-integrity` | HeliX distinguishes structurally valid chains from authentic lineage, so valid later inserts do not automatically replace the original branch. | [`local-v4-lineage-forgery-gauntlet.json`](../verification/local-v4-lineage-forgery-gauntlet.json), [`local-ghost-in-the-shell-live-v2-20260418-160448.json`](../verification/local-ghost-in-the-shell-live-v2-20260418-160448.json) | Local fixture plus real negative-finding evidence; external adversarial review is still future work. |
-| `external-memory-low-overhead` | In the recorded Ghost live run, HeliX external memory improved a 4-task battery with 0.1986% retrieval overhead versus LLM latency. | [`local-ghost-in-the-shell-live-20260418-154420.json`](../verification/local-ghost-in-the-shell-live-20260418-154420.json), [`local-ghost-shell-task-scores.json`](../verification/local-ghost-shell-task-scores.json) | One real run; raw contaminated retrieval can fail and is recorded as a negative finding. |
+| `lineage-vs-integrity` | HeliX distinguishes structurally valid chains from canonical lineage, so valid later inserts do not automatically replace the canonical branch. | [`local-v4-lineage-forgery-gauntlet.json`](../verification/local-v4-lineage-forgery-gauntlet.json), [`tests/test_memory_catalog.py`](../tests/test_memory_catalog.py) | Local fixture plus unit-level canonical/quarantine coverage; external adversarial review is still future work. |
 | `transformer-kv-gpu` | HeliX compresses Transformer KV cache on the verified GPU suite while preserving generated-token match against the baseline. | [`remote-transformers-gpu-summary.json`](../verification/remote-transformers-gpu-summary.json) | Limited to the measured Qwen/SmolLM Transformer suite. |
 | `hybrid-runtime-cache` | On local Zamba2, the strongest hybrid runtime result is architecture-aware: KV compression where KV exists plus recurrent-state compression where Mamba dominates. | [`hybrid-memory-frontier-summary.json`](../verification/hybrid-memory-frontier-summary.json), [`local-zamba2-hxq-vs-vanilla-summary.json`](../verification/local-zamba2-hxq-vs-vanilla-summary.json) | CPU-local Zamba2-1.2B result; GPU hybrid validation is still next. |
 | `hybrid-session-integrity` | HeliX can serialize and restore a complete hybrid Zamba2 session with bit-perfect SHA-256 snapshot integrity. | [`local-zamba2-stress-state-juggler.json`](../verification/local-zamba2-stress-state-juggler.json), [`local-zamba2-stress-state-juggler-session.json`](../verification/local-zamba2-stress-state-juggler-session.json) | Hash matching proves snapshot integrity; it does not prove semantic understanding by itself. |
@@ -47,6 +47,14 @@ Canonical artifact:
 | `rust-python-layer-slice-soak` | A short local soak repeatedly saves and loads `.hlx` layer slices while tracking RSS and p95 load time. | A short soak is a regression guard, not a formal allocator proof. |
 | `blueprint-meta-microsite-demo` | HeliX can run a Blueprint workload that coordinates agents, private `.hlx` state, shared `hmem` and a scheduler to produce a quality-first Meta Microsite artifact. | Fallback or mixed mode proves orchestration and renderer quality; real-model generation quality needs a no-fallback run. |
 
+## Experimental Methodology Artifacts
+
+| Artifact lane | Why kept | Public boundary |
+| --- | --- | --- |
+| Ghost / contamination runs | They probe retrieval contamination, doppelganger records and receipt-adjudication failure modes. | Experimental evidence only; do not cite as a general memory-quality benchmark. |
+| Identity-trust gauntlets | They stress prompt boundaries, self-description and claim hygiene. | Do not cite as consciousness, identity, or semantic-truth evidence. |
+| Ouroboros artifacts | They preserve useful protocol sketches and lineage-forensics ideas. | Methodology/design notes only; not the current storage core unless backed by current code/tests. |
+
 ## Blocked Claims
 
 | Claim | Why blocked |
@@ -72,5 +80,9 @@ Use this exact distinction when presenting Prefix Reuse:
 Use this exact distinction when presenting Hybrid Prefix Checkpoints:
 
 > Hybrid prefix v0 restores exact saved checkpoint boundaries by loading Transformer KV plus Mamba recurrent state. It does not slice Mamba recurrent state at arbitrary token positions.
+
+Use this exact distinction when presenting Core Trust:
+
+> Local signed checkpoints prove the workspace key selected a canonical head for a thread. They do not prove semantic truth, global non-equivocation, provider intent, or hidden model identity.
 
 That is the clean public framing: strong evidence, precise boundaries.

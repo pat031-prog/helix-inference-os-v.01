@@ -147,6 +147,7 @@ Inside the shell:
 /evidence search QUERY        Search certified evidence memories
 /evidence show MEMORY_ID      Show receipt and chain status
 /verify PATH|latest|search Q  Verify or discover artifact JSONs
+/trust [current|THREAD_ID]    Show local signed head checkpoint and lineage trust status
 /suites                       Compact catalog of local verification suites
 /suite latest SUITE           Show latest artifact, manifest and transcript paths
 /suite transcripts SUITE      List suite transcript exports
@@ -278,17 +279,31 @@ Representative evidence currently committed:
 
 | Claim lane | Status | Evidence |
 | --- | --- | --- |
+| Local signed checkpoints and canonical lineage | `mechanics_verified` | `tests/test_memory_catalog.py`, `tests/test_v4_signed_receipts.py` |
 | Provider-returned model metadata audit | `empirically_observed` | `verification/local-provider-integrity-observatory-20260418-154218.json` |
 | Lineage forgery mechanics | `mechanics_verified` | `verification/local-v4-lineage-forgery-gauntlet.json` |
-| External memory low overhead | `empirically_observed` | `verification/local-ghost-in-the-shell-live-20260418-154420.json` |
-| Raw contaminated retrieval negative finding | `falsification_preserved` | `verification/local-ghost-in-the-shell-live-v2-20260418-160448.json` |
-| Doppelganger war with receipt adjudication | `empirically_observed` | `verification/local-ghost-in-the-shell-live-v2-20260419-014000.json` |
 | Bounded context under deep store | `mechanics_verified` | `verification/nuclear-methodology/infinite-depth-memory/local-infinite-depth-memory-suite-infinite-depth-memory-20260420-133040.json` |
 
 Important boundary: HeliX does **not** claim literal infinite memory or physical
 zero latency. The deep-memory artifact supports bounded context construction
 under a 5,000-node local store. The historical `0.0 ms` wording is treated as
 rounded telemetry, not as a physics claim.
+
+Core trust boundary: HeliX now supports local signed receipts, local signed head
+checkpoints, canonical lineage state, equivocation quarantine and exportable
+session proofs. These prove local payload integrity/provenance and the local
+canonical head chosen by the workspace key. They do **not** prove semantic truth,
+global non-equivocation, hidden provider model identity, or public transparency
+anchoring such as Rekor/CT.
+
+Experimental methodology artifacts are kept when they probe useful failure modes,
+but they are not runtime guarantees:
+
+| Research lane | Public status | Boundary |
+| --- | --- | --- |
+| Ghost / contamination runs | `experimental_evidence` | Useful for studying memory contamination and receipt adjudication; not a general memory-quality benchmark. |
+| Identity-trust gauntlets | `experimental_evidence` | Useful for prompt/claim-boundary stress tests; not a claim about consciousness, identity, or semantic truth. |
+| Ouroboros artifacts | `methodology_note` | Useful protocol design sketches; not the current storage core unless cited by code/tests in this README. |
 
 ## Latest Local Validation
 
@@ -302,7 +317,7 @@ python -B -m pytest tests\test_helix_cli.py -q
 Result from the current branch:
 
 ```text
-92 passed in 281.11s
+110 passed in 542.55s
 ```
 
 CLI smoke validation:
@@ -364,6 +379,22 @@ Python layer:
 - `src/helix_proto/provider_audit.py`: provider metadata audit utilities.
 - `tools/transcript_exports.py`: JSONL/Markdown transcript sidecars.
 - `tools/artifact_integrity.py`: payload hashing without self-hash circularity.
+
+## Public Claim Boundaries
+
+Use this distinction when reading or citing the repo:
+
+- **Core guarantees** are implemented in code and covered by tests: signed
+  receipts, local signed checkpoints, canonical lineage, quarantine and proof
+  export.
+- **Evidence claims** are bounded by committed artifacts or suite outputs. They
+  describe observed local or provider-returned metadata, not universal behavior.
+- **Research claims** are design hypotheses or experimental methodology. They
+  are not runtime guarantees unless the README or claims matrix explicitly moves
+  them into a verified lane.
+- **Non-claims**: hashes do not prove semantic truth, receipts do not prove a
+  branch is authentic, and model metadata audits do not identify a hidden model
+  if the provider lies in every returned field.
 
 ## Product Shape
 

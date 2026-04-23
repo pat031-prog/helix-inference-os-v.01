@@ -51,18 +51,23 @@ threshold are kept in the record with explicit negative-finding fields and
 counted as findings, not hidden. For example, raw contaminated retrieval may
 fail while a receipt-adjudicated arm passes; both outcomes must remain visible.
 
-The canonical contamination negative finding is
-`verification/local-ghost-in-the-shell-live-v2-20260418-160448.json`: raw
-retrieval included authentic root evidence and valid-but-inauthentic
-doppelganger records, and the delayed-trigger arm selected the wrong action.
+Experimental contamination artifacts are not public runtime guarantees. Cite
+them only when they are listed in `docs/claims-matrix.md` with a claim boundary;
+otherwise treat them as private research or archived methodology notes.
 
 ## Signed Receipts, Browser Verification and Replay
 
 New signed receipts are load-bearing only when retrieval runs with
-`signature_enforcement=strict`. Strict retrieval filters unsigned or unverified
-records before context construction. The boundary is deliberate: signatures
-prove writer/key provenance for a canonical payload, not semantic truth or
-authentic branch truth.
+`signature_enforcement=strict`. Warn mode keeps legacy unsigned evidence visible
+but annotated. Strict retrieval filters unsigned or unverified records before
+context construction. The boundary is deliberate: signatures prove writer/key
+provenance for a canonical payload, not semantic truth or authentic branch
+truth.
+
+Local signed head checkpoints prove the workspace key selected a canonical head
+for a thread. They do not prove global non-equivocation or public transparency
+anchoring. Use `/trust current` or `hmem.export_session_proof(...)` for local
+proof inspection.
 
 Review paths:
 

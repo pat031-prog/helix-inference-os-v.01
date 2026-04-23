@@ -150,6 +150,7 @@ verification/local-ghost-shell-conversation-ledger-20260418-*
 verification/local-ghost-shell-task-scores-20260418-*
 verification/local-ghost-v2-*
 verification/local-ghost-v2-doppelganger-war*
+verification/hivemind_metrics.json
 # Runs intermedios hydrogen
 verification/local-hydrogen-table-drop-conversation-ledger-20260418-*
 verification/local-hydrogen-table-drop-live-20260418-*

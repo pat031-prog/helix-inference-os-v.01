@@ -1,0 +1,87 @@
+{
+  "artifact": "local-multi-agent-concurrency-naive-baseline-collapse-v1",
+  "schema_version": 1,
+  "suite_id": "multi-agent-concurrency",
+  "case_id": "naive-baseline-collapse",
+  "run_id": "public-multi-agent-concurrency-20260423",
+  "run_started_utc": "2026-04-23T22:28:41Z",
+  "run_ended_utc": "2026-04-23T22:28:41Z",
+  "status": "completed",
+  "mode": "deterministic",
+  "llm_synthetic_mode": true,
+  "output_scope": "verification/nuclear-methodology/multi-agent-concurrency",
+  "claim_boundary": "This suite supports the bounded claim that HeliX can preserve a local multi-agent stale-parent race as tamper-evident evidence with one canonical head and quarantined non-canonical branches. It does not prove distributed consensus, semantic truth, hidden provider identity, or production multi-node locking.",
+  "claims_allowed": [
+    "Concurrent model work can be wrapped in deterministic evidence records.",
+    "A stale-parent branch can be preserved for forensics while hidden from default context.",
+    "A later strategist can merge branches only by citing recorded hashes."
+  ],
+  "claims_not_allowed": [
+    "This is not a distributed database benchmark.",
+    "This does not prove model outputs are semantically correct.",
+    "This does not prove provider intent or hidden model identity.",
+    "This does not cover compromised local signing keys or adaptive agents mutating HeliX internals."
+  ],
+  "protocol": {
+    "null_hypothesis": "A naive shared memory baseline preserves the same auditability as HeliX.",
+    "alternative_hypothesis": "The naive baseline loses at least one branch or cannot prove branch provenance.",
+    "falseability_condition": "Fail if naive baseline preserves both branch records with parent hashes and quarantine metadata.",
+    "kill_switch": "Abort if the baseline is presented as a HeliX failure instead of a control arm."
+  },
+  "preregistered_path": "verification\\nuclear-methodology\\multi-agent-concurrency\\PREREGISTERED.md",
+  "preregistered_hash": "91452056bcef1f930402c7e5ece10fa757c2fa9dc925db739b2843a5ed0a1a00",
+  "score": {
+    "score": 1.0,
+    "passed": true,
+    "gates": {
+      "naive_loses_at_least_one_branch": true,
+      "naive_has_no_quarantine_record": true,
+      "naive_has_no_canonical_proof": true,
+      "control_arm_is_explicit": true
+    }
+  },
+  "result": {
+    "control": "naive-last-write-wins",
+    "write_count": 2,
+    "visible_history_count": 1,
+    "lost_update_count": 1,
+    "observed_parent": "aca1daba7a3591c4b9a53b56",
+    "final_head": "736a90f3931a8c656b0c287a042f0599bd4f952599ddbb93badbce0fda32a547",
+    "naive_state": {
+      "head": "736a90f3931a8c656b0c287a042f0599bd4f952599ddbb93badbce0fda32a547",
+      "current": {
+        "agent_id": "beta-sonnet-security",
+        "parent": "aca1daba7a3591c4b9a53b56",
+        "content": "beta security signal"
+      },
+      "history": [
+        {
+          "agent_id": "beta-sonnet-security",
+          "parent": "aca1daba7a3591c4b9a53b56",
+          "content": "beta security signal"
+        }
+      ]
+    }
+  },
+  "transcript_exports": {
+    "jsonl_path": "verification\\nuclear-methodology\\multi-agent-concurrency\\naive-baseline-collapse\\multi-agent-concurrency-naive-baseline-collapse-public-multi-agent-concurrency-20260423-transcript.jsonl",
+    "md_path": "verification\\nuclear-methodology\\multi-agent-concurrency\\naive-baseline-collapse\\multi-agent-concurrency-naive-baseline-collapse-public-multi-agent-concurrency-20260423-transcript.md",
+    "event_count": 3
+  },
+  "artifact_path": "verification\\nuclear-methodology\\multi-agent-concurrency\\naive-baseline-collapse\\local-multi-agent-concurrency-naive-baseline-collapse-public-multi-agent-concurrency-20260423.json",
+  "artifact_payload_sha256": "24a11a5ad8f934a18547ae730d7b4f2ac293733a439758b7a025b4a947d7ce01",
+  "artifact_sha256": "24a11a5ad8f934a18547ae730d7b4f2ac293733a439758b7a025b4a947d7ce01",
+  "artifact_hash_kind": "canonical_payload_excluding_integrity",
+  "integrity": {
+    "self_hash_policy": "external_manifest_only",
+    "artifact_payload_sha256": "24a11a5ad8f934a18547ae730d7b4f2ac293733a439758b7a025b4a947d7ce01",
+    "artifact_payload_hash_excludes": [
+      "artifact_sha256",
+      "artifact_payload_sha256",
+      "artifact_hash_kind",
+      "integrity"
+    ],
+    "final_file_sha256_source": "run_manifest",
+    "note": "The run manifest records the final file SHA256. The artifact records a canonical payload hash excluding self-referential integrity fields."
+  }
+}

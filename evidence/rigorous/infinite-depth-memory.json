@@ -1,0 +1,16 @@
+{
+  "artifact": "infinite-depth-memory",
+  "claim": "infinite-depth-memory",
+  "tier": "A",
+  "status": "mechanics_verified",
+  "source_artifact": "verification/nuclear-methodology/infinite-depth-memory/local-infinite-depth-memory-suite-infinite-depth-memory-20260420-133040.json",
+  "sha256": "6e3e148355746002637002360b4b94c1bfc02c0f5f48596f095ba3ed535b7aae",
+  "bytes": 8494,
+  "supplementary_evidence": [
+    "tests/test_infinite_depth_memory_suite.py"
+  ],
+  "falsifier": "Bounded retrieval or context construction no longer holds under the documented depth/budget settings.",
+  "threat_model_scope": "Bounded-context mechanics only. Not literal infinite memory and not a universal latency claim.",
+  "public_note": "Public anchor for the deep-store lane: HeliX demonstrates bounded context construction under a deep memory store.",
+  "claim_boundary": "Defensible result is bounded context construction under deep stores, not literal infinite memory or literal zero-millisecond latency."
+}

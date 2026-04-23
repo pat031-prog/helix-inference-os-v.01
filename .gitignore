@@ -161,6 +161,7 @@ verification/provider-substitution-longitudinal/
 
 # Local pytest/temp sandboxes with Windows ACL churn.
 verification/**/_pytest*/
+verification/**/_work/
 verification/_pytest*/
 verification/cli-sessions/_test/
 _tmp_pytest_smoke/

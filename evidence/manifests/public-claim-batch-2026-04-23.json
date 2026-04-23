@@ -1,0 +1,16 @@
+{
+  "artifact": "public-claim-batch-2026-04-23",
+  "generated_date_utc": "2026-04-23",
+  "status": "observed_snapshot",
+  "claim_boundary": "This manifest records the observed status of the public-claim pytest batch used for the docs-first public evidence reframe.",
+  "command": "python -m pytest -q tests/test_memory_catalog.py tests/test_v4_signed_receipts.py tests/test_v4_lineage_forgery_gauntlet.py tests/test_v4_memory_contamination_triad.py tests/test_provider_integrity_observatory.py tests/test_v4_provider_substitution_longitudinal.py tests/test_infinite_depth_memory_suite.py tests/test_active_memory_ab_trial.py tests/test_cloud_amnesia_derby.py tests/test_ghost_in_the_shell_live.py tests/test_ghost_in_the_shell_live_v2.py tests/test_v4_cross_provider_triangulation.py",
+  "observed_result": "36 passed, 2 failed, 2 skipped in 6.28s",
+  "known_failures": [
+    "tests/test_active_memory_ab_trial.py",
+    "tests/test_cloud_amnesia_derby.py"
+  ],
+  "known_skips": [
+    "tests/test_ghost_in_the_shell_live.py",
+    "tests/test_ghost_in_the_shell_live_v2.py"
+  ]
+}

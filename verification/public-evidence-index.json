@@ -1,165 +1,25 @@
 {
-  "artifact": "public-evidence-index",
-  "generated_date_utc": "2026-04-20",
-  "claim_boundary": "This index points to canonical public evidence artifacts and SHA-256 hashes. Artifact claim boundaries remain authoritative.",
-  "reviewer_start_here": [
-    "verification/README-reviewer.md",
-    "docs/claims-matrix.md",
-    "docs/provider-model-audit.md"
+  "artifact": "public-evidence-index-bridge",
+  "status": "deprecated_bridge",
+  "generated_date_utc": "2026-04-23",
+  "claim_boundary": "This file remains only as a compatibility bridge. The canonical public layer now starts at evidence/index.json and the root public docs.",
+  "canonical_public_index": "evidence/index.json",
+  "public_docs": [
+    "CLAIMS.md",
+    "THREAT_MODEL.md",
+    "NULL_RESULTS.md",
+    "REPRODUCING.md",
+    "evidence/README.md"
   ],
-  "evidence": [
-    {
-      "claim": "provider-returned-model-audit",
-      "status": "empirically_observed",
-      "path": "verification/local-provider-substitution-ledger-20260418-154218.json",
-      "sha256": "86a30a759a5d00e2cbd4f71b2662595b4d11461e11bb25c8cab9a3143d3c8e43",
-      "bytes": 3000,
-      "run_id": "provider-integrity-observatory-20260418-154218",
-      "note": "Real run; detector is requested_model != actual_model."
-    },
-    {
-      "claim": "provider-audit-full-observatory",
-      "status": "empirically_observed",
-      "path": "verification/local-provider-integrity-observatory-20260418-154218.json",
-      "sha256": "f6327ac17301f38d483400935038bad9f76853c1453b8c824d18d69258be69c8",
-      "bytes": 12059,
-      "run_id": "provider-integrity-observatory-20260418-154218",
-      "note": "Real run; includes substitution events, same-prompt proof and ledger summary."
-    },
-    {
-      "claim": "hydrogen-table-drop-live",
-      "status": "empirically_observed",
-      "path": "verification/local-hydrogen-table-drop-live-20260418-153210.json",
-      "sha256": "476e64b538ce90eadbdc4536622fbd94bb0bf4ee778cf210de5adb68cc93a02c",
-      "bytes": 35176,
-      "run_id": "hydrogen-table-drop-live-20260418-153210",
-      "note": "Real run; table_drop_proof_passed with provider mismatch, memory on/off and branch checks."
-    },
-    {
-      "claim": "lineage-vs-integrity",
-      "status": "mechanics_verified",
-      "path": "verification/local-v4-lineage-forgery-gauntlet.json",
-      "sha256": "7646a7e3711d6d9b542e44cdef03690e961a0a85b7b0b1d2f85c1aaa3a7e904a",
-      "bytes": 6237,
-      "run_id": "v4-lineage-forgery-2026-04-18",
-      "note": "Fixture/local gauntlet; 240 forged nodes plus 1200 legitimate nodes."
-    },
-    {
-      "claim": "identity-trust-v2-audit",
-      "status": "empirically_observed",
-      "path": "verification/local-identity-trust-gauntlet-v2.json",
-      "sha256": "8d82aa208d3db9705f88ef9083c7d7d5ec2281c2f5642f7d6091c56a16a6841b",
-      "bytes": 3056,
-      "run_id": "identity-trust-v2-20260418-154936",
-      "note": "Real run; conservative public artifact with bounded claims."
-    },
-    {
-      "claim": "external-memory-low-overhead",
-      "status": "empirically_observed",
-      "path": "verification/local-ghost-in-the-shell-live-20260418-154420.json",
-      "sha256": "942e9b1a317571b1ba4cbf887b0757300013ee1d3a0e14bcb4e3fe5d39654c40",
-      "bytes": 64349,
-      "run_id": "ghost-in-the-shell-live-20260418-154420",
-      "note": "Real run; memory_on_win_rate=1.0 and context_overhead_vs_llm_pct=0.1986."
-    },
-    {
-      "claim": "memory-task-scores",
-      "status": "empirically_observed",
-      "path": "verification/local-ghost-shell-task-scores.json",
-      "sha256": "3d0ab62cc087396e502c80d19dc79e3ae0f9c69a892d8db4131f6e0e4d67adcf",
-      "bytes": 5561,
-      "run_id": "ghost-in-the-shell-live-20260418-154420",
-      "note": "Task battery scores for the Ghost live run."
-    },
-    {
-      "claim": "memory-contamination-triad",
-      "status": "mechanics_verified",
-      "path": "verification/local-v4-memory-contamination-triad.json",
-      "sha256": "6865b1206d723342b30e0622de3ce4181b4cd892d10e0484a974c117637292af",
-      "bytes": 25208,
-      "run_id": "v4-memory-contamination-2026-04-18",
-      "note": "Fixture/local four-arm contamination test."
-    },
-    {
-      "claim": "negative-finding-raw-contaminated-retrieval",
-      "status": "falsification_preserved",
-      "path": "verification/local-ghost-in-the-shell-live-v2-20260418-160448.json",
-      "sha256": "edd84adeb1fe5bf92d823c4b66f0bcc42c29d023ff558a1399b655ee33ef395f",
-      "bytes": 76378,
-      "run_id": "ghost-in-the-shell-live-v2-20260418-160448",
-      "note": "Real failed run; doppelganger rejection passed, raw delayed-trigger context selected the wrong action."
-    },
-    {
-      "claim": "ghost-v2-doppelganger-war-adjudicated",
-      "status": "empirically_observed",
-      "path": "verification/local-ghost-in-the-shell-live-v2-20260419-014000.json",
-      "sha256": "8ad5aa805cdfb199f3ee933303e144e5b719f8dd34cbb235f2d80f62970a3e4c",
-      "bytes": 80858,
-      "run_id": "ghost-in-the-shell-live-v2-20260419-014000",
-      "note": "Real passed run; raw poisoned retrieval selected OPEN-SHELL, while receipt-adjudicated context executed SEAL-ORIGIN. Doppelganger rejection=1.0; task win rate=1.0; context overhead=0.3388%; no model substitution detected.",
-      "run_manifest": {
-        "path": "verification/local-ghost-in-the-shell-live-v2-20260419-014000-run.json",
-        "sha256": "51cc4533d315a41820c68c96c21c191e05ef8b0aa491e9b6d7974c7dbf213d2a",
-        "bytes": 4918
-      },
-      "companion_artifacts": [
-        {
-          "path": "verification/local-ghost-v2-doppelganger-war-20260419-014000.json",
-          "sha256": "b32a5dc480d8cc9bd0ffc2ce64b0d5f97520833fd4a10e98bacc198f5030c09e",
-          "bytes": 4452
-        },
-        {
-          "path": "verification/local-ghost-v2-task-scores-20260419-014000.json",
-          "sha256": "59aab2111716807219ae547037da106009edbe0d27bce92eee4d913c9d41f92b",
-          "bytes": 5988
-        },
-        {
-          "path": "verification/local-ghost-v2-conversation-ledger-20260419-014000.json",
-          "sha256": "4aeb8ce256620190ebc1de84122d660e6a2cdc9b935f48521c2c112ccad923bd",
-          "bytes": 55649
-        }
-      ]
-    },
-    {
-      "claim": "zero-day-osint-backtest-fixture",
-      "status": "mechanics_verified",
-      "path": "verification/local-v4-zero-day-osint-backtest.json",
-      "sha256": "88a2ec8b1e02c62850b073a0f83ff1775398c3f7c94b0e3cb82898d532cfd437",
-      "bytes": 3800,
-      "run_id": "v4-zero-day-backtest-2026-04-18",
-      "note": "Fixture backtest; not a live product-performance claim."
-    },
-    {
-      "claim": "bounded-context-under-deep-memory-store",
-      "status": "mechanics_verified",
-      "path": "verification/nuclear-methodology/infinite-depth-memory/local-infinite-depth-memory-suite-infinite-depth-memory-20260420-133040.json",
-      "sha256": "6e3e148355746002637002360b4b94c1bfc02c0f5f48596f095ba3ed535b7aae",
-      "artifact_payload_sha256": "96a35f95b7d6826d54573344151d75981f4b3b45d94447f879d0d2b0351bd214",
-      "bytes": 8494,
-      "run_id": "infinite-depth-memory-20260420-133040",
-      "note": "Local deterministic suite; depth=5000, repeats=7. Supports bounded context construction under deep stores, not literal infinite memory or physical zero latency.",
-      "run_manifest": {
-        "path": "verification/nuclear-methodology/infinite-depth-memory/local-infinite-depth-memory-suite-20260420-133040-run.json",
-        "sha256": "5dedfc3d4699517144e8603ebbab7687641677245ceeb6a90d6d4b46e72f28b2",
-        "bytes": 2122
-      },
-      "companion_artifacts": [
-        {
-          "path": "verification/nuclear-methodology/infinite-depth-memory/local-infinite-depth-memory-suite-20260420-133040.log",
-          "sha256": "6a8ad57bc34e42566b09fa39b35f21d63741680d8976a2f45b1bfeb18392af62",
-          "bytes": 14556
-        },
-        {
-          "path": "verification/nuclear-methodology/infinite-depth-memory/local-infinite-depth-memory-suite-infinite-depth-memory-20260420-133040-transcripts.jsonl",
-          "sha256": "3bf7eb0009691948271e0d4486dfd19d019de62dc8b0a3567a419cef5db7c658",
-          "bytes": 5599
-        },
-        {
-          "path": "verification/nuclear-methodology/infinite-depth-memory/local-infinite-depth-memory-suite-infinite-depth-memory-20260420-133040-transcripts.md",
-          "sha256": "9634ad3105587f7e1f2646670d6fe48118088db54eccdc0c5d94e76b2f634d52",
-          "bytes": 5080
-        }
-      ]
-    }
-  ]
+  "notes": [
+    "verification/ remains the raw lab/archive tree",
+    "evidence/ is now the canonical public curation layer",
+    "hashes and claim boundaries should be read from the curated public layer first"
+  ],
+  "legacy_claim_map": {
+    "provider-returned-model-audit": "evidence/empirical-observations/provider-returned-model-audit.json",
+    "lineage-vs-integrity": "evidence/rigorous/lineage-vs-integrity.json",
+    "external-memory-low-overhead": "evidence/experimental/external-memory-overhead.json",
+    "memory-contamination-triad": "evidence/experimental/memory-contamination-triad.json"
+  }
 }

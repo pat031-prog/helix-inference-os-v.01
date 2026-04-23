@@ -89,7 +89,9 @@ def test_doctor_report_lists_registered_suite_scripts() -> None:
     suites = {item["suite_id"]: item for item in report["suites"]}
     assert "policy-rag-legal-debate" in suites
     assert "branch-pruning-forensics" in suites
+    assert "multi-agent-concurrency" in suites
     assert suites["policy-rag-legal-debate"]["script_exists"] is True
+    assert suites["multi-agent-concurrency"]["script_exists"] is True
 
 
 def test_cert_dry_run_adds_deepinfra_flag_for_optional_cloud_suite() -> None:
@@ -105,6 +107,22 @@ def test_cert_dry_run_adds_deepinfra_flag_for_optional_cloud_suite() -> None:
     assert report["dry_run"] is True
     assert "--use-deepinfra" in command
     assert "--tokens" in command
+    assert "64" in command
+
+
+def test_cert_dry_run_adds_deepinfra_flag_for_multi_agent_concurrency_suite() -> None:
+    report = helix_cli.run_cert_suite(
+        "multi-agent-concurrency",
+        python_executable="python",
+        provider_name="deepinfra",
+        prompt_token=False,
+        dry_run=True,
+        extra_args=["--max-tokens", "64"],
+    )
+    command = report["command"]
+    assert report["dry_run"] is True
+    assert "--use-deepinfra" in command
+    assert "--max-tokens" in command
     assert "64" in command
 
 

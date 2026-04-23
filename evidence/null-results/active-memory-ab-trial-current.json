@@ -1,0 +1,16 @@
+{
+  "artifact": "active-memory-ab-trial-current",
+  "claim": "active-memory-ab-current-local",
+  "tier": "D",
+  "status": "failed_current_local",
+  "source_artifact": "verification/local-active-memory-ab-trial.json",
+  "sha256": "1dd9858d06079ac20ba5fd5410996312cd8ff36f9b7f31e63d2d99134f8404a8",
+  "bytes": 5958,
+  "supplementary_evidence": [
+    "tests/test_active_memory_ab_trial.py"
+  ],
+  "falsifier": "The lane becomes green again with non-zero context_hit_count across the seeded trials and a passing current local suite.",
+  "threat_model_scope": "Current local regression lane; historical artifacts do not override current failed suite behavior.",
+  "public_note": "Preserved as a visible null result. The current local suite fails because context_hit_count stays at zero in the seeded trial set.",
+  "claim_boundary": "Do not cite this lane as an active positive memory claim until the current local suite is green."
+}

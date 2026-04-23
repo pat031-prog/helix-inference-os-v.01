@@ -1,0 +1,18 @@
+{
+  "artifact": "multi-agent-concurrency",
+  "claim": "multi-agent-concurrency",
+  "tier": "B",
+  "status": "bounded_methodology_verified",
+  "source_artifact": "verification/nuclear-methodology/multi-agent-concurrency/local-multi-agent-concurrency-suite-public-multi-agent-concurrency-20260423.json",
+  "sha256": "ac239d66f6fcbeafa227954ecd99ace73cf3ce56719886d7eb74e61e95a6073a",
+  "bytes": 4913,
+  "supplementary_evidence": [
+    "verification/nuclear-methodology/multi-agent-concurrency/PREREGISTERED.md",
+    "tests/test_multi_agent_concurrency_suite.py",
+    "tools/run_multi_agent_concurrency_suite_v1.py"
+  ],
+  "falsifier": "A stale-parent branch is lost, both branches enter default context, the canonical head is overwritten by stale lineage, or Gamma merges without citing both branch hashes.",
+  "threat_model_scope": "Local single-workspace stale-parent race methodology only; not distributed consensus, semantic truth, hidden provider identity, or production multi-node locking.",
+  "public_note": "Bounded methodology lane showing that concurrent agent work can be preserved as deterministic evidence with one canonical head and quarantined non-canonical branches.",
+  "claim_boundary": "This supports a local methodology claim about preserving concurrent stale-parent races as evidence. It does not prove distributed multi-writer correctness or universal agent orchestration guarantees."
+}

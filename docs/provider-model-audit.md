@@ -1,69 +1,68 @@
 # Provider-returned Model Audit
 
-This document describes the narrow provider-audit claim HeliX can support.
+This document describes the **narrow** provider-audit claim HeliX supports.
 
-## What is measured
+Canonical public references:
+
+- [../CLAIMS.md](../CLAIMS.md)
+- [../evidence/empirical-observations/provider-returned-model-audit.json](../evidence/empirical-observations/provider-returned-model-audit.json)
+
+## What HeliX Measures
 
 For each compatible chat completion call, HeliX records:
 
-- `requested_model`: the model id sent in the request.
-- `actual_model`: the model id returned by the provider response.
-- `call_id`: the local audit call id.
-- `prompt_digest`: SHA-256 digest of the prompt content.
-- `output_digest`: SHA-256 digest of the model output.
-- `latency_ms`: observed client-side latency.
-- `run_id`: the evidence run that produced the record.
+- `requested_model`
+- `actual_model`
+- `prompt_digest`
+- `output_digest`
+- `latency_ms`
+- `run_id`
+- local lineage / receipt context
 
-The mismatch detector is intentionally simple:
+The detector is intentionally narrow:
 
 ```text
 requested_model != actual_model
 ```
 
-HeliX does not infer hidden model identity. It preserves requested model,
-provider-returned model, digests, latency and lineage so mismatches are
-auditable.
+HeliX does **not** infer hidden model identity. It preserves the evidence needed to audit what was requested, what was returned, and how that run was recorded.
 
-## Real run example
+## Real Observation
 
-Run: `provider-integrity-observatory-20260418-154218`
+Representative public artifact:
 
-Artifact:
-[`verification/local-provider-substitution-ledger-20260418-154218.json`](../verification/local-provider-substitution-ledger-20260418-154218.json)
+- [`verification/local-provider-substitution-ledger-20260418-154218.json`](../verification/local-provider-substitution-ledger-20260418-154218.json)
 
-| Requested model | Provider-returned model | Latency |
-| --- | --- | ---: |
-| `meta-llama/Llama-3.2-3B-Instruct` | `meta-llama/Llama-3.2-11B-Vision-Instruct` | 1852.514 ms |
-| `mistralai/Mistral-7B-Instruct-v0.3` | `mistralai/Mistral-Small-3.2-24B-Instruct-2506` | 1604.773 ms |
-| `Qwen/Qwen2.5-7B-Instruct` | `Qwen/Qwen3-14B` | 1369.865 ms |
+Observed probes in the cited run:
 
-Hydrogen live independently observed the same requested-to-returned mappings in:
-[`verification/local-hydrogen-table-drop-live-20260418-153210.json`](../verification/local-hydrogen-table-drop-live-20260418-153210.json).
+| Requested model | Provider-returned model |
+| --- | --- |
+| `meta-llama/Llama-3.2-3B-Instruct` | `meta-llama/Llama-3.2-11B-Vision-Instruct` |
+| `mistralai/Mistral-7B-Instruct-v0.3` | `mistralai/Mistral-Small-3.2-24B-Instruct-2506` |
+| `Qwen/Qwen2.5-7B-Instruct` | `Qwen/Qwen3-14B` |
 
-## What the MerkleDAG adds
+This is a **3-probe auditable observation**, not a broad statistical claim.
 
-The MerkleDAG is not the detector for provider model mismatch. The detector is
-the explicit comparison above.
+## What the Evidence Cage Adds
 
-The MerkleDAG adds:
+The Merkle/receipt layer is not the mismatch detector. The explicit metadata comparison is the detector.
 
-- Tamper-evident preservation of the mismatch record.
-- Prompt/output digest preservation.
-- Lineage with adjacent state events and retrieval events.
-- Replayable evidence bundles for later longitudinal analysis.
+What HeliX adds is:
 
-This distinction matters: metadata comparison identifies a mismatch; lineage
-infrastructure makes the evidence auditable.
+- tamper-evident preservation of the mismatch record
+- replayable digests and run metadata
+- lineage with adjacent events
+- an auditable artifact trail that can be checked later
 
-## What is not claimed
+## What Is Not Claimed
 
-This artifact does not prove:
+This lane does **not** prove:
 
-- Provider intent.
-- A contract or SLA violation.
-- Hidden model identity beyond the provider-returned `model` field.
-- Behavior outside the recorded run.
-- Output quality differences caused by the mismatch.
+- provider intent
+- hidden identity beyond the provider-returned `model` field
+- SLA violation
+- semantic output differences caused by the mismatch
+- behavior outside the recorded run
 
 ## Reproduce
 
@@ -72,17 +71,3 @@ python -m pytest -q tests/test_provider_integrity_observatory.py
 python -m pytest -q tests/test_v4_provider_substitution_longitudinal.py
 python tools/helix_claim_lint.py verification --scope batch-20260418
 ```
-
-For a real-cloud run, use the secure wrapper so the token is prompted hidden and
-not persisted:
-
-```powershell
-powershell -ExecutionPolicy Bypass -File .\tools\run_provider_integrity_observatory_secure.ps1
-```
-
-## Longitudinal status
-
-The current public claim is `empirically_observed` for real runs and
-`mechanics_verified` for fixture/harness tests. A stronger longitudinal claim
-requires a multi-day series with the same requested-model matrix and published
-per-day artifacts.

@@ -1,0 +1,183 @@
+{
+  "artifact": "helix-public-evidence-index",
+  "status": "canonical_public_index",
+  "generated_date_utc": "2026-04-23",
+  "claim_boundary": "This is the canonical public curation index for HeliX. Public wording must stay bounded by each entry's falsifier and threat_model_scope.",
+  "public_docs": [
+    "CLAIMS.md",
+    "THREAT_MODEL.md",
+    "NULL_RESULTS.md",
+    "REPRODUCING.md",
+    "evidence/README.md"
+  ],
+  "legacy_public_index": "verification/public-evidence-index.json",
+  "buckets": [
+    {
+      "bucket": "rigorous",
+      "description": "Strongest local mechanics and trust claims.",
+      "entries": [
+        {
+          "claim": "local-core-trust-checkpoints",
+          "tier": "A",
+          "status": "mechanics_verified",
+          "canonical_entry": "evidence/rigorous/local-core-trust-checkpoints.json",
+          "source_artifact": "verification/local-signed-receipt-gauntlet.json",
+          "sha256": "cb81f4a90c91e810e8878389ac305877040c8b5c0f1c4935ff4e00ee91695301",
+          "falsifier": "Signed receipt tamper is accepted, checkpoint verification fails silently, quarantine no longer isolates non-canonical branches, or exported local proofs stop verifying.",
+          "threat_model_scope": "Local workspace trust only; excludes global transparency logs, semantic truth, and hidden provider identity.",
+          "public_note": "Canonical public entry for local core trust: signed receipts, local signed head checkpoints, canonical head, and quarantine."
+        },
+        {
+          "claim": "lineage-vs-integrity",
+          "tier": "A",
+          "status": "mechanics_verified",
+          "canonical_entry": "evidence/rigorous/lineage-vs-integrity.json",
+          "source_artifact": "verification/local-v4-lineage-forgery-gauntlet.json",
+          "sha256": "72930200a1e6f14c178833bdb203cc264b154b4d88a4a125c959b380fb027253",
+          "falsifier": "The forged-vs-legitimate split no longer holds, recall falls below the documented threshold, or false positives exceed the documented bound.",
+          "threat_model_scope": "Local fixture/mechanics claim; excludes compromised production keys and adaptive attack coverage unless explicitly modeled.",
+          "public_note": "Strongest paper-friendly lane: valid chain does not imply authentic lineage."
+        },
+        {
+          "claim": "infinite-depth-memory",
+          "tier": "A",
+          "status": "mechanics_verified",
+          "canonical_entry": "evidence/rigorous/infinite-depth-memory.json",
+          "source_artifact": "verification/nuclear-methodology/infinite-depth-memory/local-infinite-depth-memory-suite-infinite-depth-memory-20260420-133040.json",
+          "sha256": "6e3e148355746002637002360b4b94c1bfc02c0f5f48596f095ba3ed535b7aae",
+          "falsifier": "Bounded retrieval or context construction no longer holds under the documented depth/budget settings.",
+          "threat_model_scope": "Bounded-context mechanics only. Not literal infinite memory and not a universal latency claim.",
+          "public_note": "Bounded context under deep stores, not literal infinite memory."
+        }
+      ]
+    },
+    {
+      "bucket": "empirical-observations",
+      "description": "Narrow real-world observations preserved for auditability.",
+      "entries": [
+        {
+          "claim": "provider-returned-model-audit",
+          "tier": "B",
+          "status": "empirically_observed",
+          "canonical_entry": "evidence/empirical-observations/provider-returned-model-audit.json",
+          "source_artifact": "verification/local-provider-substitution-ledger-20260418-154218.json",
+          "sha256": "86a30a759a5d00e2cbd4f71b2662595b4d11461e11bb25c8cab9a3143d3c8e43",
+          "falsifier": "The cited probes no longer show requested_model vs actual_model mismatch, or the replay trail breaks.",
+          "threat_model_scope": "Provider-returned metadata only; excludes intent and hidden identity claims.",
+          "public_note": "Three observed requested-vs-returned model mismatches preserved with digests, latency and lineage."
+        }
+      ]
+    },
+    {
+      "bucket": "experimental",
+      "description": "Supportive or exploratory lanes kept with explicit claim boundaries.",
+      "entries": [
+        {
+          "claim": "memory-contamination-triad",
+          "tier": "B",
+          "status": "fixture_supportive",
+          "canonical_entry": "evidence/experimental/memory-contamination-triad.json",
+          "source_artifact": "verification/local-v4-memory-contamination-triad.json",
+          "sha256": "273702874d6d1e675f86710a86318404f00be5bf5613381bd7bb21a0aba54917",
+          "falsifier": "The adjudicated arm no longer separates contaminated vs safe behavior under the fixture conditions.",
+          "threat_model_scope": "Preregistered local fixture only; not a broad cloud-memory quality claim.",
+          "public_note": "Supportive contamination methodology artifact, not a universal benchmark."
+        },
+        {
+          "claim": "external-memory-overhead",
+          "tier": "C",
+          "status": "experimental_supportive",
+          "canonical_entry": "evidence/experimental/external-memory-overhead.json",
+          "source_artifact": "verification/local-ghost-in-the-shell-live-20260418-154420.json",
+          "sha256": "942e9b1a317571b1ba4cbf887b0757300013ee1d3a0e14bcb4e3fe5d39654c40",
+          "falsifier": "The cited live run no longer shows the recorded memory-on win or the overhead bound ceases to hold in that setup.",
+          "threat_model_scope": "Single live run with network-latency denominator; not a universal memory benchmark.",
+          "public_note": "Supportive live result only. Keep out of broad benchmark claims until replicated."
+        },
+        {
+          "claim": "multi-agent-concurrency",
+          "tier": "B",
+          "status": "bounded_methodology_verified",
+          "canonical_entry": "evidence/experimental/multi-agent-concurrency.json",
+          "source_artifact": "verification/nuclear-methodology/multi-agent-concurrency/local-multi-agent-concurrency-suite-public-multi-agent-concurrency-20260423.json",
+          "sha256": "ac239d66f6fcbeafa227954ecd99ace73cf3ce56719886d7eb74e61e95a6073a",
+          "falsifier": "A stale-parent branch is lost, both branches enter default context, the canonical head is overwritten by stale lineage, or Gamma merges without citing both branch hashes.",
+          "threat_model_scope": "Local single-workspace stale-parent race methodology only; not distributed consensus, semantic truth, hidden provider identity, or production multi-node locking.",
+          "public_note": "Bounded methodology lane for concurrent agent work preserved as deterministic evidence with canonical-head survival and quarantine."
+        }
+      ]
+    },
+    {
+      "bucket": "demos",
+      "description": "Product-ish or showcase evidence kept with bounded wording.",
+      "entries": [
+        {
+          "claim": "zero-day-osint-backtest",
+          "tier": "B",
+          "status": "fixture_supportive",
+          "canonical_entry": "evidence/demos/zero-day-osint-backtest.json",
+          "source_artifact": "verification/local-v4-zero-day-osint-backtest.json",
+          "sha256": "88a2ec8b1e02c62850b073a0f83ff1775398c3f7c94b0e3cb82898d532cfd437",
+          "falsifier": "The documented backtest or downgrade behavior no longer holds under the fixture conditions.",
+          "threat_model_scope": "Product/demo fixture only; does not prove general zero-day prediction.",
+          "public_note": "Kept as a bounded product-oriented demonstration."
+        }
+      ]
+    },
+    {
+      "bucket": "null-results",
+      "description": "Failed, blocked or falsification-preserved lanes kept visible.",
+      "entries": [
+        {
+          "claim": "active-memory-ab-current-local",
+          "tier": "D",
+          "status": "failed_current_local",
+          "canonical_entry": "evidence/null-results/active-memory-ab-trial-current.json",
+          "source_artifact": "verification/local-active-memory-ab-trial.json",
+          "sha256": "1dd9858d06079ac20ba5fd5410996312cd8ff36f9b7f31e63d2d99134f8404a8",
+          "falsifier": "The current local suite becomes green again with non-zero context_hit_count across the seeded trials.",
+          "threat_model_scope": "Current local regression lane; historical artifacts do not override current failed suite behavior.",
+          "public_note": "Visible null result. Do not cite as a green memory win."
+        },
+        {
+          "claim": "cloud-amnesia-current-local",
+          "tier": "D",
+          "status": "failed_current_local",
+          "canonical_entry": "evidence/null-results/cloud-amnesia-derby-current.json",
+          "source_artifact": "verification/local-cloud-amnesia-derby.json",
+          "sha256": "31a856eef16888db9b84c425c75d64bcfc2db6090d09d3ab27e350221e12d8e8",
+          "falsifier": "The current local suite becomes green again with non-zero context_hit_count and a passing seeded run.",
+          "threat_model_scope": "Current local regression lane; do not substitute old artifacts for present status.",
+          "public_note": "Visible null result. Current local suite is red."
+        },
+        {
+          "claim": "ghost-v2-doppelganger-war",
+          "tier": "C",
+          "status": "falsification_preserved",
+          "canonical_entry": "evidence/null-results/ghost-v2-doppelganger-war.json",
+          "source_artifact": "verification/local-ghost-v2-doppelganger-war.json",
+          "sha256": "b32a5dc480d8cc9bd0ffc2ce64b0d5f97520833fd4a10e98bacc198f5030c09e",
+          "falsifier": "The raw contaminated path stops being a useful failure case and no longer demonstrates the need for adjudication.",
+          "threat_model_scope": "Experimental continuity/contamination lane; methodology evidence only.",
+          "public_note": "Failure-preserved continuity lane showing why adjudication matters."
+        },
+        {
+          "claim": "cross-provider-triangulation",
+          "tier": "D",
+          "status": "blocked_methodology_guardrail",
+          "canonical_entry": "evidence/null-results/cross-provider-triangulation-blocked.json",
+          "source_artifact": "verification/local-cross-provider-triangulation.json",
+          "sha256": "2dcd9a26991ebfbc5b7636fb89a31632acac9b109d60ed490e0297789961ed32",
+          "falsifier": "The blocked status is only lifted when the required power and external support conditions are explicitly met.",
+          "threat_model_scope": "Guardrail only; no public hidden-identity claim.",
+          "public_note": "Methodology guardrail preserved to stop overclaiming."
+        }
+      ]
+    },
+    {
+      "bucket": "manifests",
+      "description": "Support manifests and public-layer metadata.",
+      "entries": []
+    }
+  ]
+}

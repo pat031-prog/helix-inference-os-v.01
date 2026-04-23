@@ -1,417 +1,153 @@
 # HeliX Inference OS
 
-**HeliX is an evidence-first agent shell: a deterministic layer for routing
-models, storing certified memory, replaying artifacts, and running verification
-suites.**
+**HeliX wraps stochastic model calls in a deterministic evidence cage.**
 
-HeliX is not a single language model and not just a chat wrapper. It is a
-cryptographic shell around probabilistic models: a CLI, router, memory
-subsystem, audit ledger, Merkle DAG, verification runner, and local evidence
-substrate. The goal is to make agent work inspectable instead of ephemeral:
-prompts, outputs, selected models, provider metadata, memory hits, artifacts,
-transcripts, and verification results become bounded evidence.
+It records and preserves:
 
-The unusual bet is operational: hard anchors preserve exact references through
-long-horizon compression; tombstones and branch pruning keep invalidated memory
-out of prompts; Merkle DAG lineage ties claims back to receipts; and negative
-suite findings remain first-class evidence instead of being polished away.
+- requested model
+- provider-returned model
+- prompt/output digests
+- signed receipts
+- Merkle lineage
+- canonical head
+- replayable artifacts
+- falsifiable claim boundaries
 
-The repo exposes HeliX through three connected surfaces:
+HeliX is not a single model and not just a chat wrapper. It is a local shell, memory substrate, audit ledger, replay system, and verification lab for multi-model agent pipelines.
 
-1. **Interactive shell**: a terminal interface for chat, research, code, local
-   file inspection, memory lookup, evidence lookup, and read-only task loops.
-2. **Certification lab**: repeatable suites that emit artifacts, manifests,
-   logs, transcripts, and explicit claim boundaries.
-3. **Evidence browser/API substrate**: local artifact verification, certified
-   memory search, transcript replay, and integration points for higher-level
-   tools.
+## Start Here
 
-The "Inference OS" name is intentional but bounded: HeliX behaves like an
-OS-like substrate for model routing, memory, receipts, replay, and verification.
-It does not claim kernel isolation, hard scheduling semantics, or universal
-system guarantees.
+- Researchers: [CLAIMS.md](CLAIMS.md), [THREAT_MODEL.md](THREAT_MODEL.md), and the curated public layer under [evidence/](evidence/README.md)
+- Practitioners: [docs/provider-model-audit.md](docs/provider-model-audit.md), [REPRODUCING.md](REPRODUCING.md), and `tools/helix_replay.py`
+- Auditors: [CLAIMS.md](CLAIMS.md), [THREAT_MODEL.md](THREAT_MODEL.md), [NULL_RESULTS.md](NULL_RESULTS.md), and the raw reviewer notes in [verification/README-reviewer.md](verification/README-reviewer.md)
 
-```text
-User / CLI
-  -> HeliX router
-       chooses local/cloud model profile by task type
-  -> model call or local agent loop
-       chat, research, code, audit, legal debate, RAG, tooling
-  -> memory and evidence layer
-       Merkle DAG nodes, signed/hashed receipts, JSONL/MD transcripts
-  -> verifier
-       artifact replay, claim boundaries, manifests, certification suites
-```
+## What HeliX Is
 
-## What Makes HeliX Different
+HeliX is a **deterministic evidence cage around stochastic model calls**:
 
-- **Evidence-first agent shell**: turns chat, research, code, audit, and suite
-  runs into replayable local evidence instead of disposable model turns.
-- **Model-agnostic routing**: routes between DeepInfra, OpenAI-compatible
-  endpoints, Anthropic-compatible profiles, Gemini, Ollama, llama.cpp, and local
-  runtime paths where configured.
-- **Certified memory, not just chat history**: conversation turns and verified
-  artifacts can be ingested into local HeliX memory, searched, and tied back to
-  receipts instead of being treated as loose context.
-- **Merkle DAG lineage**: memory records and evidence artifacts are chained with
-  SHA-256-backed structure so integrity and provenance can be checked after the
-  run.
-- **Hard-anchor lane**: identity-critical references can travel as lightweight
-  anchors instead of lossy summaries, preserving exact IDs/hashes under long
-  horizon compression.
-- **Tombstone and branch-pruning methodology**: invalidated branches are pruned
-  before prompt injection. The model should not need to spend tokens reading old
-  "do not use this" records.
-- **Evidence-first test suites**: suite runs emit JSON artifacts, run manifests,
-  logs, and JSONL/Markdown transcripts. The claim boundary lives with the
-  artifact.
-- **Negative findings preserved**: falsified or bounded results stay in the
-  evidence record instead of being edited into a success story.
-- **Agent shell UX**: interactive terminal with themes, model routing, key
-  storage, evidence search, explicit local file inspection, `/task` mode, agent
-  blueprints, and certification commands.
+- **Core**: signed receipts, hashes, replay, Merkle lineage, canonical head, quarantine
+- **Infra**: memory catalog, state server, concurrent agent writes, bounded retrieval
+- **Audit**: requested vs actual model metadata, artifact replay, claim linting, transcript preservation
+- **Research**: lineage forgery, contamination, multi-agent concurrency, long-horizon checkpoint and infinite-depth memory gauntlets
+- **Product direction**: black-box recorder for AI agents, Git-like memory branching, future visual audit UI
 
-## Current CLI
+What HeliX does **not** claim by default:
 
-Start the interactive shell from the repo root:
+- semantic truth from hashes
+- hidden provider identity beyond returned metadata
+- provider intent
+- global transparency-log guarantees
+- universal memory-quality wins across every benchmark lane
+
+## Canonical Public Evidence
+
+The public entrypoint is now the curated layer under [evidence/](evidence/README.md):
+
+- [evidence/index.json](evidence/index.json)
+- [CLAIMS.md](CLAIMS.md)
+- [THREAT_MODEL.md](THREAT_MODEL.md)
+- [NULL_RESULTS.md](NULL_RESULTS.md)
+- [REPRODUCING.md](REPRODUCING.md)
+
+`verification/` still exists, but it is the **raw lab/archive tree**: historical artifacts, manifests, preregistrations, scratch runs, viewer assets, and suite outputs. Public claims should start from `evidence/`, not from ad hoc files in `verification/`.
+
+## Current Anchor Claims
+
+These are the main public claims HeliX stands behind in this repo state:
+
+1. **Provider-returned model mismatch is auditable**
+   HeliX preserves `requested_model`, `actual_model`, digests, latency, and lineage so metadata mismatches can be replayed and inspected later.
+
+2. **A valid chain does not imply authentic lineage**
+   HeliX distinguishes integrity of an append-only chain from selection of the canonical branch.
+
+3. **Local core trust is verifiable**
+   Signed receipts, local signed head checkpoints, quarantine, and exportable proofs provide local auditability for a workspace thread.
+
+4. **Deep-memory overhead evidence is supportive, not universal**
+   The low-overhead live memory result is kept as experimental/supportive evidence until broader replication and stronger baselines are restored.
+
+Secondary bounded lanes, such as the multi-agent concurrency methodology suite, stay public under `evidence/experimental/` with narrower wording than the anchor claims above.
+
+See [CLAIMS.md](CLAIMS.md) for wording, tiers, falsifiers, and scope boundaries.
+
+## Repo Layers
+
+Read the repo in this order:
+
+1. **Product shell**
+   `helix.cmd`, `src/helix_proto/helix_cli.py`, `src/helix_proto/api.py`
+2. **Deterministic evidence cage**
+   `signed_receipts.py`, `artifact_replay.py`, `evidence_ingest.py`, `verification_hardening.py`, `schemas/`
+3. **Verifiable memory + lineage**
+   `helix_kv/memory_catalog.py`, `helix_kv/merkle_dag.py`, `crates/helix-merkle-dag/`, `crates/helix-state-server/`
+4. **Stochastic model boundary**
+   `provider_audit.py`, `agent.py`, `tools.py`, model/router glue
+5. **Evidence / compliance record**
+   `evidence/`, `verification/`, claim docs, replay tooling
+6. **Research gauntlets**
+   `tests/test_v4_*.py`, suite tests, `tools/run_*_suite_v1.py`, `verification/nuclear-methodology/`
+7. **Future product surface**
+   `crates/helix-watch/`, `verification/viewer/`, future `frontend/` / `web/`
+
+## CLI Quickstart
+
+Run the shell from the repo root:
 
 ```cmd
 helix
 ```
 
-or directly:
+or:
 
 ```cmd
 python -m helix_proto.helix_cli interactive
 ```
 
-Install a launcher into the active Python environment:
+Useful commands:
+
+```text
+/help
+/status
+/model list
+/router why TEXT
+/mode list
+/tech TEXT
+/explore TEXT
+/memory QUERY
+/verify latest
+/trust current
+```
+
+Install the launcher into the current Python environment:
 
 ```cmd
 tools\install_helix_cli.cmd
 ```
 
-The generated launcher sets `PYTHONPATH` to this repo and runs:
+## Replay and Reproduction
 
-```cmd
-python -m helix_proto.helix_cli %*
-```
+Verify an artifact offline:
 
-### First Run
-
-```text
-Provider [deepinfra] (Enter = default):
-Model [auto] (Enter = default):
-[helix] DEEPINFRA_API_TOKEN loaded from HeliX config.
-* session: helix-interactive-...
-* transcript: C:\Users\...\AppData\Local\HeliX\sessions\...
-HeliX >
-```
-
-Tokens are read from environment variables, a hidden prompt, or optional HeliX
-user config. Transcripts redact token values.
-
-Save or remove a provider token:
-
-```cmd
-helix auth save deepinfra
-helix auth forget deepinfra
-```
-
-Inside the shell:
-
-```text
-/key save
-/key forget
-/config
-```
-
-### Useful Interactive Commands
-
-```text
-/help                         Show directives
-/status                       Show provider, model, workspace, transcript paths
-/provider NAME                Switch provider
-/model NAME                   Switch model or alias
-/model list                   List model aliases
-/models                       List model aliases and router blueprints
-/route TEXT                   Explain model auto-routing for a prompt
-/router NAME                  Change routing policy/blueprint
-/theme NAME                   industrial-brutalist, industrial-neon, xerox, brown-console
-/style NAME                   balanced, technical, forensic, vivid, terse
-/raw on|off                   Toggle raw model output after cleaned answer
-/web QUERY                    Search the public web and print raw metadata
-/file PATH                    Inspect a local file or directory under allowed HeliX roots
-/evidence refresh [QUERY]     Verify and ingest artifacts from verification/
-/evidence latest [N]          Show latest certified evidence memories
-/evidence search QUERY        Search certified evidence memories
-/evidence show MEMORY_ID      Show receipt and chain status
-/verify PATH|latest|search Q  Verify or discover artifact JSONs
-/trust [current|THREAD_ID]    Show local signed head checkpoint and lineage trust status
-/suites                       Compact catalog of local verification suites
-/suite latest SUITE           Show latest artifact, manifest and transcript paths
-/suite transcripts SUITE      List suite transcript exports
-/suite search QUERY           Search local suite artifacts/transcripts
-/suite read PATH_OR_NAME      Read a bounded local artifact/transcript excerpt
-/memory QUERY                 Search unified HeliX memory
-/task GOAL                    Run stronger agentic mode
-/agents                       List agentic blueprints
-/agent suggest GOAL           Read-only Codex-like planning mode
-/agent use BLUEPRINT GOAL     Run a specific blueprint, e.g. suite-run-analyst
-/tools                        List tools exposed to the runner
-/apply last                   Apply last proposed patch after confirmation
-/cert SUITE [-- args]         Run a registered certification suite
-/cert-dry SUITE [-- args]     Print suite command without running it
-/exit                         Leave the session
-```
-
-Natural language defaults to chat. Repo/debug/patch prompts route toward
-`/task`; suite/certification prompts route toward `/cert` when recognized.
-Explicit local file or directory paths route through `file.inspect` before the
-model answers, with secret files, credential directories, keys, certs, and local
-token-bearing config blocked.
-
-## Model Router
-
-The default router policy is `balanced`.
-
-| Intent | Default profile | Model ID |
-| --- | --- | --- |
-| chat | `chat` | `mistralai/Mistral-Small-3.2-24B-Instruct-2506` |
-| reasoning | `reasoning` | `google/gemma-4-31B` |
-| research | `qwen-big` | `Qwen/Qwen3.5-122B-A10B` |
-| code | `code` | `Qwen/Qwen3-Coder-480B-A35B-Instruct-Turbo` |
-| agentic | `qwen-big` | `Qwen/Qwen3.5-122B-A10B` |
-| audit/legal/claims | `sonnet` | `anthropic/claude-4-sonnet` |
-| vision | `llama-vision` | `meta-llama/Llama-3.2-11B-Vision-Instruct` |
-
-Other built-in router policies:
-
-- `qwen-heavy`: Qwen-first policy for HeliX self-questions, research, and
-  synthesis, with code/audit escapes.
-- `current`: legacy HeliX behavior before the Qwen/Gemma/Mistral rebalance.
-- `qwen-gemma-mistral`: explicit hybrid stack.
-- `cheap`: lower-cost default path with code/audit escapes.
-- `premium`: stronger engineering and reasoning path.
-
-Inspect routing without making a model call:
-
-```cmd
-helix route "arregla este bug de pytest en el repo" --provider deepinfra
-helix models list
-helix providers list
-```
-
-## Evidence And Memory
-
-HeliX stores two different kinds of history:
-
-1. **Session transcripts**: interactive CLI turns are written as JSONL under the
-   configured HeliX data directory, normally `AppData\Local\HeliX\sessions` on
-   Windows.
-2. **Verified evidence memories**: artifact JSONs under `verification/` can be
-   verified, ingested, searched, and tied back to chain status.
-
-Examples:
-
-```text
-/evidence refresh
-/evidence latest 10
-/evidence search hard-anchor
-/verify latest
-/verify search branch-pruning
-/memory policy rag debate
-```
-
-Offline verification:
-
-```cmd
+```powershell
 python tools\helix_replay.py --mode verify-only --artifact verification\local-v4-lineage-forgery-gauntlet.json
-helix cert verify verification\local-v4-lineage-forgery-gauntlet.json
 ```
 
-## Certification Suites
+Run the public claim lint:
 
-Registered suites can be run through the CLI:
-
-```cmd
-helix cert list
-helix cert run infinite-depth-memory
-helix cert run branch-pruning-forensics --provider deepinfra
-helix cert run policy-rag-legal-debate --provider deepinfra -- --tokens 1200
+```powershell
+python tools\helix_claim_lint.py --public-evidence evidence\index.json --public-docs .
 ```
 
-Direct Windows wrappers are also available:
+See [REPRODUCING.md](REPRODUCING.md) for the current public claim batch and token-required live suites.
 
-```cmd
-tools\run_nuclear_methodology_all.cmd
-tools\run_post_nuclear_methodology_all.cmd
-tools\run_long_horizon_checkpoint_all.cmd
-tools\run_recursive_architectural_integrity_audit_all.cmd
-tools\run_hard_anchor_utility_all.cmd
-tools\run_branch_pruning_forensics_all.cmd
-tools\run_infinite_depth_memory_all.cmd
-tools\run_policy_rag_legal_debate_all.cmd
-```
+## Secondary Research Tracks
 
-Suite outputs normally include:
+HeliX still contains broader and older research lanes, including hybrid memory/runtime-cache work, Zamba local studies, and performance-oriented experiments. They remain in the repo, but they are **not** the primary public identity of HeliX in this pass.
 
-- timestamped suite artifact JSON;
-- per-case artifact JSON;
-- run manifest JSON;
-- evidence log;
-- transcript exports as `.jsonl` and `.md`;
-- `artifact_payload_sha256` for canonical payload hashing;
-- external manifest hash policy when self-hashing would be circular.
+Start those lanes here if you need them:
 
-## Current Bounded Results
-
-The repo intentionally distinguishes product behavior from claim boundaries.
-Claims are only public when a runnable test or committed artifact supports them,
-and negative findings stay in the record.
-Start with:
-
-- [`verification/public-evidence-index.json`](verification/public-evidence-index.json)
-- [`verification/README-reviewer.md`](verification/README-reviewer.md)
-- [`docs/claims-matrix.md`](docs/claims-matrix.md)
-
-Representative evidence currently committed:
-
-| Claim lane | Status | Evidence |
-| --- | --- | --- |
-| Local signed checkpoints and canonical lineage | `mechanics_verified` | `tests/test_memory_catalog.py`, `tests/test_v4_signed_receipts.py` |
-| Provider-returned model metadata audit | `empirically_observed` | `verification/local-provider-integrity-observatory-20260418-154218.json` |
-| Lineage forgery mechanics | `mechanics_verified` | `verification/local-v4-lineage-forgery-gauntlet.json` |
-| Bounded context under deep store | `mechanics_verified` | `verification/nuclear-methodology/infinite-depth-memory/local-infinite-depth-memory-suite-infinite-depth-memory-20260420-133040.json` |
-
-Important boundary: HeliX does **not** claim literal infinite memory or physical
-zero latency. The deep-memory artifact supports bounded context construction
-under a 5,000-node local store. The historical `0.0 ms` wording is treated as
-rounded telemetry, not as a physics claim.
-
-Core trust boundary: HeliX now supports local signed receipts, local signed head
-checkpoints, canonical lineage state, equivocation quarantine and exportable
-session proofs. These prove local payload integrity/provenance and the local
-canonical head chosen by the workspace key. They do **not** prove semantic truth,
-global non-equivocation, hidden provider model identity, or public transparency
-anchoring such as Rekor/CT.
-
-Experimental methodology artifacts are kept when they probe useful failure modes,
-but they are not runtime guarantees:
-
-| Research lane | Public status | Boundary |
-| --- | --- | --- |
-| Ghost / contamination runs | `experimental_evidence` | Useful for studying memory contamination and receipt adjudication; not a general memory-quality benchmark. |
-| Identity-trust gauntlets | `experimental_evidence` | Useful for prompt/claim-boundary stress tests; not a claim about consciousness, identity, or semantic truth. |
-| Ouroboros artifacts | `methodology_note` | Useful protocol design sketches; not the current storage core unless cited by code/tests in this README. |
-
-## Latest Local Validation
-
-The CLI, router, evidence, local file inspection, and agent-shell tests currently
-pass:
-
-```cmd
-python -B -m pytest tests\test_helix_cli.py -q
-```
-
-Result from the current branch:
-
-```text
-110 passed in 542.55s
-```
-
-CLI smoke validation:
-
-```cmd
-python -B -m pytest tests\test_cli_smoke.py -q
-```
-
-Observed local run:
-
-```text
-12 passed, 14 warnings in 28.10s
-```
-
-Focused methodology tests include:
-
-```cmd
-python -m pytest tests\test_infinite_depth_memory_suite.py -q
-python -m pytest tests\test_long_horizon_checkpoint_suite.py -q
-python -m pytest tests\test_hard_anchor_utility_suite.py -q
-python -m pytest tests\test_branch_pruning_forensics_suite.py -q
-python -m pytest tests\test_policy_rag_legal_debate_suite.py -q
-python -m pytest tests\test_architectural_recursion_audit.py -q
-```
-
-Native hard-anchor smoke:
-
-```cmd
-python tests\test_hard_anchors_rust.py
-```
-
-Observed local run:
-
-```text
-Legacy median latency:       73.4322 ms
-Hard anchors median latency: 2.5258 ms
-Speedup:                     29.0728x
-```
-
-Treat this as a local benchmark on one machine, not a universal performance
-claim.
-
-## Architecture
-
-Rust/native layer:
-
-- `crates/helix-merkle-dag`: SHA-256 Merkle DAG and PyO3 bindings.
-- `crates/helix-state-core`: retrieval/indexing primitives.
-- `crates/helix-state-server`: IPC state server for concurrent agent writes.
-- `helix_kv`: Python/Rust bridge and memory catalog integration.
-
-Python layer:
-
-- `src/helix_proto/helix_cli.py`: CLI, router, auth, suites, memory commands.
-- `src/helix_proto/helix_cli_chrome.py`: terminal UI themes and rendering.
-- `src/helix_proto/helix_cli_agent_shell.py`: conservative agent shell loop.
-- `src/helix_proto/evidence_ingest.py`: verified evidence memory ingestion.
-- `src/helix_proto/artifact_replay.py`: offline artifact verification/replay.
-- `src/helix_proto/provider_audit.py`: provider metadata audit utilities.
-- `tools/transcript_exports.py`: JSONL/Markdown transcript sidecars.
-- `tools/artifact_integrity.py`: payload hashing without self-hash circularity.
-
-## Public Claim Boundaries
-
-Use this distinction when reading or citing the repo:
-
-- **Core guarantees** are implemented in code and covered by tests: signed
-  receipts, local signed checkpoints, canonical lineage, quarantine and proof
-  export.
-- **Evidence claims** are bounded by committed artifacts or suite outputs. They
-  describe observed local or provider-returned metadata, not universal behavior.
-- **Research claims** are design hypotheses or experimental methodology. They
-  are not runtime guarantees unless the README or claims matrix explicitly moves
-  them into a verified lane.
-- **Non-claims**: hashes do not prove semantic truth, receipts do not prove a
-  branch is authentic, and model metadata audits do not identify a hidden model
-  if the provider lies in every returned field.
-
-## Product Shape
-
-HeliX is intentionally shaped as three connected surfaces:
-
-1. **Interactive shell**: a Codex/Claude-Code-style terminal for chat, code,
-   research, evidence lookup, and task execution.
-2. **Certification lab**: repeatable methodology suites that produce artifacts,
-   manifests, logs, and transcripts.
-3. **Evidence browser/API substrate**: local artifact verification, memory
-   search, web viewer assets, and OpenAI-compatible integration points.
-
-That triad is the product boundary: shell for operators, certification lab for
-researchers/reviewers, and evidence substrate for audit and trust workflows.
-
-## License
-
-GNU Affero General Public License v3.0 - see [LICENSE](LICENSE).
-
-Copyright (C) 2026 Patricio Valbusa.
+- [docs/claims-matrix.md](docs/claims-matrix.md)
+- [docs/provider-model-audit.md](docs/provider-model-audit.md)
+- [docs/inference-os-architecture.md](docs/inference-os-architecture.md)
+- `verification/` for raw historical artifacts and viewer assets

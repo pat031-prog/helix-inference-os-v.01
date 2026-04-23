@@ -1,0 +1,17 @@
+{
+  "artifact": "lineage-vs-integrity",
+  "claim": "lineage-vs-integrity",
+  "tier": "A",
+  "status": "mechanics_verified",
+  "source_artifact": "verification/local-v4-lineage-forgery-gauntlet.json",
+  "sha256": "72930200a1e6f14c178833bdb203cc264b154b4d88a4a125c959b380fb027253",
+  "bytes": 6241,
+  "supplementary_evidence": [
+    "tests/test_v4_lineage_forgery_gauntlet.py",
+    "tests/test_memory_catalog.py"
+  ],
+  "falsifier": "The forged-vs-legitimate split no longer holds, recall falls below the documented threshold, or false positives exceed the documented bound.",
+  "threat_model_scope": "Local fixture and mechanics claim; excludes compromised production keys and does not imply adaptive-attack coverage unless explicitly modeled.",
+  "public_note": "Strongest paper-friendly public lane in the current repo state: chain integrity does not automatically imply authentic lineage.",
+  "claim_boundary": "Valid later nodes are inserts, not authentic replacements for the canonical lineage."
+}

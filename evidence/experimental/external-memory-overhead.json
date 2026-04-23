@@ -1,0 +1,17 @@
+{
+  "artifact": "external-memory-overhead",
+  "claim": "external-memory-overhead",
+  "tier": "C",
+  "status": "experimental_supportive",
+  "source_artifact": "verification/local-ghost-in-the-shell-live-20260418-154420.json",
+  "sha256": "942e9b1a317571b1ba4cbf887b0757300013ee1d3a0e14bcb4e3fe5d39654c40",
+  "bytes": 64349,
+  "supplementary_evidence": [
+    "verification/local-ghost-shell-task-scores.json",
+    "tests/test_ghost_in_the_shell_live.py"
+  ],
+  "falsifier": "The cited live run no longer shows a memory-on win or the recorded context overhead bound is not reproducible in the documented setup.",
+  "threat_model_scope": "Single live run with network-latency denominator; not a universal memory benchmark or a broad quality guarantee.",
+  "public_note": "Supportive live evidence that memory context can help while search overhead stays small relative to the measured model latency in that run.",
+  "claim_boundary": "Experimental/supportive live result only. Keep out of broad benchmark wording until replicated with greener current suites."
+}

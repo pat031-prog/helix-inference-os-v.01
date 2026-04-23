@@ -1,0 +1,16 @@
+{
+  "artifact": "cross-provider-triangulation-blocked",
+  "claim": "cross-provider-triangulation",
+  "tier": "D",
+  "status": "blocked_methodology_guardrail",
+  "source_artifact": "verification/local-cross-provider-triangulation.json",
+  "sha256": "2dcd9a26991ebfbc5b7636fb89a31632acac9b109d60ed490e0297789961ed32",
+  "bytes": 6577,
+  "supplementary_evidence": [
+    "tests/test_v4_cross_provider_triangulation.py"
+  ],
+  "falsifier": "The blocked status would be lifted only after the required power and external support conditions were met and documented.",
+  "threat_model_scope": "Methodology guardrail only; does not support public claims about hidden model identity.",
+  "public_note": "Kept visible as a guardrail that blocks overclaiming before enough triangulation evidence exists.",
+  "claim_boundary": "Behavioral fingerprints detect observable drift, not hidden ground-truth model identity unless independently verified."
+}

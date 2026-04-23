@@ -1,0 +1,16 @@
+{
+  "artifact": "zero-day-osint-backtest",
+  "claim": "zero-day-osint-backtest",
+  "tier": "B",
+  "status": "fixture_supportive",
+  "source_artifact": "verification/local-v4-zero-day-osint-backtest.json",
+  "sha256": "88a2ec8b1e02c62850b073a0f83ff1775398c3f7c94b0e3cb82898d532cfd437",
+  "bytes": 3800,
+  "supplementary_evidence": [
+    "evidence/product/local-zero-day-osint-oracle.json"
+  ],
+  "falsifier": "The documented fixture backtest or downgrade behavior no longer holds under the recorded control conditions.",
+  "threat_model_scope": "Product/demo fixture only; does not prove zero-day prediction in the general case.",
+  "public_note": "Kept as a bounded product-oriented demonstration, not as a broad forecasting claim.",
+  "claim_boundary": "The artifact explicitly does not prove zero-day prediction."
+}

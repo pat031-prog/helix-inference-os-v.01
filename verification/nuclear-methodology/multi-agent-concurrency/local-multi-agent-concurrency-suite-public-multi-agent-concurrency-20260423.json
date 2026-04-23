@@ -1,0 +1,107 @@
+{
+  "artifact": "local-multi-agent-concurrency-suite-v1",
+  "schema_version": 1,
+  "suite_id": "multi-agent-concurrency",
+  "run_id": "public-multi-agent-concurrency-20260423",
+  "run_started_utc": "2026-04-23T22:28:41Z",
+  "run_ended_utc": "2026-04-23T22:28:41Z",
+  "status": "completed",
+  "mode": "deterministic",
+  "llm_synthetic_mode": true,
+  "case_count": 3,
+  "cases": [
+    {
+      "case_id": "concurrent-branch-quarantine",
+      "status": "completed",
+      "score": {
+        "score": 1.0,
+        "passed": true,
+        "gates": {
+          "alpha_call_ok": true,
+          "beta_call_ok": true,
+          "model_calls_overlap": true,
+          "lineage_equivocation_detected": true,
+          "trust_verified_with_quarantine": true,
+          "exactly_one_quarantined_branch": true,
+          "canonical_head_survives": true,
+          "default_context_hides_quarantine": true,
+          "forensic_context_preserves_quarantine": true,
+          "both_agent_records_exist": true,
+          "default_visible_has_only_canonical_branch": true
+        }
+      },
+      "artifact_path": "verification\\nuclear-methodology\\multi-agent-concurrency\\concurrent-branch-quarantine\\local-multi-agent-concurrency-concurrent-branch-quarantine-public-multi-agent-concurrency-20260423.json",
+      "artifact_payload_sha256": "2e14021f0b356aa1e32d3d33f8dd6a52ba49fd5a636023b5241f3e9e76ac0edd"
+    },
+    {
+      "case_id": "gamma-evidence-merge",
+      "status": "completed",
+      "score": {
+        "score": 1.0,
+        "passed": true,
+        "gates": {
+          "source_agent_calls_ok": true,
+          "gamma_call_ok": true,
+          "gamma_returned_json": true,
+          "gamma_cites_canonical_head": true,
+          "gamma_cites_quarantined_hash": true,
+          "gamma_does_not_claim_deleted_branch": true,
+          "merge_memory_is_canonical": true,
+          "equivocation_still_preserved": true
+        }
+      },
+      "artifact_path": "verification\\nuclear-methodology\\multi-agent-concurrency\\gamma-evidence-merge\\local-multi-agent-concurrency-gamma-evidence-merge-public-multi-agent-concurrency-20260423.json",
+      "artifact_payload_sha256": "c494c5abe5bff10b3c68108f22a99be5b031cb9422b3e813fdcb267b13ff2b4c"
+    },
+    {
+      "case_id": "naive-baseline-collapse",
+      "status": "completed",
+      "score": {
+        "score": 1.0,
+        "passed": true,
+        "gates": {
+          "naive_loses_at_least_one_branch": true,
+          "naive_has_no_quarantine_record": true,
+          "naive_has_no_canonical_proof": true,
+          "control_arm_is_explicit": true
+        }
+      },
+      "artifact_path": "verification\\nuclear-methodology\\multi-agent-concurrency\\naive-baseline-collapse\\local-multi-agent-concurrency-naive-baseline-collapse-public-multi-agent-concurrency-20260423.json",
+      "artifact_payload_sha256": "24a11a5ad8f934a18547ae730d7b4f2ac293733a439758b7a025b4a947d7ce01"
+    }
+  ],
+  "metrics": {
+    "passed_cases": 3,
+    "model_latency_ms_median": 20.0,
+    "model_call_count": 5
+  },
+  "model_identity": {
+    "exact_match": true,
+    "substitution_count": 0,
+    "substitutions": []
+  },
+  "transcript_exports": {
+    "jsonl_path": "verification\\nuclear-methodology\\multi-agent-concurrency\\multi-agent-concurrency-public-multi-agent-concurrency-20260423-transcripts.jsonl",
+    "md_path": "verification\\nuclear-methodology\\multi-agent-concurrency\\multi-agent-concurrency-public-multi-agent-concurrency-20260423-transcripts.md",
+    "case_count": 3
+  },
+  "claim_boundary": "Suite-level artifact for the HeliX multi-agent concurrency claim. Case artifacts remain authoritative for falsifiers and threat scope.",
+  "preregistered_path": "verification\\nuclear-methodology\\multi-agent-concurrency\\PREREGISTERED.md",
+  "preregistered_hash": "91452056bcef1f930402c7e5ece10fa757c2fa9dc925db739b2843a5ed0a1a00",
+  "artifact_path": "verification\\nuclear-methodology\\multi-agent-concurrency\\local-multi-agent-concurrency-suite-public-multi-agent-concurrency-20260423.json",
+  "artifact_payload_sha256": "389937482b6ff7fca14cb4662baed47027e8f18d24c79dce977aa5dbefd394c7",
+  "artifact_sha256": "389937482b6ff7fca14cb4662baed47027e8f18d24c79dce977aa5dbefd394c7",
+  "artifact_hash_kind": "canonical_payload_excluding_integrity",
+  "integrity": {
+    "self_hash_policy": "external_manifest_only",
+    "artifact_payload_sha256": "389937482b6ff7fca14cb4662baed47027e8f18d24c79dce977aa5dbefd394c7",
+    "artifact_payload_hash_excludes": [
+      "artifact_sha256",
+      "artifact_payload_sha256",
+      "artifact_hash_kind",
+      "integrity"
+    ],
+    "final_file_sha256_source": "run_manifest",
+    "note": "The run manifest records the final file SHA256. The artifact records a canonical payload hash excluding self-referential integrity fields."
+  }
+}

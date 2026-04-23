@@ -1,0 +1,16 @@
+{
+  "artifact": "cloud-amnesia-derby-current",
+  "claim": "cloud-amnesia-current-local",
+  "tier": "D",
+  "status": "failed_current_local",
+  "source_artifact": "verification/local-cloud-amnesia-derby.json",
+  "sha256": "31a856eef16888db9b84c425c75d64bcfc2db6090d09d3ab27e350221e12d8e8",
+  "bytes": 17737,
+  "supplementary_evidence": [
+    "tests/test_cloud_amnesia_derby.py"
+  ],
+  "falsifier": "The lane becomes green again with non-zero context_hit_count and a passing current local suite.",
+  "threat_model_scope": "Current local regression lane; historical artifacts do not justify keeping this as a green public claim.",
+  "public_note": "Preserved as a visible failure. The current local suite fails for the same reason as the AB trial: context retrieval is not hitting the seeded memories.",
+  "claim_boundary": "Do not present this as a current verified memory-quality claim."
+}

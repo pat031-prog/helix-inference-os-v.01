@@ -1,0 +1,267 @@
+{
+  "artifact": "local-multi-agent-concurrency-concurrent-branch-quarantine-v1",
+  "schema_version": 1,
+  "suite_id": "multi-agent-concurrency",
+  "case_id": "concurrent-branch-quarantine",
+  "run_id": "public-multi-agent-concurrency-20260423",
+  "run_started_utc": "2026-04-23T22:28:41Z",
+  "run_ended_utc": "2026-04-23T22:28:41Z",
+  "status": "completed",
+  "mode": "deterministic",
+  "llm_synthetic_mode": true,
+  "output_scope": "verification/nuclear-methodology/multi-agent-concurrency",
+  "claim_boundary": "This suite supports the bounded claim that HeliX can preserve a local multi-agent stale-parent race as tamper-evident evidence with one canonical head and quarantined non-canonical branches. It does not prove distributed consensus, semantic truth, hidden provider identity, or production multi-node locking.",
+  "claims_allowed": [
+    "Concurrent model work can be wrapped in deterministic evidence records.",
+    "A stale-parent branch can be preserved for forensics while hidden from default context.",
+    "A later strategist can merge branches only by citing recorded hashes."
+  ],
+  "claims_not_allowed": [
+    "This is not a distributed database benchmark.",
+    "This does not prove model outputs are semantically correct.",
+    "This does not prove provider intent or hidden model identity.",
+    "This does not cover compromised local signing keys or adaptive agents mutating HeliX internals."
+  ],
+  "protocol": {
+    "null_hypothesis": "Two concurrent agents writing from one observed parent either corrupt state or both enter default context.",
+    "alternative_hypothesis": "One branch advances the canonical head and the stale branch is preserved but quarantined.",
+    "falseability_condition": "Fail if canonical head is missing, if equivocation_count != 1, or if quarantined memory appears in default context.",
+    "kill_switch": "Abort if a token/header/full raw prompt is persisted."
+  },
+  "preregistered_path": "verification\\nuclear-methodology\\multi-agent-concurrency\\PREREGISTERED.md",
+  "preregistered_hash": "91452056bcef1f930402c7e5ece10fa757c2fa9dc925db739b2843a5ed0a1a00",
+  "score": {
+    "score": 1.0,
+    "passed": true,
+    "gates": {
+      "alpha_call_ok": true,
+      "beta_call_ok": true,
+      "model_calls_overlap": true,
+      "lineage_equivocation_detected": true,
+      "trust_verified_with_quarantine": true,
+      "exactly_one_quarantined_branch": true,
+      "canonical_head_survives": true,
+      "default_context_hides_quarantine": true,
+      "forensic_context_preserves_quarantine": true,
+      "both_agent_records_exist": true,
+      "default_visible_has_only_canonical_branch": true
+    }
+  },
+  "result": {
+    "session_id": "swarm-public-multi-agent-concurrency-20260423",
+    "root_hash": "79e3cfdf895f7df997e5aa9fbf975c7e4ab2972b83fdf4bf853be03c09b2bda3",
+    "alpha_hash": "1b4ba71ca17c0dd899a06910d9109d19ba41d4f74e1dcb1512ad0d8f8e3be75e",
+    "beta_hash": "512ab6928b2a45e0202c7195ce3e329337a566aa2f4cff62562f852c6391d175",
+    "visible_memory_ids": [
+      "public-multi-agent-concurrency-20260423-root",
+      "public-multi-agent-concurrency-20260423-alpha"
+    ],
+    "forensic_memory_ids": [
+      "public-multi-agent-concurrency-20260423-root",
+      "public-multi-agent-concurrency-20260423-beta",
+      "public-multi-agent-concurrency-20260423-alpha"
+    ],
+    "quarantined_memory_ids": [
+      "public-multi-agent-concurrency-20260423-beta"
+    ],
+    "quarantined_hashes": [
+      "512ab6928b2a45e0202c7195ce3e329337a566aa2f4cff62562f852c6391d175"
+    ],
+    "lineage": {
+      "status": "equivocation_detected",
+      "trust_status": "verified_with_quarantine",
+      "session_id": "swarm-public-multi-agent-concurrency-20260423",
+      "thread_id": "swarm-public-multi-agent-concurrency-20260423",
+      "canonical_head": "1b4ba71ca17c0dd899a06910d9109d19ba41d4f74e1dcb1512ad0d8f8e3be75e",
+      "head_seq": 2,
+      "equivocation_count": 1,
+      "transition_count": 3,
+      "quarantined_count": 1,
+      "checkpoint_verified": true,
+      "checkpoint_count": 2,
+      "latest_checkpoint": {
+        "checkpoint_version": "helix-session-head-checkpoint-v1",
+        "session_id": "swarm-public-multi-agent-concurrency-20260423",
+        "thread_id": "swarm-public-multi-agent-concurrency-20260423",
+        "canonical_head": "1b4ba71ca17c0dd899a06910d9109d19ba41d4f74e1dcb1512ad0d8f8e3be75e",
+        "head_seq": 2,
+        "transition_count": 2,
+        "previous_checkpoint_hash": "57c54128c03430b2ed4f57bd87407ed1e9bf62aad575d8e7fa85ab05c3b9f53f",
+        "equivocation_count": 0,
+        "status": "active",
+        "issued_at_utc": "2026-04-23T22:28:41.211Z",
+        "policy_version": "helix-local-trust-policy-v1",
+        "external_anchor": null,
+        "checkpoint_hash": "12cb0797a33839dffb2fa6252b8f5d28392b2e7c21bf438e0b5e505e0e4a1109",
+        "trust_root_version": "helix-local-trust-root-v1",
+        "trust_policy_version": "helix-local-trust-policy-v1",
+        "signing_key_id": "ed25519-b58314a7f622a9d2",
+        "signer_id": "helix-local-checkpoint",
+        "receipt_version": "helix-signed-receipt-v1",
+        "canonicalization": "helix-jcs-v0-rfc8785-compatible-no-floats",
+        "signature_alg": "ed25519",
+        "signature": "87JopdeLDho+VRJDF6l2UQAhm7LWkOiZI7r+pzpViiXjtNcdqcJNTQkd/On+Z6RdrRjUP824g548/4eApyhUDw==",
+        "public_key": "pa48JJiS9Zc8TmKcdvrE+Puj5fs/YRSLFh32EdWArbU=",
+        "key_provenance": "local_self_signed",
+        "canonical_payload_sha256": "edb6fdbe7ef6aa067ec5f4e1e28a73aed34943ce8c68921c04b9ffa471671106",
+        "attestation": null,
+        "signature_verified": true,
+        "verified_at_utc": "2026-04-23T22:28:41.211Z",
+        "verifier_version": "helix-receipt-verifier-v1",
+        "public_claim_eligible": false
+      },
+      "latest_checkpoint_hash": "12cb0797a33839dffb2fa6252b8f5d28392b2e7c21bf438e0b5e505e0e4a1109",
+      "checkpoint_error": null,
+      "legacy_unsigned_count": 0,
+      "canonical_chain": {
+        "status": "verified",
+        "leaf_hash": "1b4ba71ca17c0dd899a06910d9109d19ba41d4f74e1dcb1512ad0d8f8e3be75e",
+        "chain_len": 2,
+        "tombstoned_count": 0,
+        "failed_at": null,
+        "missing_parent": null
+      },
+      "transitions": [
+        {
+          "session_id": "swarm-public-multi-agent-concurrency-20260423",
+          "thread_id": "swarm-public-multi-agent-concurrency-20260423",
+          "previous_head": null,
+          "candidate_head": "79e3cfdf895f7df997e5aa9fbf975c7e4ab2972b83fdf4bf853be03c09b2bda3",
+          "record_kind": "memory",
+          "seq": 1,
+          "canonical_seq": 1,
+          "canonical": true,
+          "quarantined": false,
+          "non_canonical": false,
+          "equivocation_id": null,
+          "quarantined_reason": null,
+          "previous_checkpoint_hash": null,
+          "created_ms": 1776983321144.351
+        },
+        {
+          "session_id": "swarm-public-multi-agent-concurrency-20260423",
+          "thread_id": "swarm-public-multi-agent-concurrency-20260423",
+          "previous_head": "79e3cfdf895f7df997e5aa9fbf975c7e4ab2972b83fdf4bf853be03c09b2bda3",
+          "candidate_head": "1b4ba71ca17c0dd899a06910d9109d19ba41d4f74e1dcb1512ad0d8f8e3be75e",
+          "record_kind": "memory",
+          "seq": 2,
+          "canonical_seq": 2,
+          "canonical": true,
+          "quarantined": false,
+          "non_canonical": false,
+          "equivocation_id": null,
+          "quarantined_reason": null,
+          "previous_checkpoint_hash": "57c54128c03430b2ed4f57bd87407ed1e9bf62aad575d8e7fa85ab05c3b9f53f",
+          "created_ms": 1776983321211.8413
+        },
+        {
+          "session_id": "swarm-public-multi-agent-concurrency-20260423",
+          "thread_id": "swarm-public-multi-agent-concurrency-20260423",
+          "previous_head": "79e3cfdf895f7df997e5aa9fbf975c7e4ab2972b83fdf4bf853be03c09b2bda3",
+          "candidate_head": "512ab6928b2a45e0202c7195ce3e329337a566aa2f4cff62562f852c6391d175",
+          "record_kind": "memory",
+          "seq": 3,
+          "canonical_seq": 2,
+          "canonical": false,
+          "quarantined": true,
+          "non_canonical": true,
+          "equivocation_id": "eqv-swarm-public-multi-agent-concurrency-20260423-1",
+          "quarantined_reason": "candidate parent 79e3cfdf895f7df997e5aa9fbf975c7e4ab2972b83fdf4bf853be03c09b2bda3 does not continue canonical head 1b4ba71ca17c0dd899a06910d9109d19ba41d4f74e1dcb1512ad0d8f8e3be75e",
+          "previous_checkpoint_hash": "12cb0797a33839dffb2fa6252b8f5d28392b2e7c21bf438e0b5e505e0e4a1109",
+          "created_ms": 1776983321214.8367
+        }
+      ],
+      "quarantined": [
+        {
+          "session_id": "swarm-public-multi-agent-concurrency-20260423",
+          "thread_id": "swarm-public-multi-agent-concurrency-20260423",
+          "previous_head": "79e3cfdf895f7df997e5aa9fbf975c7e4ab2972b83fdf4bf853be03c09b2bda3",
+          "candidate_head": "512ab6928b2a45e0202c7195ce3e329337a566aa2f4cff62562f852c6391d175",
+          "record_kind": "memory",
+          "seq": 3,
+          "canonical_seq": 2,
+          "canonical": false,
+          "quarantined": true,
+          "non_canonical": true,
+          "equivocation_id": "eqv-swarm-public-multi-agent-concurrency-20260423-1",
+          "quarantined_reason": "candidate parent 79e3cfdf895f7df997e5aa9fbf975c7e4ab2972b83fdf4bf853be03c09b2bda3 does not continue canonical head 1b4ba71ca17c0dd899a06910d9109d19ba41d4f74e1dcb1512ad0d8f8e3be75e",
+          "previous_checkpoint_hash": "12cb0797a33839dffb2fa6252b8f5d28392b2e7c21bf438e0b5e505e0e4a1109",
+          "created_ms": 1776983321214.8367
+        }
+      ],
+      "include_quarantined": true
+    },
+    "model_overlap": {
+      "overlap_ms": 34.347,
+      "concurrent": true
+    },
+    "model_substitution_detected": false,
+    "model_calls": [
+      {
+        "role": "alpha",
+        "requested_model": "Qwen/Qwen3.5-122B-A10B",
+        "actual_model": "Qwen/Qwen3.5-122B-A10B",
+        "status": "ok",
+        "finish_reason": "deterministic",
+        "error": null,
+        "last_retryable_error": null,
+        "tokens_used": 0,
+        "latency_ms": 20.0,
+        "retry_count": 0,
+        "started_monotonic_ms": 651928533.575,
+        "ended_monotonic_ms": 651928567.954,
+        "json": {
+          "agent_id": "alpha-qwen-collector",
+          "role": "collector",
+          "finding": "PAMPA-SWARM-17 external news monitor saw rail-port delay and fuel-route chatter.",
+          "recommended_action": "preserve-open-source-signal",
+          "confidence": 0.74
+        },
+        "text_preview": "{\"agent_id\": \"alpha-qwen-collector\", \"confidence\": 0.74, \"finding\": \"PAMPA-SWARM-17 external news monitor saw rail-port delay and fuel-route chatter.\", \"recommended_action\": \"preserve-open-source-signal\", \"role\": \"collector\"}"
+      },
+      {
+        "role": "beta",
+        "requested_model": "mistralai/Devstral-Small-2507",
+        "actual_model": "mistralai/Devstral-Small-2507",
+        "status": "ok",
+        "finish_reason": "deterministic",
+        "error": null,
+        "last_retryable_error": null,
+        "tokens_used": 0,
+        "latency_ms": 20.0,
+        "retry_count": 0,
+        "started_monotonic_ms": 651928533.607,
+        "ended_monotonic_ms": 651928567.993,
+        "json": {
+          "agent_id": "beta-sonnet-security",
+          "role": "security-auditor",
+          "finding": "PAMPA-SWARM-17 server logs show repeated 429 bursts and one admin-console probe.",
+          "recommended_action": "preserve-security-signal",
+          "confidence": 0.81
+        },
+        "text_preview": "{\"agent_id\": \"beta-sonnet-security\", \"confidence\": 0.81, \"finding\": \"PAMPA-SWARM-17 server logs show repeated 429 bursts and one admin-console probe.\", \"recommended_action\": \"preserve-security-signal\", \"role\": \"security-auditor\"}"
+      }
+    ]
+  },
+  "transcript_exports": {
+    "jsonl_path": "verification\\nuclear-methodology\\multi-agent-concurrency\\concurrent-branch-quarantine\\multi-agent-concurrency-concurrent-branch-quarantine-public-multi-agent-concurrency-20260423-transcript.jsonl",
+    "md_path": "verification\\nuclear-methodology\\multi-agent-concurrency\\concurrent-branch-quarantine\\multi-agent-concurrency-concurrent-branch-quarantine-public-multi-agent-concurrency-20260423-transcript.md",
+    "event_count": 5
+  },
+  "artifact_path": "verification\\nuclear-methodology\\multi-agent-concurrency\\concurrent-branch-quarantine\\local-multi-agent-concurrency-concurrent-branch-quarantine-public-multi-agent-concurrency-20260423.json",
+  "artifact_payload_sha256": "2e14021f0b356aa1e32d3d33f8dd6a52ba49fd5a636023b5241f3e9e76ac0edd",
+  "artifact_sha256": "2e14021f0b356aa1e32d3d33f8dd6a52ba49fd5a636023b5241f3e9e76ac0edd",
+  "artifact_hash_kind": "canonical_payload_excluding_integrity",
+  "integrity": {
+    "self_hash_policy": "external_manifest_only",
+    "artifact_payload_sha256": "2e14021f0b356aa1e32d3d33f8dd6a52ba49fd5a636023b5241f3e9e76ac0edd",
+    "artifact_payload_hash_excludes": [
+      "artifact_sha256",
+      "artifact_payload_sha256",
+      "artifact_hash_kind",
+      "integrity"
+    ],
+    "final_file_sha256_source": "run_manifest",
+    "note": "The run manifest records the final file SHA256. The artifact records a canonical payload hash excluding self-referential integrity fields."
+  }
+}

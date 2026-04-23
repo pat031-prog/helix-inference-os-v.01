@@ -1,0 +1,18 @@
+{
+  "artifact": "provider-returned-model-audit",
+  "claim": "provider-returned-model-audit",
+  "tier": "B",
+  "status": "empirically_observed",
+  "source_artifact": "verification/local-provider-substitution-ledger-20260418-154218.json",
+  "sha256": "86a30a759a5d00e2cbd4f71b2662595b4d11461e11bb25c8cab9a3143d3c8e43",
+  "bytes": 3000,
+  "supplementary_evidence": [
+    "verification/local-provider-integrity-observatory-20260418-154218.json",
+    "verification/local-hydrogen-table-drop-live-20260418-153210.json",
+    "docs/provider-model-audit.md"
+  ],
+  "falsifier": "The cited probes no longer show requested_model vs actual_model mismatch, or the returned metadata trail cannot be replayed.",
+  "threat_model_scope": "Provider-returned metadata only; excludes provider intent, hidden identity beyond returned metadata, and behavior outside the recorded runs.",
+  "public_note": "Narrow auditable observation lane: HeliX preserved three requested-vs-returned mismatches with digests, latency and lineage.",
+  "claim_boundary": "The detector is explicit requested_model != actual_model comparison. This is not a proof of provider intent or hidden model identity."
+}

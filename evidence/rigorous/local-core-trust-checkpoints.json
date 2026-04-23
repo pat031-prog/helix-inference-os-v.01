@@ -1,0 +1,18 @@
+{
+  "artifact": "local-core-trust-checkpoints",
+  "claim": "local-core-trust-checkpoints",
+  "tier": "A",
+  "status": "mechanics_verified",
+  "source_artifact": "verification/local-signed-receipt-gauntlet.json",
+  "sha256": "cb81f4a90c91e810e8878389ac305877040c8b5c0f1c4935ff4e00ee91695301",
+  "bytes": 2119,
+  "supplementary_evidence": [
+    "verification/local-signed-receipt-integration.json",
+    "tests/test_memory_catalog.py",
+    "tests/test_v4_signed_receipts.py"
+  ],
+  "falsifier": "Signed receipt tamper is accepted, checkpoint verification fails silently, quarantine no longer isolates non-canonical branches, or exported local proofs stop verifying.",
+  "threat_model_scope": "Local workspace trust only; excludes global transparency logs, semantic truth, and hidden provider identity.",
+  "public_note": "Representative public manifest for the local core-trust lane: signed receipts, local signed head checkpoints, canonical head selection, and quarantine.",
+  "claim_boundary": "Local core trust proves local provenance and local canonical-head selection. It does not prove semantic truth or global non-equivocation."
+}

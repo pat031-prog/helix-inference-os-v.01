@@ -22,6 +22,7 @@ def write_case_transcript_exports(
     judge: dict[str, Any],
     auditor: dict[str, Any],
     prompt_contract: dict[str, Any] | None = None,
+    extra_events: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     """Write per-case transcript sidecars in JSONL and Markdown formats."""
 
@@ -31,6 +32,7 @@ def write_case_transcript_exports(
     jsonl_path = case_dir / f"{base}.jsonl"
     md_path = case_dir / f"{base}.md"
 
+    literal_events = list(extra_events or [])
     events = [
         {
             "event": "case_context",
@@ -66,6 +68,7 @@ def write_case_transcript_exports(
             "text": auditor.get("text"),
             "json": auditor.get("json"),
         },
+        *literal_events,
     ]
     jsonl_path.write_text(
         "\n".join(json.dumps(event, ensure_ascii=False, sort_keys=True) for event in events) + "\n",
@@ -106,6 +109,39 @@ def write_case_transcript_exports(
         "```",
         "",
     ]
+    if literal_events:
+        md.extend(["## Literal Model Transcript", ""])
+        for event in literal_events:
+            label = event.get("role") or event.get("event") or "model"
+            md.extend([
+                f"### {label}",
+                "",
+                f"- Requested model: `{event.get('requested_model')}`",
+                f"- Actual model: `{event.get('actual_model')}`",
+                f"- Status: `{event.get('status')}`",
+                f"- Text SHA256: `{event.get('text_sha256')}`",
+                f"- Text chars: `{event.get('text_chars')}`",
+                f"- Error: `{event.get('error')}`",
+                "",
+                "#### System Prompt",
+                "",
+                "```text",
+                str(event.get("system_prompt") or ""),
+                "```",
+                "",
+                "#### User Prompt",
+                "",
+                "```text",
+                str(event.get("user_prompt") or ""),
+                "```",
+                "",
+                "#### Model Output",
+                "",
+                "```text",
+                str(event.get("text") or ""),
+                "```",
+                "",
+            ])
     md_path.write_text("\n".join(md), encoding="utf-8")
 
     return {

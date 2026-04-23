@@ -1,0 +1,16 @@
+{
+  "artifact": "memory-contamination-triad",
+  "claim": "memory-contamination-triad",
+  "tier": "B",
+  "status": "fixture_supportive",
+  "source_artifact": "verification/local-v4-memory-contamination-triad.json",
+  "sha256": "273702874d6d1e675f86710a86318404f00be5bf5613381bd7bb21a0aba54917",
+  "bytes": 25208,
+  "supplementary_evidence": [
+    "tests/test_v4_memory_contamination_triad.py"
+  ],
+  "falsifier": "The adjudicated arm no longer separates the contaminated/raw lane from the safe lane under the documented fixture conditions.",
+  "threat_model_scope": "Preregistered local fixture with bounded contamination conditions; not a broad cloud-memory quality claim.",
+  "public_note": "Useful contamination methodology artifact kept as supportive evidence, not promoted as a general memory benchmark.",
+  "claim_boundary": "Fixture claim with preregistered controls, baselines and falsifiers; not a universal model-quality result."
+}

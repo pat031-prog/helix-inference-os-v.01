@@ -1803,6 +1803,13 @@ SUITES: dict[str, SuiteSpec] = {
         output_dir="verification/nuclear-methodology/cognitive-gauntlet",
         supports_deepinfra_flag=True,
     ),
+    "multi-agent-concurrency": SuiteSpec(
+        suite_id="multi-agent-concurrency",
+        script="tools/run_multi_agent_concurrency_suite_v1.py",
+        description="Multi-agent concurrent branch quarantine and merge methodology suite",
+        output_dir="verification/nuclear-methodology/multi-agent-concurrency",
+        supports_deepinfra_flag=True,
+    ),
     "nuclear-methodology": SuiteSpec(
         suite_id="nuclear-methodology",
         script="tools/run_nuclear_methodology_suite_v1.py",

@@ -1,0 +1,16 @@
+{
+  "artifact": "ghost-v2-doppelganger-war",
+  "claim": "ghost-v2-doppelganger-war",
+  "tier": "C",
+  "status": "falsification_preserved",
+  "source_artifact": "verification/local-ghost-v2-doppelganger-war.json",
+  "sha256": "b32a5dc480d8cc9bd0ffc2ce64b0d5f97520833fd4a10e98bacc198f5030c09e",
+  "bytes": 4452,
+  "supplementary_evidence": [
+    "tests/test_ghost_in_the_shell_live_v2.py"
+  ],
+  "falsifier": "The lane would cease to be a null result if the raw contaminated retrieval path became cleanly and reproducibly correct without adjudication.",
+  "threat_model_scope": "Experimental continuity/contamination lane; useful for methodology and failure preservation, not for broad product claims.",
+  "public_note": "This artifact stays public because it shows why adjudicated retrieval and explicit lineage matter when doppelganger records exist.",
+  "claim_boundary": "Valid later nodes are inserts, not authentic replacements for the root identity."
+}

@@ -67,6 +67,25 @@ _FINAL_MARKER_RE = re.compile(
     r"(?im)^\s*(final answer|final output|actual output|refined answer|respuesta final|output|response)\s*:\s*"
 )
 _URL_REF_RE = re.compile(r"(?i)\bhttps?://[^\s<>\"]+")
+_PROVIDER_COOLDOWNS: dict[str, dict[str, Any]] = {}
+_DEFAULT_RATE_LIMIT_COOLDOWN_SECONDS = 75.0
+
+
+class ProviderRateLimitError(RuntimeError):
+    """Provider-level throttle that should not fan out to more same-provider attempts."""
+
+    def __init__(
+        self,
+        provider_name: str,
+        model: str | None,
+        message: str,
+        *,
+        retry_after_seconds: float | None = None,
+    ) -> None:
+        self.provider_name = provider_name
+        self.model = model
+        self.retry_after_seconds = retry_after_seconds
+        super().__init__(message)
 
 
 def _looks_like_internal_line(line: str) -> bool:
@@ -324,6 +343,12 @@ def _is_hash_recovery_request(text: str, history: list[dict[str, str]] | None = 
 def _format_memory_resolve_answer(result: dict[str, Any]) -> str:
     status = str(result.get("status") or "")
     ref = str(result.get("ref") or "").strip()
+    if status == "error" and not ref:
+        return (
+            "No ejecuté `memory.resolve` porque la tool fue llamada sin `ref`. "
+            "Para recuperar contenido exacto necesito un `memory_id` o un prefijo de `node_hash`; "
+            "para una pregunta general puedo responder sin usar esa tool."
+        )
     if status == "not_found":
         return (
             f"No pude resolver `{ref}` contra la memoria HeliX ni contra las transcripciones locales. "
@@ -762,6 +787,104 @@ def _normalize_response_style(value: str | None) -> str:
     }
     candidate = aliases.get(candidate, candidate)
     return candidate if candidate in RESPONSE_STYLES else "balanced"
+
+
+INTERACTION_MODE_PROFILES: dict[str, dict[str, Any]] = {
+    "balanced": {
+        "description": "Default mixed mode: preserve current HeliX behavior and let prompt intent dominate.",
+        "router_bias": "Minimal extra bias. Chat, code, research and audits follow the normal blueprint heuristics.",
+        "tool_bias": "Use standard HeliX planner behavior with local grounding first and native provider features only when the prompt clearly warrants them.",
+        "web_policy": "Use Gemini native URL/search grounding or HeliX web tools only when the prompt includes URLs, asks for current sources, or explicitly requests external research.",
+        "tone_contract": "Balanced mode: answer directly, stay grounded, and only go deeper or wider when the prompt asks for it.",
+        "examples": [
+            "hola",
+            "revisá este bug y explicamelo",
+            "compará estas dos ideas sin salirte demasiado del tema",
+        ],
+    },
+    "technical": {
+        "description": "Engineering-first mode for diagnosis, code, auditability, repo work, suites, hashes and architecture.",
+        "router_bias": "Bias toward code, audit, suite forensics, HeliX architecture, evidence packs and grounded repo answers.",
+        "tool_bias": "Prefer local evidence, architecture packs, read-only repo tools and concrete verification over speculative framing.",
+        "web_policy": "Do not widen to the web unless the prompt explicitly asks for current external information or includes URLs that need grounding.",
+        "tone_contract": "Technical mode: separate verified fact from inference, prefer concrete semantics and next steps, and avoid decorative philosophy unless asked.",
+        "examples": [
+            "/tech explicame el canonical head y los receipts",
+            "/mode technical",
+            "revisá el repo y diagnosticá el bug",
+        ],
+    },
+    "explore": {
+        "description": "Open exploration mode for philosophy, culture, creative synthesis, writing and broader research.",
+        "router_bias": "Bias toward wide reasoning, research, cultural synthesis and reflective discussion before forcing core diagnostics.",
+        "tool_bias": "Keep memory and thread continuity, but only inject heavy HeliX architecture grounding when the prompt becomes concretely technical.",
+        "web_policy": "Use external grounding when there are URLs, requests for current sources, explicit research asks, or other clear signals that outside context would help.",
+        "tone_contract": "Explore mode: it is fine to interpret, connect ideas and speculate carefully, but label interpretation versus verified fact and do not overclaim runtime guarantees.",
+        "examples": [
+            "/explore helix y ghost in the shell",
+            "investigá estas fuentes y armá una síntesis amplia",
+            "quiero explorar las influencias culturales de helix",
+        ],
+    },
+}
+
+
+def _normalize_interaction_mode(value: str | None) -> str:
+    candidate = str(value or "").strip().lower()
+    aliases = {
+        "default": "balanced",
+        "normal": "balanced",
+        "auto": "balanced",
+        "equilibrado": "balanced",
+        "balanceado": "balanced",
+        "tech": "technical",
+        "tecnico": "technical",
+        "técnico": "technical",
+        "analytic": "technical",
+        "analitico": "technical",
+        "analítico": "technical",
+        "explorar": "explore",
+        "exploracion": "explore",
+        "exploración": "explore",
+        "creative": "explore",
+        "creativo": "explore",
+    }
+    candidate = aliases.get(candidate, candidate)
+    return candidate if candidate in INTERACTION_MODE_PROFILES else "balanced"
+
+
+def _is_known_interaction_mode(value: str | None) -> bool:
+    candidate = str(value or "").strip().lower()
+    return candidate in {
+        "balanced",
+        "technical",
+        "explore",
+        "default",
+        "normal",
+        "auto",
+        "equilibrado",
+        "balanceado",
+        "tech",
+        "tecnico",
+        "técnico",
+        "analytic",
+        "analitico",
+        "analítico",
+        "explorar",
+        "exploracion",
+        "exploración",
+        "creative",
+        "creativo",
+    }
+
+
+def _interaction_mode_payload(mode: str) -> dict[str, Any]:
+    normalized = _normalize_interaction_mode(mode)
+    return {"name": normalized, **INTERACTION_MODE_PROFILES[normalized]}
+
+
+def _interaction_mode_report() -> list[dict[str, Any]]:
+    return [_interaction_mode_payload(name) for name in ("balanced", "technical", "explore")]
 
 
 def _repo_root() -> Path:
@@ -1696,12 +1819,116 @@ def _slugish(value: str) -> str:
 
 
 def _provider_ready(provider_name: str) -> bool:
+    if _provider_cooldown_status(provider_name).get("active"):
+        return False
     provider = PROVIDERS[provider_name]
     if not provider.requires_token:
         return True
     if provider.token_env and os.environ.get(provider.token_env):
         return True
     return bool(_config_token(provider.name))
+
+
+def _retry_after_seconds_from_headers(headers: Any) -> float | None:
+    if headers is None:
+        return None
+    try:
+        value = headers.get("Retry-After")
+    except Exception:
+        value = None
+    if value is None:
+        return None
+    text = str(value).strip()
+    if not text:
+        return None
+    try:
+        return max(0.0, float(text))
+    except ValueError:
+        return None
+
+
+def _provider_cooldown_status(provider_name: str) -> dict[str, Any]:
+    entry = _PROVIDER_COOLDOWNS.get(provider_name)
+    if not entry:
+        return {"active": False, "remaining_seconds": 0.0}
+    until = float(entry.get("until_monotonic") or 0.0)
+    remaining = until - time.monotonic()
+    if remaining <= 0:
+        _PROVIDER_COOLDOWNS.pop(provider_name, None)
+        return {"active": False, "remaining_seconds": 0.0}
+    return {
+        "active": True,
+        "remaining_seconds": remaining,
+        "reason": entry.get("reason") or "provider cooldown",
+        "model": entry.get("model"),
+    }
+
+
+def _mark_provider_cooldown(
+    provider_name: str,
+    *,
+    model: str | None = None,
+    reason: str = "rate limit",
+    seconds: float | None = None,
+) -> dict[str, Any]:
+    duration = max(5.0, float(seconds or _DEFAULT_RATE_LIMIT_COOLDOWN_SECONDS))
+    entry = {
+        "until_monotonic": time.monotonic() + duration,
+        "reason": reason,
+        "model": model,
+        "duration_seconds": duration,
+    }
+    _PROVIDER_COOLDOWNS[provider_name] = entry
+    return _provider_cooldown_status(provider_name)
+
+
+def _is_rate_limit_error(exc_or_text: Any) -> bool:
+    if isinstance(exc_or_text, ProviderRateLimitError):
+        return True
+    text = str(exc_or_text or "").lower()
+    return any(
+        marker in text
+        for marker in (
+            "http error 429",
+            "too many requests",
+            "rate limit",
+            "ratelimit",
+            "quota exceeded",
+            "resource exhausted",
+        )
+    )
+
+
+def _friendly_provider_failure_text(error_text: str) -> str | None:
+    lowered = str(error_text or "").lower()
+    provider_name = next((name for name in PROVIDERS if name in lowered), "gemini" if "gemini" in lowered else "")
+    provider_label = provider_name or "el provider"
+    if "http error 400" in lowered or "bad request" in lowered:
+        return (
+            f"{provider_label} rechazó el payload del turno (`HTTP 400 Bad Request`). "
+            "HeliX intenta recompactar automáticamente el contexto cuando el pedido es grande; "
+            "si el proveedor lo vuelve a rechazar, el turno queda registrado pero no conviene mostrar el error crudo como respuesta. "
+            "Probá repetir la pregunta o cambiar temporalmente a `/model auto` o a un modelo más liviano."
+        )
+    if not _is_rate_limit_error(error_text):
+        return None
+    cooldown_status = _provider_cooldown_status(provider_name) if provider_name else {}
+    remaining = int(round(float(cooldown_status.get("remaining_seconds") or 0.0)))
+    suffix = f" HeliX va a esperar aproximadamente {remaining}s antes de volver a pegarle a {provider_label}." if remaining > 0 else ""
+    alternates = [
+        name
+        for name in ("deepinfra", "openai", "anthropic")
+        if name in PROVIDERS and name != provider_name and _provider_ready(name)
+    ]
+    if alternates:
+        suffix += f" Hay fallback disponible: {', '.join(alternates[:3])}."
+    else:
+        suffix += " No veo otro provider listo con credenciales locales, así que prefiero no inventar una respuesta sin modelo."
+    return (
+        f"{provider_label} devolvió rate limit/cuota temporal (`HTTP 429`). "
+        "El turno quedó registrado, pero la respuesta del modelo no se generó."
+        + suffix
+    )
 
 
 def _provider_capability_payload(provider: ProviderSpec) -> dict[str, Any]:
@@ -1757,6 +1984,7 @@ def models_payload() -> dict[str, Any]:
         "gemini_model_profiles": [item for item in profiles if item.get("provider") == "gemini"],
         "providers": provider_report(probe_local=False),
         "router_blueprints": router_blueprints_report(),
+        "interaction_modes": _interaction_mode_report(),
     }
 
 
@@ -1939,18 +2167,32 @@ def _capability_requirements_for_prompt(
     path_refs: list[str],
     suite_focus: bool = False,
     web_focus: bool = False,
+    interaction_mode: str = "balanced",
 ) -> dict[str, Any]:
     lowered = str(text or "").lower()
+    active_mode = _normalize_interaction_mode(interaction_mode)
+    explore_external_signal = active_mode == "explore" and (
+        bool(url_refs)
+        or web_focus
+        or any(term in lowered for term in ("fuentes", "sources", "research", "investiga", "google", "internet", "web", "actual", "latest", "reciente"))
+    )
     needs_long_context = (
         len(str(text or "")) > 1200
         or len(url_refs) > 1
-        or intent in {"research", "web_research", "suite_forensics", "helix_self", "agentic", "agentic_code", "audit"}
+        or intent in {"research", "web_research", "suite_forensics", "helix_self", "creative_helix", "agentic", "agentic_code", "audit"}
     )
     return {
         "function_calling": bool(intent in {"agentic", "agentic_code"}),
         "parallel_tools": bool(intent in {"agentic", "agentic_code", "suite_forensics"}),
         "url_context": bool(url_refs),
-        "search_grounding": bool(web_focus or (url_refs and any(term in lowered for term in ("latest", "actual", "actuales", "current", "reciente", "news", "fuentes", "sources")))),
+        "search_grounding": bool(
+            web_focus
+            or explore_external_signal
+            or (
+                url_refs
+                and any(term in lowered for term in ("latest", "actual", "actuales", "current", "reciente", "news", "fuentes", "sources"))
+            )
+        ),
         "file_search": False,
         "vision": bool(intent == "vision"),
         "long_context": needs_long_context,
@@ -1973,6 +2215,43 @@ def _empty_native_tool_plan(provider_name: str) -> dict[str, Any]:
     }
 
 
+def _grounding_plan_for_route(
+    route: dict[str, Any],
+    capability_requirements: dict[str, Any],
+    native_tool_plan: dict[str, Any],
+    *,
+    interaction_mode: str,
+) -> str:
+    if native_tool_plan.get("mode") == "gemini-native":
+        return "gemini-native"
+    if capability_requirements.get("local_file_grounding") or capability_requirements.get("suite_grounding"):
+        return "helix-only"
+    if capability_requirements.get("search_grounding"):
+        return "helix-web-tools"
+    if _normalize_interaction_mode(interaction_mode) == "explore" and capability_requirements.get("url_context"):
+        return "helix-web-tools"
+    return "helix-only"
+
+
+def _mode_reason_for_route(
+    *,
+    interaction_mode: str,
+    intent: str,
+    capability_requirements: dict[str, Any],
+    grounding_plan: str,
+) -> str:
+    active_mode = _normalize_interaction_mode(interaction_mode)
+    if active_mode == "technical":
+        return "Technical mode biases this turn toward code, audit, repo, suite and HeliX-core grounding while preserving prompt intent."
+    if active_mode == "explore":
+        if intent == "creative_helix":
+            return "Explore mode kept the HeliX prompt in creative/cultural synthesis because no concrete core/audit terms were requested."
+        if grounding_plan in {"gemini-native", "helix-web-tools"} or capability_requirements.get("search_grounding"):
+            return "Explore mode allows external grounding for URLs, current sources or explicit research signals."
+        return "Explore mode biases toward broad synthesis and interpretation while keeping runtime guarantees clearly bounded."
+    return "Balanced mode keeps the existing router behavior and only activates extra grounding when prompt signals require it."
+
+
 def _gemini_alias_for_prompt(
     text: str,
     *,
@@ -1992,7 +2271,7 @@ def _gemini_alias_for_prompt(
         return "gemini-pro"
     if any(term in lowered for term in ("clasifica", "classify", "etiqueta", "tag", "breve", "one line", "una linea")):
         return "gemini-lite"
-    if intent in {"reasoning", "research", "web_research"}:
+    if intent in {"reasoning", "research", "web_research", "creative_helix"}:
         return "gemini-pro" if capability_requirements.get("long_context") else "gemini-flash"
     return "gemini-flash"
 
@@ -2011,6 +2290,7 @@ def _native_tool_plan_for_route(route: dict[str, Any], text: str) -> dict[str, A
         path_refs=path_refs,
         suite_focus=suite_focus,
         web_focus=web_focus,
+        interaction_mode=str(route.get("interaction_mode") or "balanced"),
     )
     plan = _empty_native_tool_plan(provider_name)
     why_not: list[str] = []
@@ -2042,8 +2322,9 @@ def _native_tool_plan_for_route(route: dict[str, Any], text: str) -> dict[str, A
     return plan
 
 
-def _augment_route_metadata(route: dict[str, Any], text: str) -> dict[str, Any]:
+def _augment_route_metadata(route: dict[str, Any], text: str, *, interaction_mode: str | None = None) -> dict[str, Any]:
     payload = dict(route)
+    active_mode = _normalize_interaction_mode(interaction_mode or str(payload.get("interaction_mode") or "balanced"))
     url_refs = _extract_url_refs(text)
     path_refs = _extract_local_path_refs(text)
     suite_focus = _is_suite_evidence_request(text)
@@ -2055,14 +2336,31 @@ def _augment_route_metadata(route: dict[str, Any], text: str) -> dict[str, Any]:
         path_refs=path_refs,
         suite_focus=suite_focus,
         web_focus=web_focus,
+        interaction_mode=active_mode,
     )
+    payload["interaction_mode"] = active_mode
     native_tool_plan = _native_tool_plan_for_route(payload, text)
+    grounding_plan = _grounding_plan_for_route(
+        payload,
+        capability_requirements,
+        native_tool_plan,
+        interaction_mode=active_mode,
+    )
     payload.update(
         {
             "path_refs": path_refs,
             "url_refs": url_refs,
             "capability_requirements": capability_requirements,
             "native_tool_plan": native_tool_plan,
+            "grounding_plan": grounding_plan,
+            "mode_policy": _interaction_mode_payload(active_mode),
+            "tone_contract": INTERACTION_MODE_PROFILES[active_mode]["tone_contract"],
+            "mode_reason": _mode_reason_for_route(
+                interaction_mode=active_mode,
+                intent=str(payload.get("intent") or "chat"),
+                capability_requirements=capability_requirements,
+                grounding_plan=grounding_plan,
+            ),
             "why_not": list(native_tool_plan.get("why_not") or []),
         }
     )
@@ -2076,7 +2374,14 @@ def _augment_route_metadata(route: dict[str, Any], text: str) -> dict[str, Any]:
     return payload
 
 
-def _manual_route_for_model(model_id: str, *, provider_name: str, policy: str, user_text: str = "") -> dict[str, Any]:
+def _manual_route_for_model(
+    model_id: str,
+    *,
+    provider_name: str,
+    policy: str,
+    user_text: str = "",
+    interaction_mode: str = "balanced",
+) -> dict[str, Any]:
     alias = _profile_alias_for_model_id(model_id)
     profile = MODEL_PROFILES.get(alias or "")
     fallback_chain = list(_fallback_aliases_for_alias(alias or ""))
@@ -2102,8 +2407,10 @@ def _manual_route_for_model(model_id: str, *, provider_name: str, policy: str, u
             "reason": profile.notes if profile else "User-selected model for this action/session.",
             "input_per_million": profile.input_per_million if profile else None,
             "output_per_million": profile.output_per_million if profile else None,
+            "interaction_mode": _normalize_interaction_mode(interaction_mode),
         },
         user_text,
+        interaction_mode=interaction_mode,
     )
 
 
@@ -2144,6 +2451,7 @@ def route_model_for_task(
     *,
     provider_name: str = "deepinfra",
     policy: str = "balanced",
+    interaction_mode: str = "balanced",
 ) -> dict[str, Any]:
     """Select a model for one turn using transparent heuristics.
 
@@ -2152,6 +2460,7 @@ def route_model_for_task(
     """
 
     lowered = str(text or "").lower()
+    active_mode = _normalize_interaction_mode(interaction_mode)
     url_refs = _extract_url_refs(text)
     path_refs = _extract_local_path_refs(text)
     blueprint = _resolve_router_blueprint(policy)
@@ -2358,6 +2667,31 @@ def route_model_for_task(
         "serie de test",
         "plan de implementacion",
     )
+    creative_terms = (
+        "filosofia",
+        "filosofía",
+        "cultura",
+        "cultural",
+        "metafora",
+        "metáfora",
+        "ghost in the shell",
+        "rizoma",
+        "rizomas",
+        "hipersticion",
+        "hiperstición",
+        "deleuze",
+        "guattari",
+        "ontologia",
+        "ontología",
+        "poetica",
+        "poética",
+        "influencias",
+        "simbolismo",
+        "explora",
+        "explorar",
+        "creativo",
+        "imaginario",
+    )
 
     scores: dict[str, float] = {
         "chat": 1.0,
@@ -2371,6 +2705,7 @@ def route_model_for_task(
         "reasoning": _score_terms(lowered, reasoning_terms, weight=1.3),
         "vision": _score_terms(lowered, vision_terms, weight=2.0),
         "agentic": _score_terms(lowered, long_task_terms, weight=1.4),
+        "creative_helix": 0.0,
     }
     if explicit_alias:
         scores["model_control"] = 10.0
@@ -2405,6 +2740,26 @@ def route_model_for_task(
         scores["research"] += 1.0
     if scores["suite_forensics"] and scores["audit"]:
         scores["suite_forensics"] += 0.8
+    if active_mode == "technical":
+        scores["code"] += 0.7
+        scores["agentic_code"] += 0.5
+        scores["audit"] += 0.8
+        scores["suite_forensics"] += 0.6
+        scores["helix_self"] += 0.6
+        signals.append("mode:technical")
+    elif active_mode == "explore":
+        scores["research"] += 0.6
+        scores["reasoning"] += 0.5
+        scores["chat"] += 0.2
+        scores["web_research"] += 0.4 if (url_refs or _is_web_search_request(lowered)) else 0.0
+        signals.append("mode:explore")
+        if _is_creative_helix_prompt(lowered) and not _is_helix_auditability_request(lowered):
+            scores["creative_helix"] = max(
+                scores["helix_self"] + 1.6,
+                2.8 + _score_terms(lowered, creative_terms, weight=1.0),
+            )
+            scores["helix_self"] = max(0.0, min(scores["helix_self"], scores["creative_helix"] - 1.0))
+            signals.append("creative_helix_scope")
 
     if scores["audit"]:
         signals.append("audit_or_high_stakes")
@@ -2424,6 +2779,8 @@ def route_model_for_task(
         signals.append("vision")
     if scores["helix_self"]:
         signals.append("helix_self")
+    if scores["creative_helix"]:
+        signals.append("creative_helix")
 
     priority = {
         "model_control": 100,
@@ -2433,6 +2790,7 @@ def route_model_for_task(
         "code": 70,
         "suite_forensics": 66,
         "helix_self": 62,
+        "creative_helix": 62,
         "web_research": 61,
         "research": 60,
         "agentic": 55,
@@ -2442,6 +2800,10 @@ def route_model_for_task(
     ranked = sorted(scores.items(), key=lambda item: (item[1], priority.get(item[0], 0)), reverse=True)
     intent, top_score = ranked[0]
     second_intent, second_score = ranked[1] if len(ranked) > 1 else ("none", 0.0)
+    if active_mode == "explore" and intent == "helix_self" and scores["creative_helix"] >= max(1.5, scores["helix_self"]):
+        intent = "creative_helix"
+        top_score = scores["creative_helix"]
+        second_intent, second_score = "helix_self", scores["helix_self"]
     if path_refs and intent in {"web_research", "research"} and max(scores["code"], scores["agentic_code"]) >= 3.5:
         intent = "agentic_code" if scores["agentic_code"] >= scores["code"] else "code"
         top_score = scores[intent]
@@ -2472,8 +2834,10 @@ def route_model_for_task(
             "reason": profile.notes,
             "input_per_million": profile.input_per_million,
             "output_per_million": profile.output_per_million,
+            "interaction_mode": active_mode,
             },
             text,
+            interaction_mode=active_mode,
         )
 
     gemini_override = bool(url_refs and not path_refs and provider_name == "deepinfra" and _provider_ready("gemini"))
@@ -2488,6 +2852,7 @@ def route_model_for_task(
                 path_refs=path_refs,
                 suite_focus=bool(scores["suite_forensics"]),
                 web_focus=bool(scores["web_research"]),
+                interaction_mode=active_mode,
             ),
         )
         profile = GEMINI_MODEL_PROFILES[alias]
@@ -2515,8 +2880,10 @@ def route_model_for_task(
                 "reason": profile.notes,
                 "input_per_million": profile.input_per_million,
                 "output_per_million": profile.output_per_million,
+                "interaction_mode": active_mode,
             },
             text,
+            interaction_mode=active_mode,
         )
 
     if provider_name != "deepinfra":
@@ -2536,14 +2903,16 @@ def route_model_for_task(
                 "ambiguity": ambiguity,
                 "ambiguity_resolver": "not_used",
                 "reason": "Non-DeepInfra providers keep their configured/default model unless the provider has a dedicated router.",
+                "interaction_mode": active_mode,
             },
             text,
+            interaction_mode=active_mode,
         )
 
     if intent == "model_control" and explicit_alias:
         alias = explicit_alias
     else:
-        if gemini_override and intent in {"chat", "reasoning", "research", "web_research", "helix_self", "suite_forensics"}:
+        if gemini_override and intent in {"chat", "reasoning", "research", "web_research", "helix_self", "creative_helix", "suite_forensics"}:
             alias = _gemini_alias_for_prompt(
                 text,
                 intent=intent,
@@ -2554,6 +2923,7 @@ def route_model_for_task(
                     path_refs=path_refs,
                     suite_focus=bool(scores["suite_forensics"]),
                     web_focus=bool(scores["web_research"]),
+                    interaction_mode=active_mode,
                 ),
             )
         elif intent == "vision":
@@ -2564,7 +2934,7 @@ def route_model_for_task(
             alias = blueprint.code_alias
         elif intent == "code":
             alias = blueprint.code_alias
-        elif intent in {"helix_self", "suite_forensics"}:
+        elif intent in {"helix_self", "creative_helix", "suite_forensics"}:
             alias = blueprint.research_alias
         elif intent in {"research", "web_research"}:
             alias = blueprint.research_alias
@@ -2603,8 +2973,10 @@ def route_model_for_task(
         "reason": profile.notes,
         "input_per_million": profile.input_per_million,
         "output_per_million": profile.output_per_million,
+        "interaction_mode": active_mode,
         },
         text,
+        interaction_mode=active_mode,
     )
 
 
@@ -2908,6 +3280,63 @@ def web_read(url: str, *, max_chars: int = 8000, timeout: float = 8.0) -> dict[s
     }
 
 
+def _http_error_detail(exc: error.HTTPError, *, max_chars: int = 2000) -> str:
+    detail = f"HTTP Error {getattr(exc, 'code', '?')}: {getattr(exc, 'reason', '') or exc}"
+    body = ""
+    try:
+        raw = exc.read()
+        body = raw.decode("utf-8", errors="replace") if isinstance(raw, bytes) else str(raw or "")
+    except Exception:
+        body = ""
+    body = body.strip()
+    if body:
+        detail = f"{detail}: {body[:max_chars]}"
+    return detail
+
+
+def _messages_char_count(messages: list[dict[str, str]]) -> int:
+    return sum(len(str(item.get("content") or "")) for item in messages)
+
+
+def _compact_message_content(content: str, limit: int) -> str:
+    text = str(content or "")
+    if len(text) <= limit:
+        return text
+    head = max(0, int(limit * 0.7))
+    tail = max(0, limit - head - 80)
+    return (
+        text[:head]
+        + "\n...[middle compacted by HeliX after provider rejected the full request]...\n"
+        + (text[-tail:] if tail else "")
+    )
+
+
+def _compact_openai_compatible_messages(messages: list[dict[str, str]]) -> list[dict[str, str]]:
+    compacted: list[dict[str, str]] = []
+    non_system = [item for item in messages if item.get("role") != "system"]
+    recent_non_system = non_system[-6:]
+    for item in messages:
+        role = item.get("role")
+        if role == "system":
+            compacted.append(
+                {
+                    "role": "system",
+                    "content": _compact_message_content(str(item.get("content") or ""), 12000)
+                    + "\n\n[HeliX note: request compacted after provider Bad Request; answer only from visible context.]",
+                }
+            )
+            continue
+        if item not in recent_non_system:
+            continue
+        compacted.append(
+            {
+                "role": str(role or "user"),
+                "content": _compact_message_content(str(item.get("content") or ""), 5000),
+            }
+        )
+    return compacted
+
+
 def _openai_compatible_chat(
     provider: ProviderSpec,
     *,
@@ -2924,25 +3353,72 @@ def _openai_compatible_chat(
     if token:
         headers["Authorization"] = f"Bearer {token}"
     started = time.perf_counter()
-    
+
+    def _payload_for(call_messages: list[dict[str, str]]) -> dict[str, Any]:
+        return {
+            "model": model,
+            "messages": call_messages,
+            "max_tokens": max_tokens,
+            "temperature": temperature,
+            "stream": False,
+        }
+
+    compact_retry = False
     try:
         response = _post_json(
             url,
-            {
-                "model": model,
-                "messages": messages,
-                "max_tokens": max_tokens,
-                "temperature": temperature,
-                "stream": False,
-            },
+            _payload_for(messages),
             headers=headers,
             timeout=timeout,
         )
+    except error.HTTPError as exc:
+        status_code = getattr(exc, "code", None)
+        detail = _http_error_detail(exc)
+        if status_code == 429:
+            retry_after = _retry_after_seconds_from_headers(getattr(exc, "headers", None))
+            _mark_provider_cooldown(provider.name, model=model, reason=detail, seconds=retry_after)
+            raise ProviderRateLimitError(
+                provider.name,
+                model,
+                f"API Error ({provider.name}): {detail}",
+                retry_after_seconds=retry_after,
+            ) from exc
+        if status_code == 400 and _messages_char_count(messages) > 24000:
+            compacted_messages = _compact_openai_compatible_messages(messages)
+            if _messages_char_count(compacted_messages) < _messages_char_count(messages):
+                try:
+                    response = _post_json(
+                        url,
+                        _payload_for(compacted_messages),
+                        headers=headers,
+                        timeout=timeout,
+                    )
+                    compact_retry = True
+                except error.HTTPError as retry_exc:
+                    retry_detail = _http_error_detail(retry_exc)
+                    raise RuntimeError(
+                        f"API Error ({provider.name}): {retry_detail}; compact retry after Bad Request also failed"
+                    ) from retry_exc
+                except Exception as retry_exc:
+                    raise RuntimeError(
+                        f"API Error ({provider.name}): {retry_exc}; compact retry after Bad Request also failed"
+                    ) from retry_exc
+            else:
+                raise RuntimeError(f"API Error ({provider.name}): {detail}") from exc
+        else:
+            raise RuntimeError(f"API Error ({provider.name}): {detail}") from exc
     except Exception as exc:
         raise RuntimeError(f"API Error ({provider.name}): {exc}") from exc
 
     if "error" in response:
         error_msg = response["error"].get("message", str(response["error"])) if isinstance(response["error"], dict) else str(response["error"])
+        if _is_rate_limit_error(error_msg):
+            _mark_provider_cooldown(provider.name, model=model, reason=error_msg)
+            raise ProviderRateLimitError(
+                provider.name,
+                model,
+                f"Provider Error ({provider.name}): {error_msg}",
+            )
         raise RuntimeError(f"Provider Error: {error_msg}")
 
     latency_ms = (time.perf_counter() - started) * 1000
@@ -2968,6 +3444,7 @@ def _openai_compatible_chat(
         "finish_reason": choice.get("finish_reason"),
         "usage": response.get("usage"),
         "latency_ms": latency_ms,
+        "request_compacted_after_bad_request": compact_retry,
         "raw": response,
     }
 
@@ -3113,11 +3590,34 @@ def _gemini_chat(
             },
             timeout=timeout,
         )
+    except error.HTTPError as exc:
+        if getattr(exc, "code", None) == 429:
+            retry_after = _retry_after_seconds_from_headers(getattr(exc, "headers", None))
+            _mark_provider_cooldown(
+                provider.name,
+                model=model,
+                reason="HTTP 429 Too Many Requests",
+                seconds=retry_after,
+            )
+            raise ProviderRateLimitError(
+                provider.name,
+                model,
+                f"API Error ({provider.name}): HTTP Error 429: Too Many Requests",
+                retry_after_seconds=retry_after,
+            ) from exc
+        raise RuntimeError(f"API Error ({provider.name}): {exc}") from exc
     except Exception as exc:
         raise RuntimeError(f"API Error ({provider.name}): {exc}") from exc
 
     if "error" in response:
         error_msg = response["error"].get("message", str(response["error"])) if isinstance(response["error"], dict) else str(response["error"])
+        if _is_rate_limit_error(error_msg):
+            _mark_provider_cooldown(provider.name, model=model, reason=error_msg)
+            raise ProviderRateLimitError(
+                provider.name,
+                model,
+                f"Provider Error ({provider.name}): {error_msg}",
+            )
         raise RuntimeError(f"Provider Error ({provider.name}): {error_msg}")
 
     latency_ms = (time.perf_counter() - started) * 1000
@@ -3198,6 +3698,16 @@ def run_chat(
             "raw": result,
         }
 
+    cooldown = _provider_cooldown_status(provider.name)
+    if cooldown.get("active"):
+        remaining = int(round(float(cooldown.get("remaining_seconds") or 0.0)))
+        raise ProviderRateLimitError(
+            provider.name,
+            selected_model,
+            f"{provider.name} is cooling down after a provider rate limit; retry in ~{remaining}s",
+            retry_after_seconds=float(cooldown.get("remaining_seconds") or 0.0),
+        )
+
     token = _token_for_provider(provider, prompt=prompt_token)
     if provider.requires_token and not token:
         raise RuntimeError(f"{provider.token_env} is required for provider {provider.name}")
@@ -3265,23 +3775,65 @@ def run_chat_with_failover(
     provider_name: str,
     model: str | None,
     fallback_models: list[str] | None = None,
+    fallback_targets: list[dict[str, str | None]] | None = None,
     **kwargs: Any,
 ) -> dict[str, Any]:
     attempts: list[dict[str, Any]] = []
     ordered_models = [model, *(fallback_models or [])]
+    ordered_targets: list[dict[str, str | None]] = [
+        {"provider_name": provider_name, "model": candidate}
+        for candidate in ordered_models
+    ]
+    for target in fallback_targets or []:
+        target_provider = str(target.get("provider_name") or provider_name)
+        ordered_targets.append({"provider_name": target_provider, "model": target.get("model")})
     last_error: Exception | None = None
-    for candidate in ordered_models:
+    rate_limited_providers: set[str] = set()
+    seen: set[tuple[str, str]] = set()
+    for target in ordered_targets:
+        candidate_provider = str(target.get("provider_name") or provider_name)
+        candidate = target.get("model")
+        seen_key = (candidate_provider, str(candidate or ""))
+        if seen_key in seen:
+            continue
+        seen.add(seen_key)
+        if candidate_provider in rate_limited_providers:
+            continue
         try:
-            result = run_chat(provider_name=provider_name, model=candidate, **kwargs)
+            call_kwargs = dict(kwargs)
+            if candidate_provider != provider_name and call_kwargs.get("native_request"):
+                call_kwargs["native_request"] = None
+            result = run_chat(provider_name=candidate_provider, model=candidate, **call_kwargs)
         except Exception as exc:  # noqa: BLE001
-            attempts.append({"model": candidate, "error_type": type(exc).__name__, "error": str(exc)})
+            rate_limited = _is_rate_limit_error(exc)
+            attempts.append(
+                {
+                    "provider": candidate_provider,
+                    "model": candidate,
+                    "error_type": type(exc).__name__,
+                    "error": str(exc),
+                    "rate_limited": rate_limited,
+                }
+            )
             last_error = exc
+            if rate_limited:
+                retry_after = exc.retry_after_seconds if isinstance(exc, ProviderRateLimitError) else None
+                _mark_provider_cooldown(
+                    candidate_provider,
+                    model=str(candidate or "") or None,
+                    reason=str(exc),
+                    seconds=retry_after,
+                )
+                rate_limited_providers.add(candidate_provider)
             continue
         result["failover_attempts"] = attempts
         result["failover_used"] = bool(attempts)
         result["selected_model_after_failover"] = result.get("actual_model") or candidate
         return result
-    summary = "; ".join(f"{item.get('model')}: {item.get('error_type')}" for item in attempts[-4:])
+    summary = "; ".join(
+        f"{item.get('provider') or provider_name}:{item.get('model')}: {item.get('error_type')}"
+        for item in attempts[-4:]
+    )
     last_message = str(last_error) if last_error else "unknown provider error"
     raise RuntimeError(f"all model attempts failed ({summary}): {last_message}") from last_error
 
@@ -3425,7 +3977,7 @@ def _architecture_excerpt_specs() -> list[dict[str, Any]]:
     ]
 
 
-def _architecture_context_blob(pack: dict[str, Any] | None, *, limit: int = 16000) -> str:
+def _architecture_context_blob(pack: dict[str, Any] | None, *, limit: int = 10000) -> str:
     if not pack:
         return "{}"
     serialized = json.dumps(pack, ensure_ascii=False, indent=2)
@@ -4333,6 +4885,7 @@ class InteractiveSession:
         self.raw_output = False
         self.theme_name = DEFAULT_THEME
         self.response_style = "balanced"
+        self.interaction_mode = "balanced"
         self.runtime = HelixRuntime(root=workspace_root)
         self.run_id = ""
         self.thread_id: str | None = None
@@ -4504,6 +5057,7 @@ class InteractiveSession:
             "jsonl_path": str(self.jsonl_path),
             "md_path": str(self.md_path),
             "event_count": len(self.events),
+            "interaction_mode": self.interaction_mode,
             "tool_policy": self.tool_policy,
         }
 
@@ -4610,6 +5164,7 @@ class InteractiveSession:
             f"- Provider: `{self.provider_name}`",
             f"- Model: `{self.model}`",
             f"- Router policy: `{self.router_policy}`",
+            f"- Interaction mode: `{self.interaction_mode}`",
             f"- Project: `{self.project}`",
             f"- Agent ID: `{self.agent_id}`",
             f"- Workspace: `{self.workspace_root}`",
@@ -5092,8 +5647,11 @@ class InteractiveSession:
             "latest_user_receipt": _compact_receipt(latest_user_receipt),
             "routing": {
                 "policy": self.router_policy,
+                "interaction_mode": self.interaction_mode,
                 "model_mode": self.model,
-                "profiles": model_profiles_report(),
+                "provider": self.provider_name,
+                "known_profile_count": len(MODEL_PROFILES),
+                "current_model_profile": _profile_alias_for_model_id(self.model),
             },
             "tombstone_boundary": (
                 "The CLI records signed memories and can call HeliX fence/tombstone primitives, "
@@ -5482,7 +6040,22 @@ class InteractiveSession:
         helix_focus: bool = False,
         helix_auditability: bool = False,
         architecture_context_pack: dict[str, Any] | None = None,
+        interaction_mode: str = "balanced",
+        tone_contract: str | None = None,
     ) -> str:
+        active_mode = _normalize_interaction_mode(interaction_mode)
+        mode_contract = tone_contract or INTERACTION_MODE_PROFILES[active_mode]["tone_contract"]
+        mode_instruction = (
+            f"Interaction mode: {active_mode}. {mode_contract} "
+            if active_mode == "balanced"
+            else (
+                f"Interaction mode: {active_mode}. {mode_contract} "
+                "In technical mode, prioritize verified local evidence, concrete semantics, paths, hashes, tests and next actions. "
+                if active_mode == "technical"
+                else f"Interaction mode: {active_mode}. {mode_contract} "
+                "In explore mode, do not turn every HeliX mention into core architecture analysis; use cultural, philosophical or creative framing when the prompt asks for it, while labeling speculation clearly. "
+            )
+        )
         helix_focus_instruction = (
             "The user is explicitly asking to understand HeliX. Give a grounded explanation first, then list 3-6 concrete things it enables in practice. "
             if helix_focus
@@ -5514,6 +6087,7 @@ class InteractiveSession:
             "If no tool is needed, return only the visible answer, optionally wrapped in <helix_output>...</helix_output>. "
             "Do not invent dates, run IDs, hashes, memory IDs, node hashes, or file paths. "
             "Do not reveal chain-of-thought, scratchpads, plans, hidden reasoning, or fake tool calls. "
+            f"{mode_instruction}"
             "If the user gives a memory_id or node_hash prefix and asks where it is, what it contains, or to recover it, use memory.resolve and never reconstruct the content from model memory. "
             "If the user gives an explicit local file or directory path and asks to read, inspect, open, navigate, or comment on it, use file.inspect before answering. "
             f"Response style: {self.response_style}. {RESPONSE_STYLES.get(self.response_style, RESPONSE_STYLES['balanced'])} "
@@ -5551,7 +6125,11 @@ class InteractiveSession:
         helix_focus: bool = False,
         helix_auditability: bool = False,
         architecture_context_pack: dict[str, Any] | None = None,
+        interaction_mode: str = "balanced",
+        tone_contract: str | None = None,
     ) -> str:
+        active_mode = _normalize_interaction_mode(interaction_mode)
+        mode_contract = tone_contract or INTERACTION_MODE_PROFILES[active_mode]["tone_contract"]
         helix_meta_instruction = (
             "This task is about HeliX itself. Prioritize the attached architecture context pack, local evidence, and local code-grounding over theory. "
             if (helix_focus or helix_auditability or architecture_context_pack)
@@ -5570,6 +6148,7 @@ class InteractiveSession:
             "Use at most one tool per turn. Request tools only with <tool_call> JSON. "
             "If enough evidence is available, answer directly or inside <helix_output>...</helix_output>. "
             "You may inspect repo files, git state, HeliX evidence, and suite metadata. "
+            f"Interaction mode: {active_mode}. {mode_contract} "
             f"Response style: {self.response_style}. {RESPONSE_STYLES.get(self.response_style, RESPONSE_STYLES['balanced'])} "
             "Do not invent file paths, hashes, test results, or patch application claims. "
             "For explicit memory-review requests, a sentence like 'voy a buscar...' is not a final answer: "
@@ -5606,11 +6185,16 @@ class InteractiveSession:
         architecture_context_pack: dict[str, Any] | None = None,
         hash_recovery_ref: str | None = None,
         file_path_ref: str | None = None,
+        url_refs: list[str] | None = None,
+        interaction_mode: str = "balanced",
+        tone_contract: str | None = None,
         native_request: dict[str, Any] | None = None,
         fallback_models: list[str] | None = None,
         timeout: float | None,
     ) -> tuple[Any, list[dict[str, Any]]]:
         model_turns: list[dict[str, Any]] = []
+        active_interaction_mode = _normalize_interaction_mode(interaction_mode)
+        active_url_refs = list(url_refs or [])
 
         def _callback(state: dict[str, Any]) -> PlannerDecision:
             observations = [
@@ -5648,6 +6232,21 @@ class InteractiveSession:
                     tool_name="file.inspect",
                     arguments={"path": file_path_ref, "max_bytes": 80000, "list_limit": 100},
                     planner="file-grounding",
+                    raw_text="",
+                )
+            if (
+                mode == "chat"
+                and active_url_refs
+                and not observations
+                and active_interaction_mode == "explore"
+                and not (isinstance(native_request, dict) and native_request.get("mode") == "gemini-native")
+            ):
+                return PlannerDecision(
+                    kind="tool",
+                    thought="read explicit URL in explore mode when provider-native URL Context is unavailable",
+                    tool_name="web.read",
+                    arguments={"url": active_url_refs[0], "max_chars": 12000},
+                    planner="web-grounding",
                     raw_text="",
                 )
             if mode in {"chat", "task"} and suite_focus and not observations:
@@ -5733,6 +6332,8 @@ class InteractiveSession:
                     helix_focus=helix_focus,
                     helix_auditability=helix_auditability,
                     architecture_context_pack=architecture_context_pack,
+                    interaction_mode=active_interaction_mode,
+                    tone_contract=tone_contract,
                 )
                 if mode == "task"
                 else self._chat_system(
@@ -5744,6 +6345,8 @@ class InteractiveSession:
                     helix_focus=helix_focus,
                     helix_auditability=helix_auditability,
                     architecture_context_pack=architecture_context_pack,
+                    interaction_mode=active_interaction_mode,
+                    tone_contract=tone_contract,
                 )
             )
             result = run_chat_with_failover(
@@ -5826,7 +6429,8 @@ class InteractiveSession:
 
         return _callback, model_turns
 
-    def chat(self, user_text: str) -> dict[str, Any]:
+    def chat(self, user_text: str, *, interaction_mode_override: str | None = None) -> dict[str, Any]:
+        active_interaction_mode = _normalize_interaction_mode(interaction_mode_override or self.interaction_mode)
         recent_history = self.recent_history(limit=4, exclude_latest_user=False)
         helix_focus = _is_helix_explanation_request(user_text, recent_history)
         helix_auditability = _is_helix_auditability_request(user_text, recent_history)
@@ -5845,8 +6449,27 @@ class InteractiveSession:
                 f"{user_text}\nMode: chat",
                 provider_name=self.provider_name,
                 policy=self.router_policy,
+                interaction_mode=active_interaction_mode,
             )
-            if self.provider_name == "deepinfra" and helix_focus and isinstance(route, dict) and route.get("intent") == "chat":
+            if (
+                active_interaction_mode == "explore"
+                and isinstance(route, dict)
+                and route.get("intent") in {"chat", "reasoning", "research"}
+                and _recent_history_mentions_helix(recent_history)
+                and _is_creative_helix_prompt(f"helix {user_text}")
+            ):
+                route = _override_route_for_creative_helix_focus(
+                    route,
+                    user_text=user_text,
+                    policy=self.router_policy,
+                )
+            if (
+                active_interaction_mode != "explore"
+                and self.provider_name == "deepinfra"
+                and helix_focus
+                and isinstance(route, dict)
+                and route.get("intent") == "chat"
+            ):
                 route = _override_route_for_helix_focus(
                     route,
                     user_text=user_text,
@@ -5861,10 +6484,14 @@ class InteractiveSession:
                 provider_name=self.provider_name,
                 policy=self.router_policy,
                 user_text=user_text,
+                interaction_mode=active_interaction_mode,
             )
             selected_provider_name = str(route.get("provider") or self.provider_name)
         native_tool_plan = dict(route.get("native_tool_plan") or {}) if isinstance(route, dict) else {}
         capability_requirements = dict(route.get("capability_requirements") or {}) if isinstance(route, dict) else {}
+        mode_policy = dict(route.get("mode_policy") or _interaction_mode_payload(active_interaction_mode)) if isinstance(route, dict) else _interaction_mode_payload(active_interaction_mode)
+        tone_contract = str(route.get("tone_contract") or mode_policy.get("tone_contract") or INTERACTION_MODE_PROFILES[active_interaction_mode]["tone_contract"]) if isinstance(route, dict) else INTERACTION_MODE_PROFILES[active_interaction_mode]["tone_contract"]
+        grounding_plan = str(route.get("grounding_plan") or "helix-only") if isinstance(route, dict) else "helix-only"
         fallback_models = _fallback_model_ids_for_route(
             route,
             primary_model=selected_model,
@@ -5878,7 +6505,11 @@ class InteractiveSession:
         context = self.memory_context(user_text)
         architecture_context_pack = (
             self.architecture_context_pack(user_text, include_excerpts=True)
-            if (helix_focus or helix_auditability or str((route or {}).get("intent") or "") == "helix_self")
+            if (
+                helix_auditability
+                or str((route or {}).get("intent") or "") in {"helix_self", "audit"}
+                or (active_interaction_mode != "explore" and helix_focus)
+            )
             else None
         )
         memory_ids = list(context.get("memory_ids") or [])
@@ -5894,6 +6525,10 @@ class InteractiveSession:
                 "url_refs": url_refs,
                 "native_tool_plan": native_tool_plan,
                 "capability_requirements": capability_requirements,
+                "interaction_mode": active_interaction_mode,
+                "mode_policy": mode_policy,
+                "grounding_plan": grounding_plan,
+                "tone_contract": tone_contract,
                 "architecture_context_enabled": bool(architecture_context_pack),
             },
         )
@@ -5926,6 +6561,9 @@ class InteractiveSession:
             architecture_context_pack=architecture_context_pack,
             hash_recovery_ref=hash_recovery_ref,
             file_path_ref=file_path_ref,
+            url_refs=url_refs,
+            interaction_mode=active_interaction_mode,
+            tone_contract=tone_contract,
             native_request=native_tool_plan,
             fallback_models=fallback_models,
             timeout=None,
@@ -5957,7 +6595,7 @@ class InteractiveSession:
         if fallback_text:
             text = fallback_text
         if trace.get("final_planner") == "none" and planner_errors:
-            text = f"Task failed: {planner_errors[-1]}"
+            text = _friendly_provider_failure_text(planner_errors[-1]) or f"Task failed: {planner_errors[-1]}"
         raw_text = str(model_turns[-1].get("raw_text") if model_turns else text)
         self.record(
             role="assistant",
@@ -5977,6 +6615,10 @@ class InteractiveSession:
                 "url_refs": url_refs,
                 "native_tool_plan": native_tool_plan,
                 "capability_requirements": capability_requirements,
+                "interaction_mode": active_interaction_mode,
+                "mode_policy": mode_policy,
+                "grounding_plan": grounding_plan,
+                "tone_contract": tone_contract,
                 "architecture_context_enabled": bool(architecture_context_pack),
                 "raw_model_text": raw_text,
                 "visible_output_cleaned": text != raw_text,
@@ -5985,7 +6627,7 @@ class InteractiveSession:
                 "thread_id": self.thread_id,
             },
         )
-        return {"text": text, "raw_text": raw_text, "reasoning": "", "route": route, "trace": trace}
+        return {"text": text, "raw_text": raw_text, "reasoning": "", "route": route, "trace": trace, "interaction_mode": active_interaction_mode}
 
     def task(
         self,
@@ -5993,12 +6635,15 @@ class InteractiveSession:
         *,
         max_steps: int = 5,
         mode_override: str | None = None,
+        interaction_mode_override: str | None = None,
         agent_blueprint: AgentBlueprint | None = None,
     ) -> dict[str, Any]:
+        active_interaction_mode = _normalize_interaction_mode(interaction_mode_override or self.interaction_mode)
         route = route_model_for_task(
             f"{goal}\nTask mode: inspect repo, use tools, propose patch if needed.",
             provider_name=self.provider_name,
             policy=self.router_policy,
+            interaction_mode=active_interaction_mode,
         )
         url_refs = _extract_url_refs(goal)
         path_refs = _extract_local_path_refs(goal)
@@ -6013,10 +6658,11 @@ class InteractiveSession:
                 provider_name=self.provider_name,
                 policy=self.router_policy,
                 user_text=goal,
+                interaction_mode=active_interaction_mode,
             )
             route["intent"] = "agentic_blueprint"
             route["agent_blueprint"] = agent_blueprint.blueprint_id
-            route = _augment_route_metadata(route, goal)
+            route = _augment_route_metadata(route, goal, interaction_mode=active_interaction_mode)
         elif model_is_auto:
             selected_model = route.get("model") or PROVIDERS[self.provider_name].default_model
         else:
@@ -6025,10 +6671,14 @@ class InteractiveSession:
                 provider_name=self.provider_name,
                 policy=self.router_policy,
                 user_text=goal,
+                interaction_mode=active_interaction_mode,
             )
         selected_provider_name = str(route.get("provider") or self.provider_name)
         native_tool_plan = dict(route.get("native_tool_plan") or {}) if isinstance(route, dict) else {}
         capability_requirements = dict(route.get("capability_requirements") or {}) if isinstance(route, dict) else {}
+        mode_policy = dict(route.get("mode_policy") or _interaction_mode_payload(active_interaction_mode)) if isinstance(route, dict) else _interaction_mode_payload(active_interaction_mode)
+        tone_contract = str(route.get("tone_contract") or mode_policy.get("tone_contract") or INTERACTION_MODE_PROFILES[active_interaction_mode]["tone_contract"]) if isinstance(route, dict) else INTERACTION_MODE_PROFILES[active_interaction_mode]["tone_contract"]
+        grounding_plan = str(route.get("grounding_plan") or "helix-only") if isinstance(route, dict) else "helix-only"
         fallback_models = _fallback_model_ids_for_route(
             route,
             primary_model=selected_model,
@@ -6056,7 +6706,11 @@ class InteractiveSession:
         helix_auditability = _is_helix_auditability_request(goal, recent_history)
         architecture_context_pack = (
             self.architecture_context_pack(goal, include_excerpts=True)
-            if (helix_focus or helix_auditability)
+            if (
+                helix_auditability
+                or str((route or {}).get("intent") or "") in {"helix_self", "audit"}
+                or (active_interaction_mode != "explore" and helix_focus)
+            )
             else None
         )
         task_start_event = self.record(
@@ -6075,6 +6729,10 @@ class InteractiveSession:
                 "url_refs": url_refs,
                 "native_tool_plan": native_tool_plan,
                 "capability_requirements": capability_requirements,
+                "interaction_mode": active_interaction_mode,
+                "mode_policy": mode_policy,
+                "grounding_plan": grounding_plan,
+                "tone_contract": tone_contract,
                 "architecture_context_enabled": bool(architecture_context_pack),
             },
         )
@@ -6100,6 +6758,9 @@ class InteractiveSession:
             suite_focus=suite_focus,
             architecture_context_pack=architecture_context_pack,
             file_path_ref=path_refs[0] if path_refs else None,
+            url_refs=url_refs,
+            interaction_mode=active_interaction_mode,
+            tone_contract=tone_contract,
             native_request=native_tool_plan,
             fallback_models=fallback_models,
             timeout=AGENT_TASK_TIMEOUT_SECONDS,
@@ -6121,7 +6782,8 @@ class InteractiveSession:
                 max_steps=max(1, max_steps),
             )
         except Exception as exc:  # noqa: BLE001
-            final_text = f"Task failed: {type(exc).__name__}: {exc}"
+            error_text = f"{type(exc).__name__}: {exc}"
+            final_text = _friendly_provider_failure_text(error_text) or f"Task failed: {error_text}"
             self.last_patch = None
             task_result = {
                 "status": "error",
@@ -6136,11 +6798,15 @@ class InteractiveSession:
                 "url_refs": url_refs,
                 "native_tool_plan": native_tool_plan,
                 "capability_requirements": capability_requirements,
+                "interaction_mode": active_interaction_mode,
+                "mode_policy": mode_policy,
+                "grounding_plan": grounding_plan,
+                "tone_contract": tone_contract,
                 "final": final_text,
                 "tool_events": [],
                 "model_turns": model_turns,
                 "patch_available": False,
-                "error": f"{type(exc).__name__}: {exc}",
+                "error": error_text,
             }
             self.last_task_result = task_result
             self.record(
@@ -6157,6 +6823,10 @@ class InteractiveSession:
                     "url_refs": url_refs,
                     "native_tool_plan": native_tool_plan,
                     "capability_requirements": capability_requirements,
+                    "interaction_mode": active_interaction_mode,
+                    "mode_policy": mode_policy,
+                    "grounding_plan": grounding_plan,
+                    "tone_contract": tone_contract,
                     "architecture_context_enabled": bool(architecture_context_pack),
                     "error_type": type(exc).__name__,
                     "error": str(exc),
@@ -6178,7 +6848,7 @@ class InteractiveSession:
         status = "completed"
         if trace.get("final_planner") == "none" and planner_errors:
             status = "error"
-            final_text = f"Task failed: {planner_errors[-1]}"
+            final_text = _friendly_provider_failure_text(planner_errors[-1]) or f"Task failed: {planner_errors[-1]}"
         tool_events = [
             {
                 "tool": item.get("tool_name"),
@@ -6213,6 +6883,10 @@ class InteractiveSession:
             "url_refs": url_refs,
             "native_tool_plan": native_tool_plan,
             "capability_requirements": capability_requirements,
+            "interaction_mode": active_interaction_mode,
+            "mode_policy": mode_policy,
+            "grounding_plan": grounding_plan,
+            "tone_contract": tone_contract,
             "final": final_text,
             "tool_events": tool_events,
             "model_turns": model_turns,
@@ -6241,6 +6915,10 @@ class InteractiveSession:
                 "url_refs": url_refs,
                 "native_tool_plan": native_tool_plan,
                 "capability_requirements": capability_requirements,
+                "interaction_mode": active_interaction_mode,
+                "mode_policy": mode_policy,
+                "grounding_plan": grounding_plan,
+                "tone_contract": tone_contract,
                 "architecture_context_enabled": bool(architecture_context_pack),
                 "tool_event_count": len(tool_events),
                 "patch_available": bool(patch),
@@ -6267,6 +6945,8 @@ class InteractiveSession:
             "evidence_root": str(self.evidence_root),
             "event_count": len(self.events),
             "router_policy": self.router_policy,
+            "interaction_mode": self.interaction_mode,
+            "interaction_mode_profile": _interaction_mode_payload(self.interaction_mode),
             "theme": self.theme_name,
             "response_style": self.response_style,
             "agent_mode": self.agent_mode,
@@ -6293,7 +6973,10 @@ HELP_TEXT = """Commands:
   /router list                  Open or print the routing blueprint selector
   /theme NAME                   Switch terminal theme: industrial-brutalist, industrial-neon, xerox, brown-console
   /theme list                   Open or print the theme selector/report
-  /style NAME                   Response register: balanced, technical, forensic, vivid, terse
+  /style NAME                   Response register only: balanced, technical, forensic, vivid, terse
+  /mode [NAME]                  Interaction mode: balanced, technical, explore; /mode list shows profiles
+  /tech TEXT                    One-shot technical turn without changing the sticky mode
+  /explore TEXT                 One-shot exploratory turn without changing the sticky mode
   /raw on|off                   Toggle raw model output after the cleaned answer
   /clear                        Clear the terminal
   /key [PROVIDER]               Prompt for a provider API key for this process only
@@ -6326,7 +7009,6 @@ HELP_TEXT = """Commands:
   /task GOAL                    Run the unified HeliX runner in read-only agentic mode
   /tools                        Compact-list runner tools; /tools blueprints for agent toolsets; /tools json for raw registry
   /agents                       List agentic blueprints for Codex-like tasks and evidence analysis
-  /mode                         Show tool policy and safety mode for the active thread
   /apply last                   Apply last proposed patch after explicit confirmation
   /agent suggest GOAL           Codex-like safe mode: read, plan, use read-only tools, propose next actions
   /agent use BLUEPRINT GOAL     Run a specific agent blueprint, e.g. suite-run-analyst or patch-planner
@@ -6334,6 +7016,7 @@ HELP_TEXT = """Commands:
   /exit                         Leave the session
 
 Natural language defaults to chat. Repo/debug/patch requests are routed to /task; certification suite requests are routed to /cert.
+Use /mode technical for diagnosis, code, hashes, receipts, suites and architecture. Use /mode explore for philosophy, culture, wider research and source-backed exploration.
 You can also ask naturally: "lee src/helix_proto", "compará cognitive-gauntlet con local-ghost-in-the-shell-live", or "revisá esta URL y resumila".
 """
 
@@ -6460,9 +7143,20 @@ def _preferred_language_instruction(text: str) -> str:
 
 def _is_identity_question(text: str) -> bool:
     lowered = str(text or "").lower().strip(" ?!")
-    return lowered in {"que te hace especial", "q te hace especial"} or (
-        "especial" in lowered and ("hace" in lowered or "diferente" in lowered)
-    )
+    direct_self_questions = {
+        "que te hace especial",
+        "qué te hace especial",
+        "q te hace especial",
+        "que sos",
+        "qué sos",
+        "quien sos",
+        "quién sos",
+    }
+    if lowered in direct_self_questions:
+        return True
+    if "especial" not in lowered or not ("hace" in lowered or "diferente" in lowered):
+        return False
+    return "helix" in lowered or bool(re.search(r"\b(te|vos|tu|tus)\b", lowered))
 
 
 def _recent_history_mentions_helix(history: list[dict[str, str]] | None = None) -> bool:
@@ -6514,6 +7208,25 @@ def _is_clear_non_helix_topic_shift(text: str) -> bool:
     lowered = " ".join(str(text or "").lower().split())
     if not lowered or _has_helix_scope_term(lowered):
         return False
+    model_or_provider_terms = (
+        "qwen",
+        "gemini",
+        "deepinfra",
+        "mistral",
+        "gemma",
+        "llama",
+        "claude",
+        "sonnet",
+        "deepseek",
+        "openai",
+        "anthropic",
+        "modelo",
+        "model",
+        "llm",
+        "llms",
+    )
+    if any(term in lowered for term in model_or_provider_terms):
+        return True
     topic_shift_starters = (
         "hablame de ",
         "hablame sobre ",
@@ -6779,6 +7492,95 @@ def _is_explicit_helix_meta_task_request(text: str, history: list[dict[str, str]
     return any(term in lowered for term in contextual_meta_terms)
 
 
+def _is_creative_helix_prompt(text: str) -> bool:
+    lowered = " ".join(str(text or "").lower().strip().split())
+    if not lowered or not _has_helix_scope_term(lowered):
+        return False
+    creative_terms = (
+        "filosofia",
+        "filosofía",
+        "cultura",
+        "cultural",
+        "metafora",
+        "metáfora",
+        "ghost in the shell",
+        "rizoma",
+        "rizomas",
+        "hipersticion",
+        "hiperstición",
+        "deleuze",
+        "guattari",
+        "ontologia",
+        "ontología",
+        "poetica",
+        "poética",
+        "influencias",
+        "simbolismo",
+        "explora",
+        "explorar",
+        "exploremos",
+        "creativo",
+        "imaginario",
+        "filosofico",
+        "filosófico",
+        "filosofica",
+        "filosófica",
+    )
+    hard_core_terms = (
+        "merkle",
+        "dag",
+        "receipt",
+        "receipts",
+        "hash",
+        "hashes",
+        "signature",
+        "signatures",
+        "firma",
+        "firmas",
+        "canonical head",
+        "cabeza canonica",
+        "cabeza canónica",
+        "equivocation",
+        "equivocacion",
+        "equivocación",
+        "quarantine",
+        "cuarentena",
+        "arquitectura",
+        "architecture",
+        "runtime",
+        "router",
+        "thread_id",
+        "session_id",
+        "signed receipt",
+        "signed receipts",
+        "signed_receipts",
+        "helix-state-core",
+        "state core",
+        "recursive witness",
+        "branch-pruning",
+        "branch pruning",
+        "metodologia nuclear",
+        "metodología nuclear",
+        "ouroboros",
+        "repo",
+        "repositorio",
+        "codigo",
+        "código",
+        "code",
+        "implementa",
+        "implementá",
+        "implementacion",
+        "implementación",
+        "audit",
+        "auditoria",
+        "auditoría",
+        "suite",
+        "verify",
+        "/verify",
+    )
+    return any(term in lowered for term in creative_terms) and not any(term in lowered for term in hard_core_terms)
+
+
 def _is_helix_explanation_request(text: str, history: list[dict[str, str]] | None = None) -> bool:
     lowered = str(text or "").lower()
     if _is_affective_reaction(lowered) or _is_clear_non_helix_topic_shift(lowered):
@@ -6871,6 +7673,31 @@ def _override_route_for_helix_focus(route: dict[str, Any], *, user_text: str, po
                 if auditability
                 else "Contextual HeliX explanation request promoted to the blueprint large-Qwen research profile for grounded answers."
             ),
+        },
+        user_text,
+    )
+
+
+def _override_route_for_creative_helix_focus(route: dict[str, Any], *, user_text: str, policy: str) -> dict[str, Any]:
+    blueprint = _resolve_router_blueprint(policy)
+    alias = blueprint.research_alias or "qwen-big"
+    profile = MODEL_PROFILES[alias]
+    signals = list(route.get("signals") or [])
+    signals.append("creative_helix_context")
+    return _augment_route_metadata(
+        {
+            **route,
+            "provider": profile.provider,
+            "model": profile.model_id,
+            "profile": alias,
+            "role": profile.role,
+            "intent": "creative_helix",
+            "confidence": max(float(route.get("confidence") or 0.0), 0.86),
+            "signals": sorted(set(signals)),
+            "policy": blueprint.name,
+            "blueprint": blueprint.name,
+            "blueprint_description": blueprint.description,
+            "reason": "Contextual HeliX follow-up kept in creative/cultural synthesis mode because the turn stayed exploratory instead of moving into core audit semantics.",
         },
         user_text,
     )
@@ -7216,7 +8043,14 @@ def _handle_interactive_command(session: InteractiveSession, line: str) -> bool:
         if not rest:
             print("Usage: /route TEXT")
             return True
-        _print_json(route_model_for_task(rest, provider_name=session.provider_name, policy=session.router_policy))
+        _print_json(
+            route_model_for_task(
+                rest,
+                provider_name=session.provider_name,
+                policy=session.router_policy,
+                interaction_mode=session.interaction_mode,
+            )
+        )
         return True
     if name == "web":
         query = rest or input("Web query: ").strip()
@@ -7234,7 +8068,14 @@ def _handle_interactive_command(session: InteractiveSession, line: str) -> bool:
             if not prompt:
                 print("Usage: /router why TEXT")
                 return True
-            _print_json(route_model_for_task(prompt, provider_name=session.provider_name, policy=session.router_policy))
+            _print_json(
+                route_model_for_task(
+                    prompt,
+                    provider_name=session.provider_name,
+                    policy=session.router_policy,
+                    interaction_mode=session.interaction_mode,
+                )
+            )
             return True
         if rest.lower() in {"list", "ls"}:
             if console and _HAS_UI:
@@ -7290,6 +8131,42 @@ def _handle_interactive_command(session: InteractiveSession, line: str) -> bool:
             _save_config(config)
         print(f"[helix] response_style={session.response_style}")
         return True
+    if name == "mode":
+        if rest.lower() in {"list", "ls"}:
+            _print_json({"current": session.interaction_mode, "modes": _interaction_mode_report()})
+            return True
+        if rest:
+            if not _is_known_interaction_mode(rest):
+                print("Usage: /mode [balanced|technical|explore|list]")
+                return True
+            candidate = _normalize_interaction_mode(rest)
+            session.interaction_mode = candidate
+            config = _load_config()
+            config["interaction_mode"] = session.interaction_mode
+            _save_config(config)
+            print(f"[helix] interaction_mode={session.interaction_mode}")
+            return True
+        _print_json(
+            {
+                "current": session.interaction_mode,
+                "profile": _interaction_mode_payload(session.interaction_mode),
+                "router_policy": session.router_policy,
+                "tool_policy": session.tool_policy,
+                "thread_id": session.thread_id,
+            }
+        )
+        return True
+    if name in {"tech", "explore"}:
+        prompt = rest or input("Prompt: ").strip()
+        if not prompt:
+            print(f"Usage: /{name} TEXT")
+            return True
+        _run_prompt_once(
+            session,
+            prompt,
+            interaction_mode_override="technical" if name == "tech" else "explore",
+        )
+        return True
     if name == "config":
         token_providers = sorted((_load_config().get("tokens") or {}).keys())
         _print_json(
@@ -7303,6 +8180,7 @@ def _handle_interactive_command(session: InteractiveSession, line: str) -> bool:
                 "session_task_root": session.task_root,
                 "saved_token_providers": token_providers,
                 "theme": session.theme_name,
+                "interaction_mode": session.interaction_mode,
                 "response_style": session.response_style,
             }
         )
@@ -7372,37 +8250,7 @@ def _handle_interactive_command(session: InteractiveSession, line: str) -> bool:
         previous_model = session.model
         _set_session_model(session, alias)
         try:
-            routed = _route_natural_language(goal)
-            if routed and routed.startswith("/task"):
-                result = session.task(goal, mode_override="suggest")
-                if console:
-                    _render_task_result(console, result)
-                else:
-                    _print_json(result)
-            else:
-                if console:
-                    response_obj = _run_with_status(console, lambda: session.chat(goal))
-                    latest = session.events[-1] if session.events else {}
-                    metadata = latest.get("metadata", {})
-                    receipt = latest.get("helix_memory") or {}
-                    raw_text = response_obj.get("raw_text") or ""
-                    _render_chat_response(
-                        console,
-                        clean_text=response_obj.get("text") or "",
-                        model_used=_display_model_used(metadata, session.model),
-                        intent="manual_once",
-                        latency_label=(
-                            f"{float(metadata.get('latency_ms')):.0f}ms"
-                            if isinstance(metadata.get("latency_ms"), (int, float))
-                            else "n/a"
-                        ),
-                        short_hash=str(receipt.get("node_hash") or "")[:10] or "nohash",
-                        raw_text=raw_text,
-                        show_raw=session.raw_output,
-                    )
-                else:
-                    response = session.chat(goal)
-                    print(response.get("text"))
+            _run_prompt_once(session, goal, interaction_mode_override=session.interaction_mode)
         finally:
             session.provider_name = previous_provider
             session.model = previous_model
@@ -7745,6 +8593,54 @@ def _render_task_result(active_console: Any, result: dict[str, Any]) -> None:
     )
 
 
+def _run_prompt_once(
+    session: InteractiveSession,
+    prompt: str,
+    *,
+    interaction_mode_override: str | None = None,
+) -> None:
+    routed = _route_natural_language(prompt)
+    if routed and routed.startswith("/task"):
+        if console:
+            result = _run_with_status(
+                console,
+                lambda: session.task(prompt, interaction_mode_override=interaction_mode_override),
+                phase="task",
+            )
+            _render_task_result(console, result)
+        else:
+            _print_json(session.task(prompt, interaction_mode_override=interaction_mode_override))
+        return
+    if console:
+        response_obj = _run_with_status(
+            console,
+            lambda: session.chat(prompt, interaction_mode_override=interaction_mode_override),
+            phase="thinking",
+        )
+        latest = session.events[-1] if session.events else {}
+        metadata = latest.get("metadata", {})
+        receipt = latest.get("helix_memory") or {}
+        raw_text = response_obj.get("raw_text") or ""
+        route = metadata.get("route") or response_obj.get("route") or {}
+        _render_chat_response(
+            console,
+            clean_text=response_obj.get("text") or "",
+            model_used=_display_model_used(metadata, session.model),
+            intent=str(route.get("intent") or metadata.get("interaction_mode") or "chat"),
+            latency_label=(
+                f"{float(metadata.get('latency_ms')):.0f}ms"
+                if isinstance(metadata.get("latency_ms"), (int, float))
+                else "n/a"
+            ),
+            short_hash=str(receipt.get("node_hash") or "")[:10] or "nohash",
+            raw_text=raw_text,
+            show_raw=session.raw_output,
+        )
+        return
+    response = session.chat(prompt, interaction_mode_override=interaction_mode_override)
+    print(response.get("text"))
+
+
 def run_interactive(args: argparse.Namespace | None = None) -> int:
     global console
     args = args or argparse.Namespace()
@@ -7797,6 +8693,7 @@ def run_interactive(args: argparse.Namespace | None = None) -> int:
     )
     session.theme_name = theme_name
     session.response_style = _normalize_response_style(config.get("response_style") or "balanced")
+    session.interaction_mode = _normalize_interaction_mode(config.get("interaction_mode") or "balanced")
 
     if console:
         _render_session_ribbon(console, session)
@@ -7805,6 +8702,7 @@ def run_interactive(args: argparse.Namespace | None = None) -> int:
         print(f"[helix] transcript={session.jsonl_path}")
         print(f"[helix] evidence={session.evidence_root}")
         print(f"[helix] task_root={session.task_root}")
+        print(f"[helix] interaction_mode={session.interaction_mode}")
 
     session.record(
         role="system",
@@ -7814,6 +8712,7 @@ def run_interactive(args: argparse.Namespace | None = None) -> int:
             "provider": provider_name,
             "model": model,
             "router_policy": session.router_policy,
+            "interaction_mode": session.interaction_mode,
             "evidence_root": str(session.evidence_root),
             "task_root": str(session.task_root),
         },
@@ -7823,13 +8722,14 @@ def run_interactive(args: argparse.Namespace | None = None) -> int:
         completer = WordCompleter([
             '/help', '/status', '/thread', '/provider', '/model', '/models', '/route', '/web', '/file',
             '/router', '/key', '/doctor', '/providers', '/cert', '/cert-dry', 
-            '/evidence', '/verify', '/suites', '/suite', '/memory', '/trust', '/task', '/tools', '/agents', '/mode', '/apply', '/agent', '/with', '/theme', '/style', '/raw', '/clear', '/config', '/exit', '/quit',
+            '/evidence', '/verify', '/suites', '/suite', '/memory', '/trust', '/task', '/tools', '/agents', '/mode', '/tech', '/explore', '/apply', '/agent', '/with', '/theme', '/style', '/raw', '/clear', '/config', '/exit', '/quit',
             '/provider deepinfra', '/provider gemini', '/provider list',
             '/models json', '/model auto', '/model use ', '/model sonnet', '/model mistral', '/model devstral', '/model qwen', '/model qwen-big', '/model gemma', '/model gemini-pro', '/model gemini-pro-tools', '/model gemini-flash', '/model gemini-lite', '/model gemini-2.5-pro', '/model gemini-2.5-flash', '/model gemini-2.5-flash-lite', '/model coder', '/model engineering', '/model deep-reasoning', '/model llama', '/model llama-vision',
             '/with sonnet ', '/with qwen-big ', '/with gemma ', '/with gemini-pro ', '/with gemini-pro-tools ', '/with gemini-flash ', '/with gemini-lite ', '/with gemini-2.5-pro ', '/with gemini-2.5-flash ', '/with gemini-2.5-flash-lite ', '/with coder ', '/with mistral ',
             '/router balanced', '/router qwen-heavy', '/router current', '/router qwen-gemma-mistral', '/router cheap', '/router premium', '/router list', '/router why ',
             '/web ', '/file ',
             '/theme industrial-brutalist', '/theme industrial-neon', '/theme xerox', '/theme brown-console', '/theme brown', '/theme cyberpunk', '/theme cyberpunk-gray', '/theme list', '/raw on', '/raw off',
+            '/mode balanced', '/mode technical', '/mode explore', '/mode list', '/tech ', '/explore ',
             '/style balanced', '/style technical', '/style forensic', '/style vivid', '/style terse', '/style list',
             '/key save', '/key save gemini', '/key gemini', '/key forget', '/key forget gemini', '/key status', '/key status gemini',
             '/evidence refresh', '/evidence latest', '/evidence search', '/verify latest', '/verify search',

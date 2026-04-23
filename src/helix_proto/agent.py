@@ -1027,6 +1027,17 @@ class AgentRunner:
                 phase_trace=phase_trace,
                 reason=f"tool:{tool_name}",
             )
+        def _tool_error(exc: Exception) -> dict[str, Any]:
+            return {
+                "tool": tool_name,
+                "arguments": enriched,
+                "result": {
+                    "status": "error",
+                    "error_type": type(exc).__name__,
+                    "error": str(exc),
+                },
+            }
+
         try:
             return runtime_tools.call(tool_name, enriched)
         except KeyError:
@@ -1034,8 +1045,17 @@ class AgentRunner:
                 return agent_tools.call(tool_name, enriched)
             except KeyError:
                 if extra_tools is None:
-                    raise
-                return extra_tools.call(tool_name, enriched)
+                    return _tool_error(KeyError(tool_name))
+                try:
+                    return extra_tools.call(tool_name, enriched)
+                except KeyError as exc:
+                    return _tool_error(exc)
+                except Exception as exc:  # noqa: BLE001 - surface tool failure as observation
+                    return _tool_error(exc)
+            except Exception as exc:  # noqa: BLE001 - surface tool failure as observation
+                return _tool_error(exc)
+        except Exception as exc:  # noqa: BLE001 - surface tool failure as observation
+            return _tool_error(exc)
 
     def run(
         self,

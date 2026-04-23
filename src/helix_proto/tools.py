@@ -34,7 +34,13 @@ class ToolRegistry:
         if tool is None:
             raise KeyError(name)
         required = list(tool.input_schema.get("required", []))
-        missing = [field for field in required if field not in arguments]
+        missing = [
+            field
+            for field in required
+            if field not in arguments
+            or arguments.get(field) is None
+            or (isinstance(arguments.get(field), str) and not str(arguments.get(field)).strip())
+        ]
         if missing:
             raise ValueError(f"missing tool arguments: {', '.join(missing)}")
         return {

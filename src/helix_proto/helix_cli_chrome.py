@@ -350,6 +350,7 @@ def _toolbar_markup(session: Any) -> str:
     provider_name = str(getattr(session, "provider_name", "provider"))
     model_name = str(getattr(session, "model", "model"))
     router_policy = str(getattr(session, "router_policy", "balanced"))
+    interaction_mode = str(getattr(session, "interaction_mode", "balanced"))
     theme_name = str(getattr(session, "theme_name", DEFAULT_THEME))
     thread_short = thread_id[:18] if len(thread_id) > 18 else thread_id
     return (
@@ -357,6 +358,7 @@ def _toolbar_markup(session: Any) -> str:
         f"  <b>provider</b> {html.escape(provider_name)}"
         f"  <b>model</b> {html.escape(model_name)}"
         f"  <b>router</b> {html.escape(router_policy)}"
+        f"  <b>mode</b> {html.escape(interaction_mode)}"
         f"  <b>theme</b> {html.escape(theme_name)}"
         "  <b>/help</b> directives "
     )
@@ -451,8 +453,12 @@ def render_session_ribbon(active_console: Any, session: Any) -> None:
         f"[muted]router[/muted] [creamy]{getattr(session, 'router_policy', '')}[/creamy]",
     )
     grid.add_row(
-        f"[muted]transcript[/muted] [creamy]{getattr(session, 'jsonl_path', '')}[/creamy]",
+        f"[muted]mode[/muted] [creamy]{getattr(session, 'interaction_mode', 'balanced')}[/creamy]",
         f"[muted]theme[/muted] [creamy]{getattr(session, 'theme_name', DEFAULT_THEME)}[/creamy]",
+    )
+    grid.add_row(
+        f"[muted]transcript[/muted] [creamy]{getattr(session, 'jsonl_path', '')}[/creamy]",
+        f"[muted]style[/muted] [creamy]{getattr(session, 'response_style', 'balanced')}[/creamy]",
     )
     grid.add_row(
         f"[muted]evidence[/muted] [creamy]{getattr(session, 'evidence_root', '')}[/creamy]",

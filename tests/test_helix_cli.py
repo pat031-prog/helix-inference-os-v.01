@@ -1,8 +1,11 @@
 from __future__ import annotations
 
+import io
 import json
 import uuid
 from pathlib import Path
+
+import pytest
 
 from helix_kv.memory_catalog import MemoryCatalog
 from helix_proto import agent as helix_agent
@@ -229,6 +232,34 @@ def test_auto_router_selects_gemma_for_reasoning_in_balanced_blueprint() -> None
     assert route["model"] == "google/gemma-4-31B"
 
 
+def test_auto_router_explore_mode_uses_creative_helix_for_nontechnical_helix_prompt() -> None:
+    route = helix_cli.route_model_for_task(
+        "exploremos helix desde ghost in the shell y sus influencias culturales",
+        provider_name="deepinfra",
+        policy="balanced",
+        interaction_mode="explore",
+    )
+    assert route["interaction_mode"] == "explore"
+    assert route["intent"] == "creative_helix"
+    assert route["mode_policy"]["name"] == "explore"
+    assert route["grounding_plan"] == "helix-only"
+    assert "creative/cultural synthesis" in route["mode_reason"]
+
+
+def test_auto_router_technical_mode_biases_helix_prompts_toward_core_grounding() -> None:
+    route = helix_cli.route_model_for_task(
+        "explicame el canonical head de helix y como se relaciona con receipts y hashes",
+        provider_name="deepinfra",
+        policy="balanced",
+        interaction_mode="technical",
+    )
+    assert route["interaction_mode"] == "technical"
+    assert route["intent"] in {"helix_self", "audit", "reasoning"}
+    assert route["mode_policy"]["name"] == "technical"
+    assert route["tone_contract"]
+    assert "code, audit, repo" in route["mode_reason"]
+
+
 def test_router_prefers_gemini_url_context_for_technical_urls_when_available(monkeypatch) -> None:
     monkeypatch.setenv("GEMINI_API_KEY", "gemini-test-key")
     route = helix_cli.route_model_for_task(
@@ -238,11 +269,13 @@ def test_router_prefers_gemini_url_context_for_technical_urls_when_available(mon
         ),
         provider_name="deepinfra",
         policy="balanced",
+        interaction_mode="explore",
     )
     assert route["provider"] == "gemini"
     assert route["profile"] == "gemini-pro"
     assert route["capability_requirements"]["url_context"] is True
     assert route["native_tool_plan"]["mode"] == "gemini-native"
+    assert route["grounding_plan"] == "gemini-native"
     assert len(route["native_tool_plan"]["url_context_urls"]) == 2
     assert route["url_refs"][0].startswith("https://ai.google.dev/")
 
@@ -348,6 +381,7 @@ def test_models_payload_exposes_capabilities_and_provider_constraints() -> None:
     assert "docs_synthesis" in gemini_profile["preferred_workloads"]
     assert "url_context" in gemini_provider["native_capabilities"]
     assert gemini_provider["native_constraints"]
+    assert any(item["name"] == "technical" for item in payload["interaction_modes"])
 
 
 def test_router_blueprints_report_lists_current_and_hybrid_presets() -> None:
@@ -516,12 +550,15 @@ def test_router_why_command_prints_scored_route(capsys) -> None:
         temperature=0.0,
         transcript_dir=_test_root() / "transcripts",
     )
+    session.interaction_mode = "technical"
     assert helix_cli._handle_interactive_command(session, "/router why investiga modelos nuevos para codigo") is True
     output = capsys.readouterr().out
     assert '"intent_scores"' in output
     assert '"fallback_chain"' in output
     assert '"capability_requirements"' in output
     assert '"native_tool_plan"' in output
+    assert '"interaction_mode": "technical"' in output
+    assert '"grounding_plan"' in output
 
 
 def test_extract_local_path_refs_supports_relative_directories_and_quoted_spaces() -> None:
@@ -632,12 +669,15 @@ def test_prompt_toolbar_markup_tracks_session_state() -> None:
         router_policy="qwen-gemma-mistral",
     )
     session.theme_name = "industrial-neon"
+    session.interaction_mode = "explore"
     markup = helix_cli._prompt_toolbar_markup(session)
     assert "thread" in markup
     assert "provider" in markup
     assert "model" in markup
     assert "router" in markup
+    assert "mode" in markup
     assert "theme" in markup
+    assert "explore" in markup
     assert "industrial-neon" in markup
 
 
@@ -662,6 +702,7 @@ def test_boot_banner_and_session_ribbon_export_text() -> None:
     output = console.export_text()
     assert "HeliX Inference OS" in output
     assert "SESSION BUS" in output
+    assert "mode" in output
     assert session.run_id in output
     assert "task root" in output
     assert "helix-backend-repo" in output
@@ -816,6 +857,8 @@ def test_render_task_result_handles_legacy_nested_tool_payload() -> None:
 
 def test_identity_question_is_detected_for_certified_evidence_injection() -> None:
     assert helix_cli._is_identity_question("que te hace especial?")
+    assert helix_cli._is_identity_question("que hace especial a HeliX?")
+    assert not helix_cli._is_identity_question("que hace especial a Qwen3.5-122B-A10B?")
     assert not helix_cli._is_identity_question("hola")
 
 
@@ -837,6 +880,8 @@ def test_helix_context_does_not_capture_clear_general_topic_shift() -> None:
     assert helix_cli._is_helix_explanation_request("hablame de argentina", history) is False
     assert helix_cli._is_helix_auditability_request("hablame de argentina", history) is False
     assert helix_cli._needs_certified_evidence("hablame de argentina", history=history) is False
+    assert helix_cli._is_helix_explanation_request("que hace especial a Qwen3.5-122B-A10B?", history) is False
+    assert helix_cli._needs_certified_evidence("que hace especial a Qwen3.5-122B-A10B?", history=history) is False
 
 
 def test_explicit_helix_meta_task_detection_stays_narrow_for_memory_reviews() -> None:
@@ -1028,6 +1073,47 @@ def test_openai_compatible_chat_uses_mocked_transport(monkeypatch) -> None:
     assert result["actual_model"] == "mock-model-actual"
     assert captured["url"].endswith("/chat/completions")
     assert json.loads(json.dumps(captured["payload"]))["model"] == "mock-model"
+
+
+def test_openai_compatible_bad_request_retries_with_compact_payload(monkeypatch) -> None:
+    calls = []
+
+    def fake_post_json(url, payload, *, headers, timeout):
+        calls.append(payload)
+        if len(calls) == 1:
+            raise helix_cli.error.HTTPError(
+                url,
+                400,
+                "Bad Request",
+                {},
+                io.BytesIO(b'{"error":"context too large"}'),
+            )
+        return {
+            "model": "mock-model-actual",
+            "choices": [{"message": {"content": "ok compact"}, "finish_reason": "stop"}],
+            "usage": {"total_tokens": 3},
+        }
+
+    monkeypatch.setattr(helix_cli, "_post_json", fake_post_json)
+    result = helix_cli.run_chat(
+        provider_name="ollama",
+        model="mock-model",
+        prompt="hello" * 3000,
+        system="system-context " * 4000,
+        history=[
+            {"role": "user", "content": "old user " * 2000},
+            {"role": "assistant", "content": "old assistant " * 2000},
+        ],
+        prompt_token=False,
+        max_tokens=8,
+    )
+
+    assert result["text"] == "ok compact"
+    assert result["request_compacted_after_bad_request"] is True
+    first_chars = sum(len(str(item.get("content") or "")) for item in calls[0]["messages"])
+    second_chars = sum(len(str(item.get("content") or "")) for item in calls[1]["messages"])
+    assert second_chars < first_chars
+    assert "request compacted after provider Bad Request" in calls[1]["messages"][0]["content"]
 
 
 def test_gemini_chat_uses_generate_content_api(monkeypatch) -> None:
@@ -1537,6 +1623,56 @@ def test_chat_hash_recovery_uses_memory_resolve_without_model_reconstruction(mon
     assert "sin reconstruirlo con el modelo" in result["text"]
 
 
+def test_chat_bad_tool_arguments_are_observed_without_system_crash(monkeypatch) -> None:
+    base = _test_root()
+    calls = {"count": 0}
+
+    def fake_run_chat(provider_name, model, prompt, system, history=None, **kwargs):
+        calls["count"] += 1
+        if calls["count"] == 1:
+            return {
+                "text": '<tool_call>{"tool":"memory.resolve","arguments":{}}</tool_call>',
+                "actual_model": model,
+                "latency_ms": 1.0,
+                "finish_reason": "stop",
+                "usage": {"total_tokens": 10},
+            }
+        assert history
+        assert "missing tool arguments: ref" in history[-1]["content"]
+        return {
+            "text": "<helix_output>No necesito resolver un hash para responder eso; puedo contestar directo.</helix_output>",
+            "actual_model": model,
+            "latency_ms": 1.0,
+            "finish_reason": "stop",
+            "usage": {"total_tokens": 10},
+        }
+
+    monkeypatch.setattr(helix_cli, "run_chat", fake_run_chat)
+    session = helix_cli.InteractiveSession(
+        provider_name="deepinfra",
+        model=helix_cli.DEEPINFRA_MODEL_PROFILES["chat"].model_id,
+        workspace_root=base / "workspace",
+        project="test-project",
+        agent_id="tester",
+        max_tokens=64,
+        temperature=0.0,
+        transcript_dir=base / "transcripts",
+        evidence_root=base / "empty-verification",
+    )
+
+    result = session.chat("contame algo interesante")
+
+    observations = result["trace"].get("observations") or []
+    assert calls["count"] >= 1
+    assert observations
+    assert observations[0]["tool_name"] == "memory.resolve"
+    assert observations[0]["observation"]["result"]["status"] == "error"
+    assert observations[0]["observation"]["result"]["error"] == "missing tool arguments: ref"
+    assert "Task failed" not in result["text"]
+    assert "memory.resolve" in result["text"]
+    assert "sin `ref`" in result["text"]
+
+
 def test_memory_resolve_falls_back_to_transcript_jsonl() -> None:
     base = _test_root()
     workspace = base / "workspace"
@@ -1911,6 +2047,94 @@ def test_manual_gemini_pro_uses_explicit_fallback_chain(monkeypatch) -> None:
     assert latest["metadata"]["actual_model"] == pro_tools
 
 
+def test_gemini_rate_limit_stops_same_provider_failover(monkeypatch) -> None:
+    helix_cli._PROVIDER_COOLDOWNS.clear()
+    calls = []
+
+    def fake_run_chat(provider_name, model, **kwargs):
+        calls.append((provider_name, model))
+        raise helix_cli.ProviderRateLimitError(
+            provider_name,
+            model,
+            "API Error (gemini): HTTP Error 429: Too Many Requests",
+            retry_after_seconds=30,
+        )
+
+    monkeypatch.setattr(helix_cli, "run_chat", fake_run_chat)
+
+    with pytest.raises(RuntimeError) as exc_info:
+        helix_cli.run_chat_with_failover(
+            provider_name="gemini",
+            model="gemini-3-flash-preview",
+            fallback_models=["gemini-2.5-flash", "gemini-2.5-flash-lite"],
+            prompt="hola",
+        )
+
+    assert "HTTP Error 429" in str(exc_info.value)
+    assert calls == [("gemini", "gemini-3-flash-preview")]
+    assert helix_cli._provider_cooldown_status("gemini")["active"] is True
+    helix_cli._PROVIDER_COOLDOWNS.clear()
+
+
+def test_chat_gemini_rate_limit_returns_recovery_message(monkeypatch) -> None:
+    helix_cli._PROVIDER_COOLDOWNS.clear()
+    for env_name in ("DEEPINFRA_API_TOKEN", "OPENAI_API_KEY", "ANTHROPIC_API_KEY"):
+        monkeypatch.delenv(env_name, raising=False)
+    monkeypatch.setattr(helix_cli, "_config_token", lambda provider_name: None)
+
+    def fake_run_chat(provider_name, model, **kwargs):
+        raise helix_cli.ProviderRateLimitError(
+            provider_name,
+            model,
+            "API Error (gemini): HTTP Error 429: Too Many Requests",
+            retry_after_seconds=45,
+        )
+
+    monkeypatch.setattr(helix_cli, "run_chat", fake_run_chat)
+    session = helix_cli.InteractiveSession(
+        provider_name="gemini",
+        model="auto",
+        workspace_root=_test_root() / "workspace",
+        project="test-project",
+        agent_id="tester",
+        max_tokens=64,
+        temperature=0.0,
+        transcript_dir=_test_root() / "transcripts",
+        evidence_root=_test_root() / "empty-verification",
+    )
+
+    result = session.chat("no sé contame que es helix")
+
+    assert "Task failed" not in result["text"]
+    assert "HTTP 429" in result["text"]
+    assert "prefiero no inventar" in result["text"]
+    helix_cli._PROVIDER_COOLDOWNS.clear()
+
+
+def test_chat_bad_request_returns_recovery_message(monkeypatch) -> None:
+    def fake_run_chat(provider_name, model, **kwargs):
+        raise RuntimeError("API Error (deepinfra): HTTP Error 400: Bad Request")
+
+    monkeypatch.setattr(helix_cli, "run_chat", fake_run_chat)
+    session = helix_cli.InteractiveSession(
+        provider_name="deepinfra",
+        model=helix_cli.DEEPINFRA_MODEL_PROFILES["qwen-big"].model_id,
+        workspace_root=_test_root() / "workspace",
+        project="test-project",
+        agent_id="tester",
+        max_tokens=64,
+        temperature=0.0,
+        transcript_dir=_test_root() / "transcripts",
+        evidence_root=_test_root() / "empty-verification",
+    )
+
+    result = session.chat("yo fui quien creo helix")
+
+    assert "Task failed" not in result["text"]
+    assert "HTTP 400 Bad Request" in result["text"]
+    assert "recompactar" in result["text"]
+
+
 def test_gemini_chat_serializes_native_url_context_and_search_grounding(monkeypatch) -> None:
     captured = {}
 
@@ -2138,6 +2362,77 @@ def test_style_command_changes_response_register_and_persists(monkeypatch, capsy
     assert session.response_style == "vivid"
     assert saved["response_style"] == "vivid"
     assert "response_style=vivid" in capsys.readouterr().out
+
+
+def test_mode_command_changes_interaction_mode_and_persists(monkeypatch, capsys) -> None:
+    saved = {}
+
+    monkeypatch.setattr(helix_cli, "_load_config", lambda: {})
+    monkeypatch.setattr(helix_cli, "_save_config", lambda config: saved.update(config) or Path("config.json"))
+    session = helix_cli.InteractiveSession(
+        provider_name="deepinfra",
+        model="auto",
+        workspace_root=_test_root() / "workspace",
+        project="test-project",
+        agent_id="tester",
+        max_tokens=64,
+        temperature=0.0,
+        transcript_dir=_test_root() / "transcripts",
+    )
+
+    assert helix_cli._handle_interactive_command(session, "/mode technical") is True
+    assert session.interaction_mode == "technical"
+    assert saved["interaction_mode"] == "technical"
+    assert "interaction_mode=technical" in capsys.readouterr().out
+
+
+def test_mode_list_command_reports_profiles(capsys) -> None:
+    session = helix_cli.InteractiveSession(
+        provider_name="deepinfra",
+        model="auto",
+        workspace_root=_test_root() / "workspace",
+        project="test-project",
+        agent_id="tester",
+        max_tokens=64,
+        temperature=0.0,
+        transcript_dir=_test_root() / "transcripts",
+    )
+
+    assert helix_cli._handle_interactive_command(session, "/mode list") is True
+    output = capsys.readouterr().out
+    assert "balanced" in output
+    assert "technical" in output
+    assert "explore" in output
+
+
+def test_explore_alias_runs_one_shot_without_changing_sticky_mode(monkeypatch) -> None:
+    base = _test_root()
+
+    def fake_run_chat(provider_name, model, prompt, system, history=None, **kwargs):
+        return {
+            "text": "<helix_output>Exploración creativa anclada.</helix_output>",
+            "actual_model": model,
+            "latency_ms": 1.0,
+            "finish_reason": "stop",
+            "usage": {"total_tokens": 18},
+        }
+
+    monkeypatch.setattr(helix_cli, "run_chat", fake_run_chat)
+    session = helix_cli.InteractiveSession(
+        provider_name="deepinfra",
+        model="auto",
+        workspace_root=base / "workspace",
+        project="test-project",
+        agent_id="tester",
+        max_tokens=64,
+        temperature=0.0,
+        transcript_dir=base / "transcripts",
+    )
+    session.interaction_mode = "balanced"
+
+    assert helix_cli._handle_interactive_command(session, "/explore helix y ghost in the shell") is True
+    assert session.interaction_mode == "balanced"
+    assert session.events[-1]["metadata"]["interaction_mode"] == "explore"
 
 
 def test_agent_use_blueprint_selects_blueprint_model_and_records_allowed_tools(monkeypatch, capsys) -> None:
@@ -2443,6 +2738,44 @@ def test_chat_promotes_contextual_helix_explanations_to_reasoning_profile(monkey
     assert "HeliX architecture context pack" in captured["system"]
 
 
+def test_chat_explore_mode_keeps_creative_helix_without_architecture_pack(monkeypatch) -> None:
+    workspace = _test_root() / "workspace"
+    captured = {}
+
+    def fake_run_chat(provider_name, model, prompt, system, history=None, **kwargs):
+        captured["model"] = model
+        captured["system"] = system
+        return {
+            "text": "<helix_output>Podemos pensar HeliX como un chasis cultural además de un runtime verificable.</helix_output>",
+            "actual_model": model,
+            "latency_ms": 1.0,
+            "finish_reason": "stop",
+            "usage": {"total_tokens": 16},
+        }
+
+    monkeypatch.setattr(helix_cli, "run_chat", fake_run_chat)
+    session = helix_cli.InteractiveSession(
+        provider_name="deepinfra",
+        model="auto",
+        workspace_root=workspace,
+        project="test-project",
+        agent_id="tester",
+        max_tokens=64,
+        temperature=0.0,
+        transcript_dir=workspace / "transcripts",
+        router_policy="premium",
+    )
+    session.interaction_mode = "explore"
+    session.record(role="user", content="estaba pensando en helix", event_type="user_turn")
+    session.record(role="assistant", content="Dale, exploremos eso.", event_type="assistant_turn")
+    result = session.chat("me recuerda a ghost in the shell, exploralo")
+    observations = list(result["trace"].get("observations") or [])
+    assert result["route"]["interaction_mode"] == "explore"
+    assert result["route"]["intent"] == "creative_helix"
+    assert "HeliX architecture context pack" not in captured["system"]
+    assert not any(item.get("tool_name") == "helix.architecture" for item in observations)
+
+
 def test_chat_helix_auditability_requests_use_architecture_pack_and_audit_profile(monkeypatch) -> None:
     workspace = _test_root() / "workspace"
     helix_cli.hmem.observe_event(
@@ -2496,6 +2829,7 @@ def test_chat_helix_auditability_requests_use_architecture_pack_and_audit_profil
     assert "Do not narrate retrieval mechanics" in str(captured["prompt"])
     assert "HeliX read-only tool results" in captured["history"][-1]["content"]
     assert result["route"]["profile"] == "sonnet"
+    assert result["route"]["interaction_mode"] == "balanced"
     assert "node hashes" in result["text"].lower()
     assert "HeliX architecture context pack" in captured["system"]
 

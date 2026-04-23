@@ -639,27 +639,81 @@ class MemoryCatalog:
         lineage = dict(self._node_lineage.get(str(node_hash or "")) or {})
         active_session = str(session_id or lineage.get("session_id") or "")
         state = dict(self._session_lineage.get(active_session) or {})
+        checkpoint_anchor = self._checkpoint_anchor_for_node_unlocked(
+            str(node_hash or ""),
+            active_session or None,
+        )
+        canonical = bool(lineage.get("canonical", True))
+        quarantined = bool(lineage.get("quarantined", False))
+        non_canonical = bool(lineage.get("non_canonical", False))
+        if checkpoint_anchor.get("checkpoint_anchored"):
+            canonical = True
+            quarantined = False
+            non_canonical = False
         return {
             "thread_id": active_session or None,
-            "canonical": bool(lineage.get("canonical", True)),
-            "quarantined": bool(lineage.get("quarantined", False)),
-            "non_canonical": bool(lineage.get("non_canonical", False)),
-            "equivocation_id": lineage.get("equivocation_id"),
-            "quarantined_reason": lineage.get("quarantined_reason"),
+            "canonical": canonical,
+            "quarantined": quarantined,
+            "non_canonical": non_canonical,
+            "equivocation_id": None if checkpoint_anchor.get("checkpoint_anchored") else lineage.get("equivocation_id"),
+            "quarantined_reason": None if checkpoint_anchor.get("checkpoint_anchored") else lineage.get("quarantined_reason"),
             "canonical_head": state.get("canonical_head"),
             "head_seq": state.get("head_seq"),
             "equivocation_count": state.get("equivocation_count", 0),
             "lineage_status": state.get("status", "active"),
             "lineage_transition_seq": lineage.get("seq"),
             "lineage_previous_head": lineage.get("previous_head"),
-            "checkpoint_hash": lineage.get("checkpoint_hash") or self._node_checkpoint_hashes.get(str(node_hash or "")) or state.get("latest_checkpoint_hash"),
-            "checkpoint_status": "ok" if state.get("latest_checkpoint_hash") else "missing_legacy",
+            "checkpoint_hash": (
+                checkpoint_anchor.get("checkpoint_hash")
+                or lineage.get("checkpoint_hash")
+                or self._node_checkpoint_hashes.get(str(node_hash or ""))
+                or state.get("latest_checkpoint_hash")
+            ),
+            "checkpoint_status": (
+                "anchored"
+                if checkpoint_anchor.get("checkpoint_anchored")
+                else ("ok" if state.get("latest_checkpoint_hash") else "missing_legacy")
+            ),
+            "checkpoint_anchored": bool(checkpoint_anchor.get("checkpoint_anchored")),
         }
 
     def _attach_lineage(self, payload: dict[str, Any], *, node_hash: str | None = None, session_id: str | None = None) -> dict[str, Any]:
         lineage = self._lineage_for_node_unlocked(node_hash or str(payload.get("node_hash") or ""), session_id or payload.get("session_id"))
         payload.update(lineage)
         return payload
+
+    def _checkpoint_anchor_for_node_unlocked(self, node_hash: str | None, session_id: str | None) -> dict[str, Any]:
+        if not node_hash or not session_id:
+            return {"checkpoint_anchored": False}
+        checkpoints = self._session_checkpoints.get(str(session_id), [])
+        if not checkpoints:
+            return {"checkpoint_anchored": False}
+        latest = dict(checkpoints[-1])
+        verification = self._verify_checkpoint_unlocked(latest)
+        if not verification.get("checkpoint_verified"):
+            return {
+                "checkpoint_anchored": False,
+                "checkpoint_error": verification.get("verification_error") or "checkpoint_verification_failed",
+            }
+        canonical_head = str(latest.get("canonical_head") or "")
+        if not canonical_head:
+            return {"checkpoint_anchored": False}
+        chain_status = self.verify_chain(canonical_head)
+        if chain_status.get("status") != "verified":
+            return {
+                "checkpoint_anchored": False,
+                "checkpoint_error": chain_status.get("error") or chain_status.get("status"),
+            }
+        canonical_chain = self.dag.audit_chain(canonical_head)
+        chain_hashes = {
+            str(getattr(item, "hash", "") or (item.get("hash") if isinstance(item, dict) else ""))
+            for item in canonical_chain
+        }
+        return {
+            "checkpoint_anchored": str(node_hash) in chain_hashes,
+            "checkpoint_hash": latest.get("checkpoint_hash"),
+            "checkpoint_canonical_head": canonical_head,
+        }
 
     def _memory_visible_unlocked(self, memory_id: str, *, include_quarantined: bool) -> bool:
         node_hash = self._memory_node_hashes.get(str(memory_id))
@@ -669,6 +723,8 @@ class MemoryCatalog:
         if lineage is None:
             return True
         if include_quarantined:
+            return True
+        if self._checkpoint_anchor_for_node_unlocked(node_hash, lineage.get("session_id")).get("checkpoint_anchored"):
             return True
         return bool(lineage.get("canonical", True)) and not bool(lineage.get("quarantined", False))
 
@@ -681,6 +737,8 @@ class MemoryCatalog:
         if lineage is None:
             return True
         if include_quarantined:
+            return True
+        if self._checkpoint_anchor_for_node_unlocked(node_hash, lineage.get("session_id")).get("checkpoint_anchored"):
             return True
         return bool(lineage.get("canonical", True)) and not bool(lineage.get("quarantined", False))
 

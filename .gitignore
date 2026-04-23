@@ -67,7 +67,6 @@ site-dist/
 benchmark-output/
 *.html
 !docs/**/*.html
-!web/**/*.html
 
 # ─── OS / editor ──────────────────────────────────────────────────────────────
 .DS_Store

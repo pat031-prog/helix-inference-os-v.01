@@ -498,12 +498,6 @@ def run_blueprint_demo(args: argparse.Namespace) -> dict[str, Any]:
     output_dir.mkdir(parents=True, exist_ok=True)
     site_output.parent.mkdir(parents=True, exist_ok=True)
     site_output.write_text(html_text, encoding="utf-8")
-    if not bool(getattr(args, "skip_web_copy", False)):
-        web_meta = Path(args.web_copy_path)
-        if not web_meta.is_absolute():
-            web_meta = REPO_ROOT / web_meta
-        web_meta.parent.mkdir(parents=True, exist_ok=True)
-        web_meta.write_text(html_text, encoding="utf-8")
     _write_json(output_dir / blueprint.payload["outputs"]["artifact"], artifact)
     _write_side_artifacts(output_dir, stack_catalog=stack_catalog)
     catalog.close()
@@ -517,12 +511,10 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--local-files-only", action="store_true", default=True)
     parser.add_argument("--output-dir", default="verification")
     parser.add_argument("--site-output", default="site-dist/meta-demo.html")
-    parser.add_argument("--web-copy-path", default="web/meta-demo.html")
     parser.add_argument("--codec", default="rust-hlx-buffered-flat")
     parser.add_argument("--audit-policy", default="deferred", choices=["blocking", "deferred"])
     parser.add_argument("--max-new-tokens", type=int, default=24)
     parser.add_argument("--timeout-seconds", type=int, default=900)
-    parser.add_argument("--skip-web-copy", action="store_true")
     return parser
 
 

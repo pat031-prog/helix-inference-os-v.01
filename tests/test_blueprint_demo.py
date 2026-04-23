@@ -92,7 +92,6 @@ def test_blueprint_runner_mock_generates_artifact_and_html(tmp_path: Path) -> No
                 str(tmp_path),
                 "--site-output",
                 str(site_output),
-                "--skip-web-copy",
             ]
         )
     )
@@ -117,7 +116,6 @@ def test_blueprint_runner_real_only_skips_without_prepared_aliases(tmp_path: Pat
                 str(tmp_path),
                 "--site-output",
                 str(tmp_path / "meta-demo.html"),
-                "--skip-web-copy",
             ]
         )
     )

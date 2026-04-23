@@ -51,14 +51,6 @@ def _repo_root() -> Path:
     return Path(__file__).resolve().parents[2]
 
 
-def _web_root() -> Path:
-    return _repo_root() / "web"
-
-
-def _web_static_root() -> Path:
-    return _web_root() / "static"
-
-
 def _legacy_frontend_root() -> Path:
     return _repo_root() / "frontend"
 
@@ -1408,9 +1400,6 @@ class _HelixHandler(BaseHTTPRequestHandler):
             content_type=content_type or "application/octet-stream",
         )
 
-    def _serve_static(self, relative_path: str) -> None:
-        self._serve_path(root=_web_root(), relative_path=relative_path)
-
     def do_OPTIONS(self) -> None:  # noqa: N802
         self.send_response(HTTPStatus.NO_CONTENT)
         self._apply_cors_headers()
@@ -1419,23 +1408,8 @@ class _HelixHandler(BaseHTTPRequestHandler):
     def do_GET(self) -> None:  # noqa: N802
         path = urlparse(self.path).path
         try:
-            if path == "/":
-                self._serve_static("index.html")
-                return
-            if path == "/app":
+            if path in {"/", "/app"}:
                 self._serve_path(root=_legacy_frontend_root(), relative_path="index.html")
-                return
-            if path in {"/research", "/frontier"}:
-                self._serve_static("research.html")
-                return
-            if path == "/meta-demo":
-                self._serve_static("meta-demo.html")
-                return
-            if path == "/meta-demo-real-cached":
-                self._serve_static("meta-demo-real-cached.html")
-                return
-            if path.startswith("/static/"):
-                self._serve_path(root=_web_static_root(), relative_path=path.removeprefix("/static/"))
                 return
             if path == "/health":
                 self._send_json({"status": "ok", "workspace_root": str(self.runtime.root)})

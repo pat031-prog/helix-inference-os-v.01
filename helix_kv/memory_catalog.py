@@ -340,6 +340,7 @@ class MemoryCatalog:
         payload: dict[str, Any],
         *,
         signer_id: str,
+        key_provenance: str = "local_self_signed",
         attestation: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         key = self._local_signing_key_unlocked()
@@ -355,7 +356,7 @@ class MemoryCatalog:
                 private_key_b64=str(key["private_key"]),
                 public_key_b64=str(key["public_key"]),
                 signer_id=signer_id,
-                key_provenance="local_self_signed",
+                key_provenance=key_provenance,
                 attestation=attestation,
             )
         )
@@ -371,6 +372,7 @@ class MemoryCatalog:
                 "status": "active",
                 "last_transition_ms": None,
                 "equivocation_count": 0,
+                "policy_quarantine_count": 0,
                 "latest_transition_seq": 0,
                 "checkpoint_count": 0,
                 "latest_checkpoint_hash": None,
@@ -451,6 +453,52 @@ class MemoryCatalog:
             "non_canonical": not canonical,
             "equivocation_id": equivocation_id,
             "quarantined_reason": quarantined_reason,
+            "previous_checkpoint_hash": previous_checkpoint_hash,
+            "created_ms": float(created_ms),
+        }
+        self._node_lineage[str(node_hash)] = dict(payload)
+        self._session_transitions.setdefault(session_key, []).append(dict(payload))
+        return payload
+
+    def _record_policy_quarantine_transition_unlocked(
+        self,
+        *,
+        session_id: str,
+        parent_hash: str | None,
+        node_hash: str,
+        record_kind: str,
+        created_ms: float,
+        quarantine_reason: str,
+        quarantine_class: str = "policy",
+        disposition: str = "quarantined_policy",
+    ) -> dict[str, Any]:
+        session_key = str(session_id)
+        state = self._session_lineage_state_unlocked(session_key)
+        transition_seq = int(state.get("transition_count") or 0) + 1
+        canonical_seq = int(state.get("head_seq") or 0)
+        previous_checkpoint_hash = state.get("latest_checkpoint_hash")
+        state["transition_count"] = transition_seq
+        state["latest_transition_seq"] = transition_seq
+        state["last_transition_ms"] = float(created_ms)
+        state["policy_quarantine_count"] = int(state.get("policy_quarantine_count") or 0) + 1
+        state["status"] = self._lineage_status_for_state_unlocked(state)
+        if state.get("canonical_head"):
+            self._session_heads[session_key] = str(state["canonical_head"])
+        payload = {
+            "session_id": session_key,
+            "thread_id": session_key,
+            "previous_head": parent_hash,
+            "candidate_head": str(node_hash),
+            "record_kind": record_kind,
+            "seq": transition_seq,
+            "canonical_seq": canonical_seq,
+            "canonical": False,
+            "quarantined": True,
+            "non_canonical": True,
+            "equivocation_id": None,
+            "quarantined_reason": quarantine_reason,
+            "quarantine_class": quarantine_class,
+            "disposition": disposition,
             "previous_checkpoint_hash": previous_checkpoint_hash,
             "created_ms": float(created_ms),
         }
@@ -549,6 +597,8 @@ class MemoryCatalog:
             "canonical_head": state.get("canonical_head"),
             "equivocation_id": lineage.get("equivocation_id"),
             "quarantined_reason": lineage.get("quarantined_reason"),
+            "quarantine_class": lineage.get("quarantine_class"),
+            "disposition": lineage.get("disposition") or ("quarantined_equivocation" if lineage.get("equivocation_id") else "quarantined_policy"),
             "transition_seq": int(lineage.get("seq") or 0),
             "canonical_seq": int(lineage.get("canonical_seq") or 0),
             "checkpoint_hash": state.get("latest_checkpoint_hash"),
@@ -610,6 +660,16 @@ class MemoryCatalog:
         restored.setdefault("non_canonical", not bool(restored.get("canonical", True)))
         restored.setdefault("equivocation_id", None)
         restored.setdefault("quarantined_reason", None)
+        restored.setdefault(
+            "quarantine_class",
+            "equivocation" if restored.get("equivocation_id") else None,
+        )
+        restored.setdefault(
+            "disposition",
+            "canonical"
+            if restored.get("canonical", True)
+            else ("quarantined_equivocation" if restored.get("equivocation_id") else "quarantined_policy"),
+        )
         restored.setdefault("checkpoint_hash", None)
         restored.setdefault("previous_checkpoint_hash", None)
         restored.setdefault("created_ms", float(created_ms))
@@ -626,10 +686,13 @@ class MemoryCatalog:
             state["head_seq"] = max(int(state.get("head_seq") or 0), int(restored.get("canonical_seq") or 0))
             self._session_heads[session_key] = str(node_hash)
         else:
-            state["equivocation_count"] = max(
-                int(state.get("equivocation_count") or 0),
-                int(restored.get("equivocation_id", "0").rsplit("-", 1)[-1]) if restored.get("equivocation_id") else int(state.get("equivocation_count") or 0) + 1,
-            )
+            if restored.get("quarantine_class") == "policy" and not restored.get("equivocation_id"):
+                state["policy_quarantine_count"] = int(state.get("policy_quarantine_count") or 0) + 1
+            else:
+                state["equivocation_count"] = max(
+                    int(state.get("equivocation_count") or 0),
+                    int(restored.get("equivocation_id", "0").rsplit("-", 1)[-1]) if restored.get("equivocation_id") else int(state.get("equivocation_count") or 0) + 1,
+                )
             if state.get("canonical_head"):
                 self._session_heads[session_key] = str(state["canonical_head"])
         state["status"] = self._lineage_status_for_state_unlocked(state)
@@ -657,9 +720,12 @@ class MemoryCatalog:
             "non_canonical": non_canonical,
             "equivocation_id": None if checkpoint_anchor.get("checkpoint_anchored") else lineage.get("equivocation_id"),
             "quarantined_reason": None if checkpoint_anchor.get("checkpoint_anchored") else lineage.get("quarantined_reason"),
+            "quarantine_class": None if checkpoint_anchor.get("checkpoint_anchored") else lineage.get("quarantine_class"),
+            "disposition": "canonical" if checkpoint_anchor.get("checkpoint_anchored") else (lineage.get("disposition") or ("canonical" if canonical else "quarantined_equivocation")),
             "canonical_head": state.get("canonical_head"),
             "head_seq": state.get("head_seq"),
             "equivocation_count": state.get("equivocation_count", 0),
+            "policy_quarantine_count": state.get("policy_quarantine_count", 0),
             "lineage_status": state.get("status", "active"),
             "lineage_transition_seq": lineage.get("seq"),
             "lineage_previous_head": lineage.get("previous_head"),
@@ -841,6 +907,42 @@ class MemoryCatalog:
                 created_ms=float(item.created_ms),
             )
             self._restore_session_checkpoint_unlocked(item.session_id, entry.get("checkpoint") if isinstance(entry.get("checkpoint"), dict) else None)
+            self._restore_quarantine_record_unlocked(item.session_id, entry.get("quarantine_record") if isinstance(entry.get("quarantine_record"), dict) else None)
+            self._memories[item.memory_id] = item
+            self._memory_node_hashes[item.memory_id] = node.hash
+            self._memory_receipts[item.memory_id] = dict(entry.get("receipt") or {})
+            self._index_router_item_unlocked(item)
+            return
+        if op == "remember_quarantined":
+            payload = dict(entry["payload"])
+            item = MemoryItem(**payload)
+            content_dump = str(entry["content_dump"])
+            parent_hash = entry.get("parent_hash")
+            node = self.dag._insert_unlocked(content_dump, parent_hash=parent_hash)
+            stored_hash = entry.get("node_hash")
+            if stored_hash and stored_hash != node.hash:
+                raise ValueError(f"quarantined memory node hash mismatch: {stored_hash} != {node.hash}")
+            lineage = entry.get("lineage") if isinstance(entry.get("lineage"), dict) else None
+            self._insert_rust_indexed(
+                content_dump=content_dump,
+                parent_hash=parent_hash,
+                metadata={
+                    **item.to_dict(),
+                    **(lineage or {}),
+                    "record_kind": str((lineage or {}).get("record_kind") or "memory"),
+                    "index_content": item.content,
+                    "content_available": True,
+                    "audit_status": "quarantined",
+                },
+            )
+            self._restore_lineage_transition_unlocked(
+                session_id=item.session_id,
+                node_hash=node.hash,
+                transition=lineage,
+                parent_hash=parent_hash,
+                record_kind=str((lineage or {}).get("record_kind") or "memory"),
+                created_ms=float(item.created_ms),
+            )
             self._restore_quarantine_record_unlocked(item.session_id, entry.get("quarantine_record") if isinstance(entry.get("quarantine_record"), dict) else None)
             self._memories[item.memory_id] = item
             self._memory_node_hashes[item.memory_id] = node.hash
@@ -1042,6 +1144,116 @@ class MemoryCatalog:
             )
             
         return item
+
+    def remember_quarantined(
+        self,
+        *,
+        project: str,
+        agent_id: str,
+        content: str,
+        summary: str | None = None,
+        session_id: str,
+        memory_type: str = "episodic",
+        importance: int = 5,
+        tags: Iterable[str] | None = None,
+        memory_id: str | None = None,
+        decay_score: float = 1.0,
+        llm_call_id: str | None = None,
+        parent_hash: str | None = None,
+        record_kind: str = "memory",
+        quarantine_reason: str = "policy_refusal",
+        quarantine_class: str = "policy",
+        disposition: str = "quarantined_policy",
+    ) -> dict[str, Any]:
+        project = _safe_scope(project, field="project")
+        agent_id = _safe_scope(agent_id, field="agent_id")
+        session_key = _safe_scope(session_id, field="session_id")
+        memory_type = str(memory_type)
+        if memory_type not in MEMORY_TYPES:
+            raise ValueError(f"unsupported memory_type: {memory_type}")
+        clean_content = privacy_filter(content)
+        clean_summary = privacy_filter(summary or clean_content[:160])
+        digest = source_hash(project, agent_id, memory_type, clean_summary, clean_content, record_kind, quarantine_reason)
+        mem_id = memory_id or f"mem-{digest[:24]}"
+        now = _now_ms()
+        tag_list = [str(item) for item in (tags or [])]
+
+        item = MemoryItem(
+            memory_id=mem_id,
+            project=project,
+            agent_id=agent_id,
+            session_id=session_key,
+            memory_type=memory_type,
+            summary=clean_summary,
+            content=clean_content,
+            importance=int(importance),
+            source_hash=digest,
+            tags=tag_list,
+            decay_score=float(decay_score),
+            created_ms=now,
+            last_access_ms=now,
+        )
+
+        with self._lock:
+            content_dump = json.dumps(item.to_dict(), sort_keys=True)
+            parent = parent_hash if parent_hash is not None else self._session_heads.get(session_key)
+            node = self.dag._insert_unlocked(content_dump, parent_hash=parent)
+            lineage = self._record_policy_quarantine_transition_unlocked(
+                session_id=session_key,
+                parent_hash=parent,
+                node_hash=node.hash,
+                record_kind=str(record_kind),
+                created_ms=now,
+                quarantine_reason=str(quarantine_reason),
+                quarantine_class=str(quarantine_class or "policy"),
+                disposition=str(disposition or "quarantined_policy"),
+            )
+            quarantine_record = self._record_quarantine_record_unlocked(session_id=session_key, lineage=lineage)
+            receipt = self._build_receipt(
+                item=item,
+                node_hash=node.hash,
+                parent_hash=parent,
+                llm_call_id=llm_call_id,
+                lineage=lineage,
+            )
+            self._insert_rust_indexed(
+                content_dump=content_dump,
+                parent_hash=parent,
+                metadata={
+                    **item.to_dict(),
+                    **lineage,
+                    "record_kind": str(record_kind),
+                    "index_content": clean_content,
+                    "content_available": True,
+                    "audit_status": "quarantined",
+                },
+            )
+
+            self._memories[mem_id] = item
+            self._memory_node_hashes[mem_id] = node.hash
+            self._memory_receipts[mem_id] = receipt
+            self._index_router_item_unlocked(item)
+            self._append_journal(
+                {
+                    "op": "remember_quarantined",
+                    "payload": item.to_dict(),
+                    "content_dump": content_dump,
+                    "parent_hash": parent,
+                    "node_hash": node.hash,
+                    "receipt": receipt,
+                    "lineage": lineage,
+                    "quarantine_record": quarantine_record,
+                }
+            )
+
+            return self._attach_receipt(
+                {
+                    **item.to_dict(),
+                    "node_hash": node.hash,
+                    "record_kind": str(record_kind),
+                    "checkpoint_hash": lineage.get("checkpoint_hash"),
+                }
+            )
 
     def bulk_remember(
         self,
@@ -1430,7 +1642,12 @@ class MemoryCatalog:
                 raise RuntimeError("sigstore_rekor signing requires HELIX_SIGSTORE_REKOR_BUNDLE_DIGEST")
             attestation = {"provider": "sigstore_rekor", "evidence_digest": evidence_digest, "verified": True}
         if mode in {"local_self_signed", "sigstore_rekor"}:
-            return self._sign_with_local_key_unlocked(payload, signer_id=signer_id, attestation=attestation)
+            return self._sign_with_local_key_unlocked(
+                payload,
+                signer_id=signer_id,
+                key_provenance=key_provenance,
+                attestation=attestation,
+            )
         seed = os.environ.get("HELIX_RECEIPT_SIGNING_SEED") or f"{self.db_path}:{item.memory_id}:{node_hash}"
         keys = derive_ephemeral_keypair(seed)
         return attach_verification(
@@ -1877,6 +2094,9 @@ class MemoryCatalog:
                 self._rust_index_error = str(exc)
         chain = self.dag.audit_chain(str(leaf_hash))
         failed_at = None
+        missing_parent = None
+        if not chain:
+            missing_parent = str(leaf_hash)
         for node in chain:
             expected_payload = node.content.encode("utf-8")
             if node.parent_hash:
@@ -1885,11 +2105,15 @@ class MemoryCatalog:
             if expected != node.hash and not str(node.content).startswith("[GC_TOMBSTONE:"):
                 failed_at = node.hash
                 break
+            if node.parent_hash and self.dag.lookup(node.parent_hash) is None:
+                missing_parent = node.parent_hash
+                break
         return {
-            "status": "failed" if failed_at else "verified",
+            "status": "failed" if failed_at or missing_parent else "verified",
             "leaf_hash": str(leaf_hash),
             "chain_len": len(chain),
             "failed_at": failed_at,
+            "missing_parent": missing_parent,
             "backend": "python_dag",
         }
 
@@ -2041,6 +2265,8 @@ class MemoryCatalog:
             canonical_chain = self.verify_chain(canonical_head) if canonical_head else None
             transitions = [dict(item) for item in self._session_transitions.get(session_key, [])]
             quarantined = [item for item in transitions if item.get("quarantined")]
+            policy_quarantined = [item for item in quarantined if item.get("quarantine_class") == "policy" and not item.get("equivocation_id")]
+            equivocated = [item for item in quarantined if item not in policy_quarantined]
             visible_transitions = transitions if include_quarantined else [item for item in transitions if not item.get("quarantined")]
             checkpoint_chain = self._checkpoint_chain_status_unlocked(session_key)
             latest_checkpoint = checkpoint_chain.get("latest_checkpoint")
@@ -2051,7 +2277,7 @@ class MemoryCatalog:
                 status = "failed"
             elif latest_checkpoint and not checkpoint_chain.get("checkpoint_chain_verified"):
                 status = "failed"
-            elif quarantined:
+            elif equivocated:
                 status = "equivocation_detected"
             if status == "failed":
                 trust_status = "failed"
@@ -2071,6 +2297,7 @@ class MemoryCatalog:
                 "canonical_head": canonical_head or None,
                 "head_seq": int(state.get("head_seq") or 0),
                 "equivocation_count": int(state.get("equivocation_count") or 0),
+                "policy_quarantine_count": int(state.get("policy_quarantine_count") or len(policy_quarantined)),
                 "transition_count": int(state.get("transition_count") or 0),
                 "quarantined_count": len(quarantined),
                 "checkpoint_verified": bool(checkpoint_verification.get("checkpoint_verified")) and bool(checkpoint_chain.get("checkpoint_chain_verified")),
@@ -2082,6 +2309,7 @@ class MemoryCatalog:
                 "canonical_chain": canonical_chain,
                 "transitions": visible_transitions,
                 "quarantined": quarantined if include_quarantined else [item.get("candidate_head") for item in quarantined],
+                "policy_quarantined": policy_quarantined if include_quarantined else [item.get("candidate_head") for item in policy_quarantined],
                 "include_quarantined": include_quarantined,
             }
 
@@ -2160,6 +2388,8 @@ class MemoryCatalog:
             receipt = self._memory_receipts.get(target_memory_id or "") if target_memory_id else None
             all_transitions = [dict(item) for item in self._session_transitions.get(session_key, [])]
             quarantined = [item for item in all_transitions if item.get("quarantined")]
+            policy_quarantined = [item for item in quarantined if item.get("quarantine_class") == "policy" and not item.get("equivocation_id")]
+            equivocated = [item for item in quarantined if item not in policy_quarantined]
             checkpoint_chain = self._checkpoint_chain_status_unlocked(session_key)
             chain_status = self.verify_chain(str(state.get("canonical_head") or "")) if state.get("canonical_head") else None
             proof_status = "verified"
@@ -2167,7 +2397,7 @@ class MemoryCatalog:
                 proof_status = "failed"
             elif checkpoint_chain.get("latest_checkpoint") and not checkpoint_chain.get("checkpoint_chain_verified"):
                 proof_status = "failed"
-            elif quarantined:
+            elif equivocated:
                 proof_status = "equivocation_detected"
             return {
                 "status": "ok",
@@ -2191,6 +2421,7 @@ class MemoryCatalog:
                     "checkpoint_count": int(checkpoint_chain.get("checkpoint_count") or 0),
                     "legacy_unsigned_count": self._legacy_unsigned_count_unlocked(session_key),
                     "quarantined_count": len(quarantined),
+                    "policy_quarantine_count": len(policy_quarantined),
                     "include_quarantined": include_quarantined,
                 },
                 "include_quarantined": include_quarantined,

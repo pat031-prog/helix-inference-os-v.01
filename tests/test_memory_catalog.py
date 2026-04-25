@@ -173,6 +173,82 @@ def test_memory_catalog_quarantines_equivocating_branch_and_filters_it_from_defa
         catalog.close()
 
 
+def test_memory_catalog_remember_quarantined_preserves_canonical_head(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    monkeypatch.setenv("HELIX_RETRIEVAL_SIGNATURE_ENFORCEMENT", "permissive")
+    catalog = MemoryCatalog.open(tmp_path / "policy-quarantine.sqlite")
+    try:
+        root = catalog.remember(
+            project="helix",
+            agent_id="agent-a",
+            session_id="target-thread",
+            memory_type="semantic",
+            summary="Canonical root",
+            content="This is the canonical target root.",
+            importance=8,
+        )
+        base_hash = catalog.get_memory_node_hash(root.memory_id)
+        assert base_hash
+
+        attempt = catalog.remember_quarantined(
+            project="helix",
+            agent_id="alpha",
+            session_id="target-thread",
+            memory_type="episodic",
+            record_kind="target_attempt",
+            summary="Isolated target attempt",
+            content=json.dumps({"kind": "target_attempt", "prompt_preview": "safe evaluation case"}, sort_keys=True),
+            importance=6,
+            parent_hash=base_hash,
+            quarantine_reason="isolated_target_attempt",
+            quarantine_class="policy",
+            disposition="evidence_only",
+            llm_call_id="req-123",
+        )
+        refusal = catalog.remember_quarantined(
+            project="helix",
+            agent_id="target-adapter",
+            session_id="target-thread",
+            memory_type="episodic",
+            record_kind="target_refusal",
+            summary="Target refusal",
+            content=json.dumps({"kind": "target_refusal", "refusal_class": "policy_refusal"}, sort_keys=True),
+            importance=7,
+            parent_hash=attempt["node_hash"],
+            quarantine_reason="policy_refusal",
+            quarantine_class="policy",
+            disposition="quarantined_policy",
+            llm_call_id="req-123",
+        )
+
+        lineage = catalog.verify_session_lineage("target-thread", include_quarantined=True)
+        visible = catalog.list_memories(project="helix", session_id="target-thread", include_quarantined=False)
+        forensic = catalog.list_memories(project="helix", session_id="target-thread", include_quarantined=True)
+        proof = catalog.export_session_proof("target-thread", ref=refusal["memory_id"], include_quarantined=True)
+
+        assert lineage["status"] == "verified"
+        assert lineage["canonical_head"] == base_hash
+        assert lineage["equivocation_count"] == 0
+        assert lineage["policy_quarantine_count"] == 2
+        assert lineage["quarantined_count"] == 2
+        assert lineage["trust_status"] == "verified_with_quarantine"
+        assert all(item["memory_id"] != attempt["memory_id"] for item in visible)
+        attempt_row = next(item for item in forensic if item["memory_id"] == attempt["memory_id"])
+        refusal_row = next(item for item in forensic if item["memory_id"] == refusal["memory_id"])
+        assert attempt_row["canonical"] is False
+        assert attempt_row["quarantine_class"] == "policy"
+        assert attempt_row["disposition"] == "evidence_only"
+        assert refusal_row["quarantined"] is True
+        assert refusal_row["quarantine_class"] == "policy"
+        assert refusal_row["disposition"] == "quarantined_policy"
+        assert proof["lineage_verification"]["status"] == "verified"
+        assert proof["lineage_verification"]["policy_quarantine_count"] == 2
+    finally:
+        catalog.close()
+
+
 def test_memory_catalog_signed_checkpoints_replay_and_export_proof(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.delenv("HELIX_RECEIPT_SIGNING_MODE", raising=False)
     path = tmp_path / "trust.sqlite"
@@ -246,6 +322,49 @@ def test_memory_catalog_checkpoint_tamper_fails_verification(tmp_path: Path) -> 
         assert lineage["status"] == "failed"
         assert lineage["trust_status"] == "failed"
         assert lineage["checkpoint_verified"] is False
+    finally:
+        catalog.close()
+
+
+def test_memory_catalog_python_verify_chain_fails_missing_leaf(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("HELIX_MEMORY_RUST_INDEX", "0")
+    catalog = MemoryCatalog.open(tmp_path / "missing-chain.sqlite")
+    try:
+        status = catalog.verify_chain("f" * 64)
+
+        assert status["status"] == "failed"
+        assert status["chain_len"] == 0
+        assert status["missing_parent"] == "f" * 64
+    finally:
+        catalog.close()
+
+
+def test_memory_catalog_sigstore_mode_signs_provenance_and_attestation(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("HELIX_RECEIPT_SIGNING_MODE", "sigstore_rekor")
+    monkeypatch.setenv("HELIX_SIGSTORE_REKOR_BUNDLE_DIGEST", "sha256:rekor-bundle")
+    catalog = MemoryCatalog.open(tmp_path / "sigstore.sqlite")
+    try:
+        memory = catalog.remember(
+            project="helix",
+            agent_id="agent-a",
+            session_id="thread-sigstore",
+            memory_type="semantic",
+            summary="Sigstore receipt",
+            content="Receipt provenance is part of the signed payload.",
+        )
+        receipt = catalog.get_memory_receipt(memory.memory_id)
+
+        assert receipt
+        assert receipt["signature_verified"] is True
+        assert receipt["key_provenance"] == "sigstore_rekor"
+        assert receipt["public_claim_eligible"] is True
+        assert receipt["attestation"]["provider"] == "sigstore_rekor"
     finally:
         catalog.close()
 

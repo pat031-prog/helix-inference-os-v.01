@@ -76,6 +76,23 @@ def test_signed_receipt_tamper_fails() -> None:
     assert "canonical_payload_sha256 mismatch" in verified["verification_error"]
 
 
+def test_signed_receipt_provenance_tamper_fails() -> None:
+    receipt = _signed("local_self_signed")
+    tampered = copy.deepcopy(receipt)
+    tampered["key_provenance"] = "sigstore_rekor"
+    tampered["attestation"] = {
+        "provider": "sigstore_rekor",
+        "evidence_digest": "sha256:forged",
+        "verified": True,
+    }
+
+    verified = verify_signed_receipt(tampered)
+
+    assert verified["signature_verified"] is False
+    assert verified["public_claim_eligible"] is False
+    assert "canonical_payload_sha256 mismatch" in verified["verification_error"]
+
+
 def test_local_self_signed_is_mechanics_only() -> None:
     receipt = _signed("local_self_signed")
     verified = verify_signed_receipt(receipt)

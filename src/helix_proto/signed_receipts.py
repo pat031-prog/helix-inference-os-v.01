@@ -28,8 +28,6 @@ STORED_SIGNATURE_FIELDS = {
     "public_key",
     "canonical_payload_sha256",
     "receipt_version",
-    "key_provenance",
-    "attestation",
     "canonicalization",
 }
 RUNTIME_VERIFICATION_FIELDS = {
@@ -176,6 +174,8 @@ def sign_receipt_payload(
         raise ValueError(f"unsupported key_provenance={key_provenance!r}")
     signable = signable_payload(dict(payload))
     signable["signer_id"] = str(signer_id)
+    signable["key_provenance"] = key_provenance
+    signable["attestation"] = attestation
     digest = canonical_payload_sha256(signable)
     private_key = Ed25519PrivateKey.from_private_bytes(b64decode(private_key_b64))
     signature = private_key.sign(canonical_json(signable).encode("utf-8"))
@@ -202,6 +202,10 @@ def sign_receipt_payload(
 
 def verify_signed_receipt(receipt: dict[str, Any], *, verifier_version: str = "helix-receipt-verifier-v1") -> dict[str, Any]:
     try:
+        if receipt.get("receipt_version") != RECEIPT_VERSION:
+            raise ValueError("unsupported receipt_version")
+        if receipt.get("canonicalization") != CANONICALIZATION:
+            raise ValueError("unsupported canonicalization")
         if receipt.get("signature_alg") != SIGNATURE_ALG:
             raise ValueError("unsupported signature_alg")
         payload = signable_payload(receipt)
@@ -215,8 +219,8 @@ def verify_signed_receipt(receipt: dict[str, Any], *, verifier_version: str = "h
             "verified_at_utc": utc_now(),
             "verifier_version": verifier_version,
             "canonical_payload_sha256": digest,
-            "key_provenance": receipt.get("key_provenance"),
-            "public_claim_eligible": receipt.get("key_provenance") in ACCEPTED_PUBLIC_PROVENANCE,
+            "key_provenance": payload.get("key_provenance"),
+            "public_claim_eligible": _public_claim_eligible(payload),
         }
     except (InvalidSignature, ValueError, CanonicalizationError) as exc:
         return {
@@ -226,6 +230,21 @@ def verify_signed_receipt(receipt: dict[str, Any], *, verifier_version: str = "h
             "verification_error": str(exc),
             "public_claim_eligible": False,
         }
+
+
+def _public_claim_eligible(payload: dict[str, Any]) -> bool:
+    provenance = payload.get("key_provenance")
+    if provenance not in ACCEPTED_PUBLIC_PROVENANCE:
+        return False
+    if provenance == "sigstore_rekor":
+        attestation = payload.get("attestation")
+        return (
+            isinstance(attestation, dict)
+            and attestation.get("provider") == "sigstore_rekor"
+            and attestation.get("verified") is True
+            and bool(attestation.get("evidence_digest"))
+        )
+    return True
 
 
 def unsigned_legacy_receipt(payload: dict[str, Any]) -> dict[str, Any]:

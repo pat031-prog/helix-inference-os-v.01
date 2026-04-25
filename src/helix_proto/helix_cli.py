@@ -1351,6 +1351,22 @@ DEEPINFRA_MODEL_PROFILES: dict[str, ModelProfile] = {
         stability_tier="stable",
         preferred_workloads=("research", "long_context", "synthesis", "uncertainty_handling"),
     ),
+    "bioinformatics": ModelProfile(
+        model_id="Qwen/Qwen3.5-122B-A10B",
+        role="bioinformatics",
+        provider="deepinfra",
+        input_per_million=0.29,
+        output_per_million=2.90,
+        notes="Bioinformatics-heavy analysis alias pinned to the primary large Qwen research model for complex scientific logic.",
+        supports_function_calling=True,
+        supports_parallel_tools=True,
+        supports_long_context=True,
+        supports_structured_output=True,
+        latency_tier="medium",
+        cost_tier="high",
+        stability_tier="stable",
+        preferred_workloads=("bioinformatics", "scientific_reasoning", "research", "long_context"),
+    ),
     "legacy-reasoning": ModelProfile(
         model_id="stepfun-ai/Step-3.5-Flash",
         role="legacy-reasoning",
@@ -2094,6 +2110,8 @@ def resolve_model_alias(value: str) -> str:
         "llama vision": "llama-vision",
         "vision": "llama-vision",
         "research": "research",
+        "bioinformatics": "bioinformatics",
+        "bioinfo": "bioinformatics",
     }
     alias = aliases.get(lowered)
     if alias:
@@ -2144,6 +2162,7 @@ def _explicit_model_control_alias(text: str) -> str | None:
         ("gemini-lite", ("gemini lite", "gemini flash lite", "gemini-3.1-flash-lite", "gemini 3.1 flash lite")),
         ("gemini-flash", ("gemini flash", "gemini-3-flash", "gemini 3 flash", "gemini-3-flash-preview", "gemini")),
         ("code", ("qwen coder", "qwen-coder", "coder")),
+        ("bioinformatics", ("bioinformatics", "bioinfo")),
         ("qwen-big", ("qwen big", "qwen-heavy", "qwen", "qwen 122b", "qwen-122b")),
         ("devstral", ("devstral",)),
         ("mistral", ("mistral", "mistral small")),
@@ -2164,6 +2183,53 @@ def _profile_alias_for_model_id(model_id: str) -> str | None:
         if profile.model_id == model_id or alias == model_id:
             return alias
     return None
+
+
+_MISSING_MODEL_ALIAS_RE = re.compile(r"model alias not found:\s*([A-Za-z0-9_.-]+)", re.IGNORECASE)
+
+
+def _missing_model_alias_from_error(exc: Exception) -> str | None:
+    seen: set[int] = set()
+    current: Exception | None = exc
+    while current is not None and id(current) not in seen:
+        seen.add(id(current))
+        match = _MISSING_MODEL_ALIAS_RE.search(str(current))
+        if match:
+            return match.group(1)
+        next_exc = current.__cause__ or current.__context__
+        current = next_exc if isinstance(next_exc, Exception) else None
+    return None
+
+
+def _warn_missing_model_alias(alias: str, fallback_alias: str) -> None:
+    message = f"[!] Alias not found ('{alias}'). Falling back to default '{fallback_alias}' profile."
+    if console:
+        console.print(f"[warning]{message}[/warning]")
+    else:
+        print(message)
+
+
+def _recover_missing_model_alias(session: "InteractiveSession", exc: Exception) -> bool:
+    missing_alias = _missing_model_alias_from_error(exc)
+    if not missing_alias:
+        return False
+    fallback_alias = "research"
+    fallback_profile = MODEL_PROFILES[fallback_alias]
+    session.provider_name = fallback_profile.provider
+    session.model = fallback_profile.model_id
+    session.record(
+        role="system",
+        content=f"Recovered from missing model alias `{missing_alias}` by falling back to `{fallback_alias}`.",
+        event_type="model_alias_fallback",
+        metadata={
+            "missing_alias": missing_alias,
+            "fallback_alias": fallback_alias,
+            "fallback_model": fallback_profile.model_id,
+            "fallback_provider": fallback_profile.provider,
+        },
+    )
+    _warn_missing_model_alias(missing_alias, fallback_alias)
+    return True
 
 
 def _capability_requirements_for_prompt(
@@ -4747,9 +4813,15 @@ def _agent_observation_prompt(
         instructions.append(
             "For helix.architecture observations, use the attached invariants, lineage state, excerpts, and claim boundaries as the primary source of truth for HeliX architecture claims."
         )
+        instructions.append(
+            "Do not reinterpret equivocation/quarantine counters as same-sequence-slot collisions or catastrophic trust failure unless the observation explicitly says that. If trust remains `verified_with_quarantine`, say the canonical head is still preserved and locally verifiable."
+        )
     if any(str(item.get("tool") or "") == "helix.trust" for item in observations):
         instructions.append(
             "For helix.trust observations, separate local signed-checkpoint verification from semantic truth or global transparency; report canonical head, equivocation/quarantine and legacy warnings directly."
+        )
+        instructions.append(
+            "If helix.trust reports `equivocation_detected` together with `verified_with_quarantine`, describe that as quarantined competing branches with a still-verifiable canonical head. Do not claim tampering, injection, or unauditability unless signature, chain, or checkpoint verification failed."
         )
     if helix_focus:
         instructions.extend(
@@ -5107,6 +5179,12 @@ class InteractiveSession:
             "lineage": lineage,
             "head_checkpoint": checkpoint,
             "proof": proof,
+            "interpretation_rules": [
+                "`equivocation_detected` means HeliX observed one or more competing non-canonical transitions for this thread; it does not mean the canonical head is missing.",
+                "`verified_with_quarantine` means the local canonical chain and signed checkpoint path still verify while quarantined branches are preserved for forensics.",
+                "`equivocation_count` and `quarantined_count` are historical thread counters; they are not proof that multiple nodes claimed the exact same sequential slot.",
+                "Do not infer tampering, external injection, or loss of provenance from quarantine alone. Escalate those claims only if chain, checkpoint, or signature verification actually failed.",
+            ],
             "limits": [
                 "Receipts prove local payload integrity/provenance for a stored memory; they do not prove semantic truth.",
                 "Signed checkpoints prove the local canonical head selected by this workspace key; they are not global transparency or consensus.",
@@ -5742,6 +5820,14 @@ class InteractiveSession:
                 "Do not describe `Ouroboros` as the storage core unless the current turn includes direct local code or evidence for that claim.",
                 "If a concept only appears in verification artifacts or suite outputs, label it as evidence or methodology, not guaranteed runtime behavior.",
                 "Do not claim CT/Rekor-style public transparency yet; current checkpoints are local signed heads with exportable proof metadata.",
+                "Do not reinterpret `equivocation_count` or `quarantined_count` as same-slot sequence collisions unless a cited tool result says that explicitly.",
+                "If `trust_status` is `verified_with_quarantine`, describe the canonical head as preserved and locally verifiable unless a chain/checkpoint verification failure is also present.",
+                "Do not infer payload tampering, post-generation injection, or broken chain of custody from quarantine alone; that requires failed receipt, chain, or checkpoint verification in the cited evidence.",
+            ],
+            "interpretation_rules": [
+                "`equivocation_detected` in thread lineage means competing branches were recorded for the thread and quarantined from normal retrieval.",
+                "`verified_with_quarantine` means the canonical branch remains selected and locally verifiable while non-canonical history is retained for audit.",
+                "Historical quarantine counters can grow over time and may include both lineage conflicts and policy quarantines; they are not by themselves catastrophic trust failures.",
             ],
             "module_map": [
                 {"path": "helix_kv/memory_catalog.py", "role": "session lineage, canonical head, retrieval filtering, receipts attachment"},
@@ -6293,7 +6379,16 @@ class InteractiveSession:
                     planner="web-grounding",
                     raw_text="",
                 )
-            if mode in {"chat", "task"} and (helix_focus or helix_auditability) and architecture_context_pack and not observations:
+            if mode in {"chat", "task"} and helix_auditability and not observations:
+                return PlannerDecision(
+                    kind="tool",
+                    thought="ground HeliX auditability questions in the local trust report before analyzing semantics",
+                    tool_name="helix.trust",
+                    arguments={"thread_id": self.thread_id, "include_quarantined": True},
+                    planner="helix-trust-grounding",
+                    raw_text="",
+                )
+            if mode in {"chat", "task"} and helix_focus and architecture_context_pack and not observations:
                 return PlannerDecision(
                     kind="tool",
                     thought="ground meta-HeliX questions in the local architecture pack before answering",
@@ -7917,6 +8012,7 @@ def _select_model(session: InteractiveSession) -> str | None:
         ("mistral", "mistral - fast conversational baseline"),
         ("qwen-big", "qwen-big - primary large Qwen for research, HeliX and synthesis"),
         ("qwen", "qwen - alias for qwen-big"),
+        ("bioinformatics", "bioinformatics - scientific and bioinformatics analysis alias on the large Qwen research path"),
         ("gemma", "gemma - careful reasoning and decomposition"),
         ("gemini-pro", "gemini-pro - Gemini 3.1 Pro preview via GEMINI_API_KEY"),
         ("gemini-pro-tools", "gemini-pro-tools - Gemini 3.1 Pro custom-tools preview"),
@@ -8731,8 +8827,8 @@ def run_interactive(args: argparse.Namespace | None = None) -> int:
             '/router', '/key', '/doctor', '/providers', '/cert', '/cert-dry', 
             '/evidence', '/verify', '/suites', '/suite', '/memory', '/trust', '/task', '/tools', '/agents', '/mode', '/tech', '/explore', '/apply', '/agent', '/with', '/theme', '/style', '/raw', '/clear', '/config', '/exit', '/quit',
             '/provider deepinfra', '/provider gemini', '/provider list',
-            '/models json', '/model auto', '/model use ', '/model sonnet', '/model mistral', '/model devstral', '/model qwen', '/model qwen-big', '/model gemma', '/model gemini-pro', '/model gemini-pro-tools', '/model gemini-flash', '/model gemini-lite', '/model gemini-2.5-pro', '/model gemini-2.5-flash', '/model gemini-2.5-flash-lite', '/model coder', '/model engineering', '/model deep-reasoning', '/model llama', '/model llama-vision',
-            '/with sonnet ', '/with qwen-big ', '/with gemma ', '/with gemini-pro ', '/with gemini-pro-tools ', '/with gemini-flash ', '/with gemini-lite ', '/with gemini-2.5-pro ', '/with gemini-2.5-flash ', '/with gemini-2.5-flash-lite ', '/with coder ', '/with mistral ',
+            '/models json', '/model auto', '/model use ', '/model sonnet', '/model mistral', '/model devstral', '/model qwen', '/model qwen-big', '/model bioinformatics', '/model gemma', '/model gemini-pro', '/model gemini-pro-tools', '/model gemini-flash', '/model gemini-lite', '/model gemini-2.5-pro', '/model gemini-2.5-flash', '/model gemini-2.5-flash-lite', '/model coder', '/model engineering', '/model deep-reasoning', '/model llama', '/model llama-vision',
+            '/with sonnet ', '/with qwen-big ', '/with bioinformatics ', '/with gemma ', '/with gemini-pro ', '/with gemini-pro-tools ', '/with gemini-flash ', '/with gemini-lite ', '/with gemini-2.5-pro ', '/with gemini-2.5-flash ', '/with gemini-2.5-flash-lite ', '/with coder ', '/with mistral ',
             '/router balanced', '/router qwen-heavy', '/router current', '/router qwen-gemma-mistral', '/router cheap', '/router premium', '/router list', '/router why ',
             '/web ', '/file ',
             '/theme industrial-brutalist', '/theme industrial-neon', '/theme xerox', '/theme brown-console', '/theme brown', '/theme cyberpunk', '/theme cyberpunk-gray', '/theme list', '/raw on', '/raw off',
@@ -8802,6 +8898,8 @@ def run_interactive(args: argparse.Namespace | None = None) -> int:
             if console: console.print(f"[error]LINK FAILURE:[/] {exc}")
             else: print(f"[helix] provider connection failed: {exc}")
         except Exception as exc:  # noqa: BLE001
+            if _recover_missing_model_alias(session, exc):
+                return
             if console: console.print(f"[error]SYSTEM CRASH:[/] {type(exc).__name__}: {exc}")
             else: print(f"[helix] error: {type(exc).__name__}: {exc}")
 
@@ -8826,8 +8924,20 @@ def run_interactive(args: argparse.Namespace | None = None) -> int:
             continue
         routed = line if line.startswith("/") else _route_natural_language(line)
         if routed and routed.startswith("/"):
-            if not _handle_interactive_command(session, routed):
-                break
+            try:
+                if not _handle_interactive_command(session, routed):
+                    break
+            except KeyboardInterrupt:
+                if console: console.print("[warning]request cancelled[/warning]")
+                else: print("[helix] request cancelled")
+            except error.URLError as exc:
+                if console: console.print(f"[error]LINK FAILURE:[/] {exc}")
+                else: print(f"[helix] provider connection failed: {exc}")
+            except Exception as exc:  # noqa: BLE001
+                if _recover_missing_model_alias(session, exc):
+                    continue
+                if console: console.print(f"[error]SYSTEM CRASH:[/] {type(exc).__name__}: {exc}")
+                else: print(f"[helix] error: {type(exc).__name__}: {exc}")
             continue
         _process_turn(line)
 

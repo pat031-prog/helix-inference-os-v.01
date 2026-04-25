@@ -488,6 +488,22 @@ def test_model_use_command_persists_until_auto() -> None:
     assert session.model == "auto"
 
 
+def test_model_use_bioinformatics_alias_maps_to_qwen_research_profile() -> None:
+    session = helix_cli.InteractiveSession(
+        provider_name="deepinfra",
+        model="auto",
+        workspace_root=_test_root() / "workspace",
+        project="test-project",
+        agent_id="tester",
+        max_tokens=64,
+        temperature=0.0,
+        transcript_dir=_test_root() / "transcripts",
+    )
+    assert helix_cli._handle_interactive_command(session, "/model use bioinformatics") is True
+    assert session.provider_name == "deepinfra"
+    assert session.model == helix_cli.DEEPINFRA_MODEL_PROFILES["bioinformatics"].model_id
+
+
 def test_model_use_gemini_switches_provider_and_model(monkeypatch) -> None:
     monkeypatch.setattr(helix_cli, "_ensure_provider_token", lambda provider_name: None)
     session = helix_cli.InteractiveSession(
@@ -503,6 +519,35 @@ def test_model_use_gemini_switches_provider_and_model(monkeypatch) -> None:
     assert helix_cli._handle_interactive_command(session, "/model use gemini-pro") is True
     assert session.provider_name == "gemini"
     assert session.model == helix_cli.GEMINI_MODEL_PROFILES["gemini-pro"].model_id
+
+
+def test_missing_model_alias_error_falls_back_to_research_profile(monkeypatch, capsys) -> None:
+    monkeypatch.setattr(helix_cli, "console", None)
+    session = helix_cli.InteractiveSession(
+        provider_name="local",
+        model="bioinformatics",
+        workspace_root=_test_root() / "workspace",
+        project="test-project",
+        agent_id="tester",
+        max_tokens=64,
+        temperature=0.0,
+        transcript_dir=_test_root() / "transcripts",
+    )
+    try:
+        try:
+            raise FileNotFoundError("model alias not found: bioinformatics")
+        except FileNotFoundError as inner:
+            raise RuntimeError(
+                "all model attempts failed (local:bioinformatics: FileNotFoundError): model alias not found: bioinformatics"
+            ) from inner
+    except RuntimeError as exc:
+        assert helix_cli._recover_missing_model_alias(session, exc) is True
+
+    assert session.provider_name == "deepinfra"
+    assert session.model == helix_cli.DEEPINFRA_MODEL_PROFILES["research"].model_id
+    output = capsys.readouterr().out
+    assert "Alias not found ('bioinformatics')" in output
+    assert "default 'research' profile" in output
 
 
 def test_key_save_accepts_explicit_gemini_provider(monkeypatch, capsys) -> None:
@@ -2842,7 +2887,7 @@ def test_chat_helix_auditability_requests_use_architecture_pack_and_audit_profil
     result = session.chat("que onda la auditabilidad? los hashes y eso?")
     observations = list(result["trace"].get("observations") or [])
     assert observations
-    assert observations[0]["tool_name"] == "helix.architecture"
+    assert observations[0]["tool_name"] == "helix.trust"
     assert captured["model"] == helix_cli.DEEPINFRA_MODEL_PROFILES["sonnet"].model_id
     assert "Do not narrate retrieval mechanics" in str(captured["prompt"])
     assert "HeliX read-only tool results" in captured["history"][-1]["content"]
@@ -2980,11 +3025,13 @@ def test_architecture_context_pack_tool_returns_lineage_excerpts_and_claim_bound
     assert payload["kind"] == "helix-architecture-context-pack"
     assert payload["thread_lineage"]["thread_id"] == session.thread_id
     assert payload["claim_boundaries"]
+    assert payload["interpretation_rules"]
     assert payload["module_map"]
     assert payload["excerpts"]
     assert any(item["path"] == "helix_kv/memory_catalog.py" for item in payload["excerpts"])
     assert any("Signed head checkpoints" in item for item in payload["verified_invariants"])
     assert any("global non-equivocation" in item for item in payload["verified_invariants"])
+    assert any("verified_with_quarantine" in item for item in payload["claim_boundaries"])
 
 
 def test_trust_command_and_tool_report_signed_checkpoint(capsys) -> None:
@@ -3005,6 +3052,8 @@ def test_trust_command_and_tool_report_signed_checkpoint(capsys) -> None:
     tool_result = registry.call("helix.trust", {"thread_id": session.thread_id})
     assert tool_result["result"]["lineage"]["checkpoint_verified"] is True
     assert tool_result["result"]["head_checkpoint"]["checkpoint_verified"] is True
+    assert tool_result["result"]["interpretation_rules"]
+    assert any("verified_with_quarantine" in item for item in tool_result["result"]["interpretation_rules"])
 
     assert helix_cli._handle_interactive_command(session, "/trust current") is True
     output = capsys.readouterr().out

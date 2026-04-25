@@ -169,3 +169,35 @@ _tmp_pytest_smoke/
 # Nested external repos are local references unless explicitly vendored.
 verification/substrate-test-gpt2/helix-online-kv-src/
 verification/turboquant-ref/
+
+# ─── Red-Team / NDA artifacts (NEVER commit) ─────────────────────────────────
+# Sesiones y transcripciones del pipeline PAIR — protegidas por NDA
+transcripts/
+
+# Archivos de evidencia estructurada (contienen respuestas completas del modelo)
+*_evidence.json
+fuzzing_results_*.txt
+
+# Vectores de ataque (prompts adversariales sensibles)
+vectors.json
+
+# Credenciales de API (DoS si se filtran)
+.env
+*.env
+
+# Extensiones Python compiladas de Rust (binarios locales, no reproducibles en CI)
+_helix_target_adapter.pyd
+_helix_state_core.pyd
+*.pyd
+
+# Scripts NDA del pipeline red-team / target adapter / assistants — NO commitear
+/assistants.py
+/test_fire.py
+/test_fire_deepinfra.py
+/demo_redteam_pair.py
+/demo_redteam_mutation.py
+/filter_session_evidence.py
+
+# Crates experimentales (target adapter Rust + topological fuzzer) — fuera del scope publico
+/crates/helix-target-adapter/
+/crates/helix-state-core/src/topological_fuzzer.rs

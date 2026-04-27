@@ -5,6 +5,9 @@ use std::io::{Read, Seek, SeekFrom, Write};
 use std::path::Path;
 use std::time::Instant;
 
+pub mod topological_fuzzer;
+pub use topological_fuzzer::*;
+
 const MAGIC: &[u8] = b"HLXSTATE1\n";
 pub const CHUNK_SIZE: usize = 1024 * 1024;
 
@@ -800,6 +803,7 @@ fn _helix_state_core(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_function(wrap_pyfunction!(pack_hlx_buffers_pending, module)?)?;
     module.add_function(wrap_pyfunction!(unpack_hlx, module)?)?;
     module.add_function(wrap_pyfunction!(verify_hlx, module)?)?;
+    topological_fuzzer::register_python(module)?;
     Ok(())
 }
 

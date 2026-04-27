@@ -93,6 +93,52 @@ def test_signed_receipt_provenance_tamper_fails() -> None:
     assert "canonical_payload_sha256 mismatch" in verified["verification_error"]
 
 
+def test_signed_receipt_uses_constant_time_digest_compare() -> None:
+    """The verifier must use hmac.compare_digest for the canonical hash check
+    so reject latency does not leak per-byte information about valid hashes."""
+    import hmac
+    from helix_proto import signed_receipts as sr
+
+    # Sentinel: the implementation must keep using compare_digest. If someone
+    # refactors back to `==`, this test catches it via source inspection.
+    import inspect
+    source = inspect.getsource(sr.verify_signed_receipt)
+    assert "compare_digest" in source, "verify_signed_receipt must use hmac.compare_digest for the canonical hash check"
+
+    # Behavioural sanity: a one-bit-flipped digest still rejects.
+    receipt = _signed()
+    tampered = copy.deepcopy(receipt)
+    digest = tampered["canonical_payload_sha256"]
+    flipped = ("0" if digest[0] != "0" else "1") + digest[1:]
+    tampered["canonical_payload_sha256"] = flipped
+    assert verify_signed_receipt(tampered)["signature_verified"] is False
+    # And the constant-time helper itself rejects equal-length-but-different inputs.
+    assert hmac.compare_digest(digest, digest) is True
+    assert hmac.compare_digest(digest, flipped) is False
+
+
+def test_signed_receipt_downgrade_canonicalization_rejected() -> None:
+    """A tampered envelope advertising an older canonicalization profile must
+    be rejected outright, not silently re-verified under a weaker profile."""
+    receipt = _signed()
+    tampered = copy.deepcopy(receipt)
+    tampered["canonicalization"] = "helix-jcs-v0-simple"
+    verified = verify_signed_receipt(tampered)
+    assert verified["signature_verified"] is False
+    assert verified["public_claim_eligible"] is False
+    assert "unsupported canonicalization" in verified["verification_error"]
+
+
+def test_signed_receipt_downgrade_receipt_version_rejected() -> None:
+    """Same intent but for receipt_version: no quiet acceptance of legacy versions."""
+    receipt = _signed()
+    tampered = copy.deepcopy(receipt)
+    tampered["receipt_version"] = "helix-signed-receipt-v0"
+    verified = verify_signed_receipt(tampered)
+    assert verified["signature_verified"] is False
+    assert "unsupported receipt_version" in verified["verification_error"]
+
+
 def test_local_self_signed_is_mechanics_only() -> None:
     receipt = _signed("local_self_signed")
     verified = verify_signed_receipt(receipt)

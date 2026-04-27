@@ -228,9 +228,20 @@ class MemoryCatalog:
         self._node_checkpoint_hashes: dict[str, str] = {}
         self._quarantine_records: dict[str, list[dict[str, Any]]] = {}
         self._journal_enabled = os.environ.get("HELIX_MEMORY_JOURNAL", "1").lower() not in {"0", "false", "off", "no"}
+        # fsync per append is opt-in. Default off so the interactive CLI does
+        # not pay 5-50 ms per write on Windows (AV scanners + slow flush). Set
+        # HELIX_JOURNAL_FSYNC=1 for audit-grade durability (CI, release runs).
+        # Even with fsync off we still flush() so the bytes leave Python; a
+        # process crash keeps them, only a kernel panic could lose the tail.
+        self._journal_fsync = os.environ.get("HELIX_JOURNAL_FSYNC", "0").lower() in {"1", "true", "yes", "on"}
         self._journal_path = self.db_path.with_name("memory.journal.jsonl")
         self._journal_error: str | None = None
         self._replaying_journal = False
+        # Hash-chain state for the append-only journal. Legacy entries (no
+        # journal_seq) advance neither counter; only chain-aware entries do.
+        self._journal_seq: int = 0
+        self._journal_prev_sha256: str | None = None
+        self._journal_chain_errors: list[dict[str, Any]] = []
         self._load_journal()
 
     @classmethod
@@ -262,6 +273,24 @@ class MemoryCatalog:
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(json.dumps(payload, indent=2, ensure_ascii=True, sort_keys=True), encoding="utf-8")
 
+    def _write_secret_json_file_unlocked(self, path: Path, payload: dict[str, Any]) -> None:
+        """Write a JSON file containing key material with owner-only permissions.
+
+        On POSIX this enforces 0o600 on the file and 0o700 on the parent dir.
+        On Windows os.chmod only toggles the read-only bit; we still call it
+        for parity but the real ACL is the parent NTFS ACL (typically the
+        per-user trust dir under %USERPROFILE%).
+        """
+        self._write_json_file_unlocked(path, payload)
+        try:
+            os.chmod(path, 0o600)
+        except OSError:
+            pass
+        try:
+            os.chmod(path.parent, 0o700)
+        except OSError:
+            pass
+
     def _local_signing_key_unlocked(self) -> dict[str, Any]:
         if self._local_signing_key_cache:
             return dict(self._local_signing_key_cache)
@@ -282,11 +311,11 @@ class MemoryCatalog:
                 "public_key": public_key,
                 "key_provenance": "local_self_signed",
             }
-            self._write_json_file_unlocked(self._local_signing_key_path, stored)
+            self._write_secret_json_file_unlocked(self._local_signing_key_path, stored)
         if not key_id:
             key_id = key_id_for_public_key(public_key)
             stored["key_id"] = key_id
-            self._write_json_file_unlocked(self._local_signing_key_path, stored)
+            self._write_secret_json_file_unlocked(self._local_signing_key_path, stored)
 
         trust_root = self._read_json_file_unlocked(self._trust_root_path) or {}
         keys = trust_root.get("keys") if isinstance(trust_root.get("keys"), list) else []
@@ -515,6 +544,7 @@ class MemoryCatalog:
             "canonical_head": state.get("canonical_head"),
             "head_seq": int(state.get("head_seq") or 0),
             "transition_count": int(state.get("transition_count") or 0),
+            "checkpoint_index": int(state.get("checkpoint_count") or 0),
             "previous_checkpoint_hash": lineage.get("previous_checkpoint_hash") or None,
             "equivocation_count": int(state.get("equivocation_count") or 0),
             "status": str(state.get("status") or "active"),
@@ -525,7 +555,7 @@ class MemoryCatalog:
 
     @staticmethod
     def _checkpoint_hash_body(checkpoint: dict[str, Any]) -> dict[str, Any]:
-        return {
+        body = {
             "checkpoint_version": checkpoint.get("checkpoint_version"),
             "session_id": checkpoint.get("session_id"),
             "thread_id": checkpoint.get("thread_id"),
@@ -539,6 +569,11 @@ class MemoryCatalog:
             "policy_version": checkpoint.get("policy_version"),
             "external_anchor": checkpoint.get("external_anchor"),
         }
+        # checkpoint_index is only signed for checkpoints written by versions
+        # that emit it; legacy checkpoints stay verifiable without it.
+        if "checkpoint_index" in checkpoint:
+            body["checkpoint_index"] = int(checkpoint.get("checkpoint_index") or 0)
+        return body
 
     def _verify_checkpoint_unlocked(self, checkpoint: dict[str, Any] | None) -> dict[str, Any]:
         if not checkpoint:
@@ -811,35 +846,88 @@ class MemoryCatalog:
     def _append_journal(self, entry: dict[str, Any]) -> None:
         if not self._journal_enabled or self._replaying_journal:
             return
+        next_seq = self._journal_seq + 1
         payload = {
-            "journal_version": "helix-memory-journal-v1",
+            "journal_version": "helix-memory-journal-v2",
+            "journal_seq": next_seq,
+            "prev_journal_sha256": self._journal_prev_sha256,
             "created_utc": _utc_now(),
             **entry,
         }
+        line_bytes = (json.dumps(payload, ensure_ascii=False, sort_keys=True) + "\n").encode("utf-8")
         try:
             self._journal_path.parent.mkdir(parents=True, exist_ok=True)
-            with self._journal_path.open("a", encoding="utf-8") as handle:
-                handle.write(json.dumps(payload, ensure_ascii=False, sort_keys=True) + "\n")
+            # Binary append so "\n" is not translated to "\r\n" on Windows;
+            # the on-disk bytes must match what we hash for the chain.
+            with self._journal_path.open("ab") as handle:
+                handle.write(line_bytes)
+                handle.flush()
+                if self._journal_fsync:
+                    # Audit-grade durability: a kernel panic between flush()
+                    # and the SO writeback could otherwise lose the tail entry.
+                    try:
+                        os.fsync(handle.fileno())
+                    except OSError:
+                        # On systems that don't support fsync (eg some VFS
+                        # layers) we still flushed; nothing else we can do.
+                        pass
         except Exception as exc:  # noqa: BLE001
             self._journal_error = str(exc)
+            return
+        # Only advance the chain after a durable write succeeded.
+        self._journal_seq = next_seq
+        self._journal_prev_sha256 = hashlib.sha256(line_bytes).hexdigest()
 
     def _load_journal(self) -> None:
         if not self._journal_enabled or not self._journal_path.exists():
             return
         self._replaying_journal = True
+        last_seq = 0
+        last_signed_line_sha: str | None = None
+        chain_errors: list[dict[str, Any]] = []
         try:
-            with self._journal_path.open("r", encoding="utf-8-sig") as handle:
-                for line_number, line in enumerate(handle, start=1):
-                    raw = line.strip()
-                    if not raw:
+            # Read in binary so the chain hash matches the bytes we wrote.
+            with self._journal_path.open("rb") as handle:
+                for line_number, line_bytes in enumerate(handle, start=1):
+                    stripped = line_bytes.strip()
+                    if not stripped:
                         continue
                     try:
-                        entry = json.loads(raw)
+                        text = line_bytes.decode("utf-8-sig" if line_number == 1 else "utf-8")
+                        entry = json.loads(text.strip())
+                    except Exception as exc:  # noqa: BLE001
+                        self._journal_error = f"{self._journal_path}:{line_number}: parse {exc}"
+                        chain_errors.append({"line": line_number, "error": f"parse: {exc}"})
+                        continue
+                    seq = entry.get("journal_seq")
+                    if isinstance(seq, int):
+                        if seq != last_seq + 1:
+                            chain_errors.append({
+                                "line": line_number,
+                                "error": "journal_seq_gap",
+                                "expected": last_seq + 1,
+                                "observed": seq,
+                            })
+                        expected_prev = last_signed_line_sha
+                        observed_prev = entry.get("prev_journal_sha256")
+                        if observed_prev != expected_prev:
+                            chain_errors.append({
+                                "line": line_number,
+                                "error": "prev_journal_sha256_mismatch",
+                                "expected": expected_prev,
+                                "observed": observed_prev,
+                            })
+                        last_seq = seq
+                        last_signed_line_sha = hashlib.sha256(line_bytes).hexdigest()
+                    try:
                         self._replay_journal_entry(entry)
                     except Exception as exc:  # noqa: BLE001
-                        self._journal_error = f"{self._journal_path}:{line_number}: {exc}"
+                        self._journal_error = f"{self._journal_path}:{line_number}: replay {exc}"
         finally:
             self._replaying_journal = False
+            self._journal_seq = last_seq
+            self._journal_prev_sha256 = last_signed_line_sha
+            self._journal_chain_errors = chain_errors
 
     def _replay_journal_entry(self, entry: dict[str, Any]) -> None:
         op = str(entry.get("op") or "")
@@ -1640,7 +1728,18 @@ class MemoryCatalog:
             evidence_digest = os.environ.get("HELIX_SIGSTORE_REKOR_BUNDLE_DIGEST")
             if not evidence_digest:
                 raise RuntimeError("sigstore_rekor signing requires HELIX_SIGSTORE_REKOR_BUNDLE_DIGEST")
-            attestation = {"provider": "sigstore_rekor", "evidence_digest": evidence_digest, "verified": True}
+            # This code path does NOT contact Rekor; the env var is taken on
+            # trust. Mark the attestation honestly so the verifier can downgrade
+            # public-claim eligibility. Set HELIX_SIGSTORE_REKOR_BUNDLE_VERIFIED=1
+            # only when the bundle was verified out-of-band against the live
+            # Rekor transparency log.
+            bundle_verified = os.environ.get("HELIX_SIGSTORE_REKOR_BUNDLE_VERIFIED", "").lower() in {"1", "true", "yes", "on"}
+            attestation = {
+                "provider": "sigstore_rekor",
+                "evidence_digest": evidence_digest,
+                "verified": True,
+                "simulated_only": not bundle_verified,
+            }
         if mode in {"local_self_signed", "sigstore_rekor"}:
             return self._sign_with_local_key_unlocked(
                 payload,
@@ -2222,6 +2321,21 @@ class MemoryCatalog:
                     "checkpoint_error": "checkpoint_previous_hash_mismatch",
                     "failed_checkpoint_index": index,
                 }
+            # Signed monotonic index: detects drop/skip of intermediate
+            # checkpoints even when the prev-hash chain is reconstructed.
+            # Legacy checkpoints (no signed checkpoint_index) skip this check.
+            if "checkpoint_index" in checkpoint:
+                signed_index = int(checkpoint.get("checkpoint_index") or 0)
+                if signed_index != index:
+                    return {
+                        "checkpoint_chain_verified": False,
+                        "checkpoint_count": len(checkpoints),
+                        "latest_checkpoint": checkpoints[-1],
+                        "checkpoint_error": "checkpoint_index_gap",
+                        "failed_checkpoint_index": index,
+                        "expected_checkpoint_index": index,
+                        "observed_checkpoint_index": signed_index,
+                    }
             previous_hash = checkpoint.get("checkpoint_hash")
         state = self._session_lineage.get(session_key) or {}
         latest = checkpoints[-1]
@@ -2426,6 +2540,219 @@ class MemoryCatalog:
                 },
                 "include_quarantined": include_quarantined,
             }
+
+    # ─── Audit-bundle exports ────────────────────────────────────────────────
+    def _iter_journal_lines_unlocked(self) -> Iterable[tuple[int, bytes, dict[str, Any] | None]]:
+        """Yield (line_number, raw_bytes, parsed_entry_or_None) for each line.
+
+        Read-only: never modifies the journal file. Binary mode so the chain
+        hash matches the bytes that were written.
+        """
+        if not self._journal_path.exists():
+            return
+        with self._journal_path.open("rb") as handle:
+            for line_number, line_bytes in enumerate(handle, start=1):
+                stripped = line_bytes.strip()
+                if not stripped:
+                    continue
+                try:
+                    text = line_bytes.decode("utf-8-sig" if line_number == 1 else "utf-8")
+                    entry = json.loads(text.strip())
+                except Exception:
+                    yield line_number, line_bytes, None
+                    continue
+                yield line_number, line_bytes, entry
+
+    def verify_journal(self) -> dict[str, Any]:
+        """Re-read the journal from disk and validate its hash-chain integrity.
+
+        - Status `verified`: every chain-aware entry checks out.
+        - Status `tampered`: at least one signed entry has a wrong prev hash
+          or sequence gap, or a line failed to parse.
+        - Status `no_chain`: the journal exists but contains only legacy
+          entries (pre-v2). Not an error — just unverifiable retroactively.
+        - Status `missing`: no journal file at all.
+        """
+        if not self._journal_enabled:
+            return {"status": "disabled", "journal_path": str(self._journal_path)}
+        if not self._journal_path.exists():
+            return {"status": "missing", "journal_path": str(self._journal_path)}
+        errors: list[dict[str, Any]] = []
+        last_seq = 0
+        last_signed_line_sha: str | None = None
+        signed_count = 0
+        legacy_count = 0
+        total = 0
+        first_seq: int | None = None
+        for line_number, line_bytes, entry in self._iter_journal_lines_unlocked():
+            total += 1
+            if entry is None:
+                errors.append({"line": line_number, "error": "parse_error"})
+                continue
+            seq = entry.get("journal_seq")
+            if isinstance(seq, int):
+                signed_count += 1
+                if first_seq is None:
+                    first_seq = seq
+                if seq != last_seq + 1:
+                    errors.append({
+                        "line": line_number,
+                        "error": "journal_seq_gap",
+                        "expected": last_seq + 1,
+                        "observed": seq,
+                    })
+                expected_prev = last_signed_line_sha
+                observed_prev = entry.get("prev_journal_sha256")
+                if observed_prev != expected_prev:
+                    errors.append({
+                        "line": line_number,
+                        "error": "prev_journal_sha256_mismatch",
+                        "expected": expected_prev,
+                        "observed": observed_prev,
+                    })
+                last_seq = seq
+                last_signed_line_sha = hashlib.sha256(line_bytes).hexdigest()
+            else:
+                legacy_count += 1
+        if signed_count == 0 and legacy_count == 0:
+            status = "missing"
+        elif signed_count == 0:
+            status = "no_chain"
+        elif errors:
+            status = "tampered"
+        else:
+            status = "verified"
+        return {
+            "status": status,
+            "total_lines": total,
+            "signed_lines": signed_count,
+            "legacy_lines": legacy_count,
+            "first_signed_seq": first_seq,
+            "last_signed_seq": last_seq if signed_count else None,
+            "errors": errors,
+            "journal_path": str(self._journal_path),
+        }
+
+    def _rust_index_has_node_unlocked(self, node_hash: str) -> bool:
+        if self._rust_index is None:
+            return True  # not enabled = not a coverage gap
+        try:
+            result = self._rust_index.lookup(str(node_hash))
+        except Exception as exc:  # noqa: BLE001
+            self._rust_index_error = str(exc)
+            return False
+        return result is not None
+
+    def verify_dag_coverage(self) -> dict[str, Any]:
+        """Confirm every node_hash recorded in the journal exists in the
+        in-memory Python DAG and in the Rust index (if enabled).
+
+        Detects drift Python↔Rust silencioso. Read-only; never touches the
+        journal or the DAG.
+        """
+        if not self._journal_path.exists():
+            return {
+                "status": "no_journal",
+                "checked": 0,
+                "rust_index_enabled": self._rust_index is not None,
+                "python_missing": [],
+                "rust_missing": [],
+            }
+        py_missing: list[dict[str, Any]] = []
+        rust_missing: list[dict[str, Any]] = []
+        checked = 0
+        with self._lock:
+            for line_number, _line_bytes, entry in self._iter_journal_lines_unlocked():
+                if entry is None:
+                    continue
+                op = str(entry.get("op") or "")
+                if op not in {"remember", "observe", "remember_quarantined"}:
+                    continue
+                node_hash = str(entry.get("node_hash") or "")
+                if not node_hash:
+                    continue
+                checked += 1
+                if node_hash not in self.dag._nodes:
+                    py_missing.append({"line": line_number, "node_hash": node_hash, "op": op})
+                if not self._rust_index_has_node_unlocked(node_hash):
+                    rust_missing.append({"line": line_number, "node_hash": node_hash, "op": op})
+        status = "verified" if not py_missing and not rust_missing else "drift_detected"
+        return {
+            "status": status,
+            "checked": checked,
+            "python_missing": py_missing,
+            "rust_missing": rust_missing,
+            "rust_index_enabled": self._rust_index is not None,
+        }
+
+    def _journal_entries_for_session_unlocked(self, session_id: str) -> list[dict[str, Any]]:
+        """Return the journal entries that touched the given session, in
+        replay order. The payload shape varies by op so we only filter by
+        nested session_id when present.
+        """
+        target = str(session_id)
+        slice_: list[dict[str, Any]] = []
+        for line_number, _line_bytes, entry in self._iter_journal_lines_unlocked():
+            if entry is None:
+                continue
+            payload = entry.get("payload") if isinstance(entry.get("payload"), dict) else {}
+            entry_session = str(payload.get("session_id") or entry.get("session_id") or "")
+            if entry_session != target:
+                continue
+            slice_.append({"line": line_number, **entry})
+        return slice_
+
+    def export_full_session_bundle(
+        self,
+        session_id: str,
+        *,
+        ref: str | None = None,
+        include_quarantined: bool = True,
+    ) -> dict[str, Any]:
+        """One-shot, autosuficiente proof bundle. Diseñado para entregar el
+        archivo a un tercero auditor: trae proof + journal slice + verify_journal
+        + verify_dag_coverage + signed checkpoints + signing public key.
+
+        Read-only: nunca modifica el journal, sqlite, o el DAG.
+        """
+        proof = self.export_session_proof(
+            session_id,
+            ref=ref,
+            include_quarantined=include_quarantined,
+        )
+        journal_integrity = self.verify_journal()
+        dag_coverage = self.verify_dag_coverage()
+        with self._lock:
+            journal_slice = self._journal_entries_for_session_unlocked(session_id)
+            try:
+                key = self._local_signing_key_unlocked()
+            except Exception as exc:  # noqa: BLE001
+                key = {"error": str(exc)}
+            checkpoints = [dict(item) for item in self._session_checkpoints.get(str(session_id), [])]
+        return {
+            "bundle_version": "helix-session-bundle-v1",
+            "issued_at_utc": _utc_now(),
+            "session_id": str(session_id),
+            "thread_id": str(session_id),
+            "ref": ref,
+            "include_quarantined": include_quarantined,
+            "session_proof": proof,
+            "checkpoints": checkpoints,
+            "journal_integrity": journal_integrity,
+            "dag_coverage": dag_coverage,
+            "journal_entries": journal_slice,
+            "signer": {
+                "public_key": key.get("public_key"),
+                "key_id": key.get("key_id"),
+                "key_provenance": key.get("key_provenance") or "local_self_signed",
+            },
+            "verifier_hint": (
+                "Rebuild canonical_head by replaying journal_entries against an empty "
+                "MemoryCatalog and confirm dag_chain.node_hash == session_proof.target_node_hash. "
+                "Then verify_signed_receipt(session_proof.target_receipt) and verify each "
+                "checkpoint signature against signer.public_key."
+            ),
+        }
 
     def gc_tombstone_index(self, node_hash: str) -> dict[str, Any]:
         if self._rust_index is None:

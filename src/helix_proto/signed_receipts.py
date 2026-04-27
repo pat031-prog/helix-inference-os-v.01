@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import base64
 import hashlib
+import hmac
 import json
 import math
 from datetime import datetime, timezone
@@ -210,7 +211,9 @@ def verify_signed_receipt(receipt: dict[str, Any], *, verifier_version: str = "h
             raise ValueError("unsupported signature_alg")
         payload = signable_payload(receipt)
         digest = canonical_payload_sha256(payload)
-        if receipt.get("canonical_payload_sha256") != digest:
+        stored_digest = str(receipt.get("canonical_payload_sha256") or "")
+        # constant-time compare so verifier latency does not leak per-byte info
+        if not hmac.compare_digest(stored_digest, digest):
             raise ValueError("canonical_payload_sha256 mismatch")
         public_key = Ed25519PublicKey.from_public_bytes(b64decode(str(receipt.get("public_key") or "")))
         public_key.verify(b64decode(str(receipt.get("signature") or "")), canonical_json(payload).encode("utf-8"))
@@ -238,9 +241,16 @@ def _public_claim_eligible(payload: dict[str, Any]) -> bool:
         return False
     if provenance == "sigstore_rekor":
         attestation = payload.get("attestation")
+        if not isinstance(attestation, dict):
+            return False
+        # A signer that never round-tripped the bundle through the live Rekor
+        # transparency log MUST mark itself simulated_only=True; that path is
+        # not eligible for public claims even though the local signature is
+        # valid.
+        if attestation.get("simulated_only") is True:
+            return False
         return (
-            isinstance(attestation, dict)
-            and attestation.get("provider") == "sigstore_rekor"
+            attestation.get("provider") == "sigstore_rekor"
             and attestation.get("verified") is True
             and bool(attestation.get("evidence_digest"))
         )

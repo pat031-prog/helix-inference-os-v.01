@@ -2254,6 +2254,22 @@ def _capability_requirements_for_prompt(
         or len(url_refs) > 1
         or intent in {"research", "web_research", "suite_forensics", "helix_self", "creative_helix", "agentic", "agentic_code", "audit"}
     )
+    structured_output_terms = (
+        " json", "json ", "json.", "json,", "json:",
+        "schema", "estructurado", "estructurada", "structured",
+        "formato json", "formato yaml", "json output", "json mode",
+        "respond with json", "respondé con json", "responde con json",
+        "devolveme json", "devolveme un json", "give me json", "give me a json",
+        "as json", "como json", "in json format", "en formato json",
+        "/cert ", "/tools json", "tools json",
+        "valid json", "json valido", "json válido",
+    )
+    needs_structured_output = bool(
+        # Tool-calling intents almost always benefit from JSON-mode for the
+        # final tool-arg payload.
+        intent in {"agentic", "agentic_code", "suite_forensics"}
+        or any(term in (" " + lowered + " ") for term in structured_output_terms)
+    )
     return {
         "function_calling": bool(intent in {"agentic", "agentic_code"}),
         "parallel_tools": bool(intent in {"agentic", "agentic_code", "suite_forensics"}),
@@ -2269,7 +2285,7 @@ def _capability_requirements_for_prompt(
         "file_search": False,
         "vision": bool(intent == "vision"),
         "long_context": needs_long_context,
-        "structured_output": False,
+        "structured_output": needs_structured_output,
         "local_file_grounding": bool(path_refs),
         "suite_grounding": bool(suite_focus),
     }
@@ -2284,6 +2300,7 @@ def _empty_native_tool_plan(provider_name: str) -> dict[str, Any]:
         "function_declarations": [],
         "function_calling_mode": None,
         "file_search_store_ids": [],
+        "request_response_format": None,
         "why_not": [],
     }
 
@@ -2389,6 +2406,17 @@ def _native_tool_plan_for_route(route: dict[str, Any], text: str) -> dict[str, A
             why_not.append("HeliX keeps local tool orchestration in its own planner; Gemini function calling is not auto-enabled here.")
         if capability_requirements.get("file_search"):
             why_not.append("Gemini File Search is reserved for remote stores; local repo files stay on file.inspect.")
+    # Structured output: only request OpenAI-compat json_object mode for
+    # OpenAI-compatible providers (DeepInfra). Gemini and Anthropic have
+    # different schema-binding APIs and are left to HeliX prompt-side schema
+    # enforcement here.
+    if capability_requirements.get("structured_output"):
+        if provider_name == "deepinfra" and profile and getattr(profile, "supports_structured_output", False):
+            plan["request_response_format"] = {"type": "json_object"}
+        elif provider_name not in {"deepinfra"}:
+            why_not.append(f"Native structured-output mode is wired only for OpenAI-compat providers; {provider_name} stays on prompt-side schema.")
+        else:
+            why_not.append("The selected profile does not advertise structured output; HeliX prompt-side schema only.")
     if path_refs:
         why_not.append("Local paths and directories are grounded via HeliX file.inspect before any provider-native remote context.")
     plan["why_not"] = why_not
@@ -2519,17 +2547,38 @@ def _fallback_aliases_for_alias(alias: str) -> tuple[str, ...]:
     return ()
 
 
+def _dominant_recent_intent(intents: list[str] | None) -> tuple[str | None, int]:
+    """Return (intent, support) for the most repeated non-chat intent in the
+    last few user turns. Requires at least 2/N support to count as a trail."""
+    if not intents:
+        return None, 0
+    significant = [item for item in intents if item and item != "chat"]
+    if len(significant) < 2:
+        return None, 0
+    counts: dict[str, int] = {}
+    for intent in significant:
+        counts[intent] = counts.get(intent, 0) + 1
+    top_intent, top_count = max(counts.items(), key=lambda pair: pair[1])
+    return (top_intent, top_count) if top_count >= 2 else (None, 0)
+
+
 def route_model_for_task(
     text: str,
     *,
     provider_name: str = "deepinfra",
     policy: str = "balanced",
     interaction_mode: str = "balanced",
+    recent_intents: list[str] | None = None,
 ) -> dict[str, Any]:
     """Select a model for one turn using transparent heuristics.
 
     This is intentionally deterministic. The router should be auditable before
     it becomes another model call.
+
+    `recent_intents` is the route.intent of the last few user turns (oldest
+    first). When the user has been in the same lane for 2+ consecutive turns
+    the dominant intent gets a +0.4 score bump so a vague follow-up does not
+    fall back to chat — the multi-turn objective is preserved.
     """
 
     lowered = str(text or "").lower()
@@ -2540,6 +2589,7 @@ def route_model_for_task(
     policy = blueprint.name
     signals: list[str] = []
     explicit_alias = _explicit_model_control_alias(lowered)
+    continuity_intent, continuity_support = _dominant_recent_intent(recent_intents)
 
     helix_terms = (
         "helix",
@@ -2833,6 +2883,15 @@ def route_model_for_task(
             )
             scores["helix_self"] = max(0.0, min(scores["helix_self"], scores["creative_helix"] - 1.0))
             signals.append("creative_helix_scope")
+
+    # Continuity bump: when the user has stayed in the same lane for 2+ of
+    # the last 3-4 turns, give that intent a small score bump so a vague
+    # follow-up like "y eso?" or "arreglalo" stays in the right carril.
+    # The bump is intentionally small (+0.4) so it tilts ties without
+    # overriding strong signals from the current turn.
+    if continuity_intent and continuity_intent in scores:
+        scores[continuity_intent] += 0.4
+        signals.append(f"continuity:{continuity_intent}({continuity_support})")
 
     if scores["audit"]:
         signals.append("audit_or_high_stakes")
@@ -3420,21 +3479,30 @@ def _openai_compatible_chat(
     temperature: float,
     timeout: float,
     base_url: str | None = None,
+    native_request: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     url = f"{(base_url or provider.base_url or '').rstrip('/')}/chat/completions"
     headers = {"Content-Type": "application/json"}
     if token:
         headers["Authorization"] = f"Bearer {token}"
     started = time.perf_counter()
+    response_format = None
+    if isinstance(native_request, dict):
+        candidate = native_request.get("request_response_format")
+        if isinstance(candidate, dict):
+            response_format = candidate
 
     def _payload_for(call_messages: list[dict[str, str]]) -> dict[str, Any]:
-        return {
+        payload: dict[str, Any] = {
             "model": model,
             "messages": call_messages,
             "max_tokens": max_tokens,
             "temperature": temperature,
             "stream": False,
         }
+        if response_format is not None:
+            payload["response_format"] = response_format
+        return payload
 
     compact_retry = False
     try:
@@ -3815,6 +3883,7 @@ def run_chat(
         temperature=temperature,
         timeout=timeout,
         base_url=base_url,
+        native_request=native_request,
     )
 
 
@@ -5283,6 +5352,27 @@ class InteractiveSession:
             history.append({"role": role, "content": str(event.get("content") or "")})
         return history
 
+    def recent_route_intents(self, *, limit: int = 4) -> list[str]:
+        """Return the route.intent of the last N user turns (oldest first).
+
+        Used by the router to detect a multi-turn "trail" — e.g. three
+        consecutive agentic turns means the next vague follow-up should
+        stay agentic instead of falling back to chat heuristics.
+        """
+        intents: list[str] = []
+        for event in reversed(self.events):
+            if event.get("event") != "user_turn":
+                continue
+            metadata = event.get("metadata") or {}
+            route = metadata.get("route") if isinstance(metadata.get("route"), dict) else {}
+            intent = str(route.get("intent") or "").strip()
+            if intent:
+                intents.append(intent)
+            if len(intents) >= int(limit):
+                break
+        intents.reverse()
+        return intents
+
     def memory_context(self, query: str) -> dict[str, Any]:
         active_thread_id = self.ensure_active_thread(query[:32] if query else "interactive")
         try:
@@ -6552,6 +6642,7 @@ class InteractiveSession:
                 provider_name=self.provider_name,
                 policy=self.router_policy,
                 interaction_mode=active_interaction_mode,
+                recent_intents=self.recent_route_intents(limit=4),
             )
             if (
                 active_interaction_mode == "explore"
@@ -6746,6 +6837,7 @@ class InteractiveSession:
             provider_name=self.provider_name,
             policy=self.router_policy,
             interaction_mode=active_interaction_mode,
+            recent_intents=self.recent_route_intents(limit=4),
         )
         url_refs = _extract_url_refs(goal)
         path_refs = _extract_local_path_refs(goal)
@@ -7076,7 +7168,7 @@ HELP_TEXT = """Commands:
   /theme NAME                   Switch terminal theme: industrial-brutalist, industrial-neon, xerox, brown-console
   /theme list                   Open or print the theme selector/report
   /style NAME                   Response register only: balanced, technical, forensic, vivid, terse
-  /mode [NAME]                  Interaction mode: balanced, technical, explore; /mode list shows profiles
+  /mode [NAME|list|show]        Interaction mode picker. /mode opens a selector; /mode NAME (balanced|technical|explore) sets it; /mode list prints all profiles; /mode show prints the current JSON.
   /tech TEXT                    One-shot technical turn without changing the sticky mode
   /explore TEXT                 One-shot exploratory turn without changing the sticky mode
   /raw on|off                   Toggle raw model output after the cleaned answer
@@ -7881,7 +7973,51 @@ def _needs_repository_evidence(text: str, route: dict[str, Any] | None = None) -
     return bool(route and route.get("intent") in {"research", "audit", "suite_forensics"})
 
 
-def _route_natural_language(text: str) -> str | None:
+_VAGUE_FOLLOWUP_PATTERNS = (
+    "y eso", "y eso?", "y luego", "y luego?", "y entonces", "y entonces?",
+    "y ahora", "y ahora?", "ahora?", "ya?", "y?", "y bueno", "bueno y?",
+    "que mas", "qué más", "que mas?", "qué más?",
+    "arreglalo", "arregla eso", "fixealo", "hacelo", "haceolo",
+    "seguilo", "segui", "seguí", "continua", "continuá", "continúa", "continualo",
+    "explicalo", "explicámelo", "explicamelo",
+    "amplialo", "ampliá", "ampliame", "ampliá eso", "amplialo eso",
+    "documentalo", "comentalo", "completalo", "terminalo",
+    "más", "mas", "mas detalle", "más detalle",
+    "dale", "obvio", "obvio que si", "obvio que sí",
+    "detallalo", "profundizalo", "profundizá", "profundiza",
+)
+
+_INHERITABLE_CONTINUITY_INTENTS = {
+    "agentic",
+    "agentic_code",
+    "code",
+    "audit",
+    "suite_forensics",
+    "helix_self",
+    "research",
+    "web_research",
+    "reasoning",
+}
+
+
+def _is_continuity_followup(text: str, recent_intents: list[str] | None = None) -> bool:
+    """Detect a vague follow-up that should inherit the previous intent.
+
+    Returns True only when the prompt is short, lacks an explicit object, AND
+    the recent route intents include something agentic/technical worth keeping.
+    """
+    if not text or not recent_intents:
+        return False
+    cleaned = " ".join(str(text).lower().strip().rstrip("?!.").split())
+    if not cleaned or len(cleaned.split()) > 6:
+        return False
+    matched = any(cleaned == pat.rstrip("?!.") or cleaned.startswith(pat.rstrip("?!.") + " ") for pat in _VAGUE_FOLLOWUP_PATTERNS)
+    if not matched:
+        return False
+    return any(intent in _INHERITABLE_CONTINUITY_INTENTS for intent in recent_intents)
+
+
+def _route_natural_language(text: str, recent_intents: list[str] | None = None) -> str | None:
     lowered = text.lower()
     local_refs = _extract_local_path_refs(text)
     if _is_pasted_suite_analysis_request(text):
@@ -7899,6 +8035,11 @@ def _route_natural_language(text: str) -> str | None:
     if _is_suite_evidence_request(text) and any(term in lowered for term in ("analiza", "compara", "compará", "explica", "reporte", "resumi", "resume")):
         return f"/task {text}"
     if _looks_like_agent_task(text):
+        return f"/task {text}"
+    # Vague follow-up that should inherit the previous agentic/technical lane.
+    # Without this, "arreglalo" or "y eso?" after 3 turns of debugging falls
+    # back to plain chat heuristics and loses the trail.
+    if _is_continuity_followup(text, recent_intents):
         return f"/task {text}"
     if lowered.strip() in {"doctor", "diagnostico", "estado"}:
         return "/doctor"
@@ -8004,6 +8145,46 @@ def _select_theme(session: InteractiveSession) -> str | None:
         options=options,
         bottom_help=" Choose the terminal chrome palette. The current session and saved config will both update. ",
     )
+
+
+def _select_interaction_mode(session: InteractiveSession) -> str | None:
+    options: list[tuple[str, str]] = []
+    for item in _interaction_mode_report():
+        examples = item.get("examples") or []
+        hint = f" e.g. {examples[0]!r}" if examples else ""
+        options.append((item["name"], f"{item['name']} - {item.get('description', '')}{hint}"))
+    return _choose_ui_option(
+        title="Select Interaction Mode",
+        theme_name=session.theme_name,
+        options=options,
+        bottom_help=" balanced = default, technical = code/audit/diagnosis, explore = wider research and philosophy. The session and saved config will both update. ",
+    )
+
+
+def _prompt_interaction_mode_text(current: str) -> str | None:
+    """Plain stdin fallback when rich UI is unavailable."""
+    report = _interaction_mode_report()
+    print()
+    print(f"Current interaction mode: {current}")
+    print("Available modes:")
+    for index, item in enumerate(report, start=1):
+        marker = " *" if item["name"] == current else "  "
+        print(f"  {index}.{marker} {item['name']:<10} - {item.get('description', '')}")
+    print("  0.   keep current")
+    try:
+        raw = input("Choose mode [0-{0}] or name: ".format(len(report))).strip()
+    except (EOFError, KeyboardInterrupt):
+        return None
+    if not raw or raw == "0":
+        return None
+    if raw.isdigit():
+        idx = int(raw)
+        if 1 <= idx <= len(report):
+            return report[idx - 1]["name"]
+        return None
+    if _is_known_interaction_mode(raw):
+        return _normalize_interaction_mode(raw)
+    return None
 
 
 def _select_model(session: InteractiveSession) -> str | None:
@@ -8238,26 +8419,39 @@ def _handle_interactive_command(session: InteractiveSession, line: str) -> bool:
         if rest.lower() in {"list", "ls"}:
             _print_json({"current": session.interaction_mode, "modes": _interaction_mode_report()})
             return True
+        if rest.lower() in {"show", "current", "status", "json"}:
+            _print_json(
+                {
+                    "current": session.interaction_mode,
+                    "profile": _interaction_mode_payload(session.interaction_mode),
+                    "router_policy": session.router_policy,
+                    "tool_policy": session.tool_policy,
+                    "thread_id": session.thread_id,
+                }
+            )
+            return True
         if rest:
             if not _is_known_interaction_mode(rest):
-                print("Usage: /mode [balanced|technical|explore|list]")
+                print("Usage: /mode [NAME|list|show]   NAMES: balanced, technical, explore")
                 return True
             candidate = _normalize_interaction_mode(rest)
-            session.interaction_mode = candidate
-            config = _load_config()
-            config["interaction_mode"] = session.interaction_mode
-            _save_config(config)
-            print(f"[helix] interaction_mode={session.interaction_mode}")
-            return True
-        _print_json(
-            {
-                "current": session.interaction_mode,
-                "profile": _interaction_mode_payload(session.interaction_mode),
-                "router_policy": session.router_policy,
-                "tool_policy": session.tool_policy,
-                "thread_id": session.thread_id,
-            }
-        )
+        else:
+            # No argument -> let the user pick interactively. Fall back to a
+            # plain stdin prompt when the rich UI is unavailable so we never
+            # dump a wall of JSON the user has to read to know what to type.
+            if console and _HAS_UI:
+                candidate = _select_interaction_mode(session)
+            else:
+                candidate = _prompt_interaction_mode_text(session.interaction_mode)
+            if not candidate:
+                print(f"[helix] interaction_mode={session.interaction_mode} (unchanged)")
+                return True
+            candidate = _normalize_interaction_mode(candidate)
+        session.interaction_mode = candidate
+        config = _load_config()
+        config["interaction_mode"] = session.interaction_mode
+        _save_config(config)
+        print(f"[helix] interaction_mode={session.interaction_mode}")
         return True
     if name in {"tech", "explore"}:
         prompt = rest or input("Prompt: ").strip()
@@ -8702,7 +8896,7 @@ def _run_prompt_once(
     *,
     interaction_mode_override: str | None = None,
 ) -> None:
-    routed = _route_natural_language(prompt)
+    routed = _route_natural_language(prompt, session.recent_route_intents(limit=4))
     if routed and routed.startswith("/task"):
         if console:
             result = _run_with_status(
@@ -8832,7 +9026,7 @@ def run_interactive(args: argparse.Namespace | None = None) -> int:
             '/router balanced', '/router qwen-heavy', '/router current', '/router qwen-gemma-mistral', '/router cheap', '/router premium', '/router list', '/router why ',
             '/web ', '/file ',
             '/theme industrial-brutalist', '/theme industrial-neon', '/theme xerox', '/theme brown-console', '/theme brown', '/theme cyberpunk', '/theme cyberpunk-gray', '/theme list', '/raw on', '/raw off',
-            '/mode balanced', '/mode technical', '/mode explore', '/mode list', '/tech ', '/explore ',
+            '/mode balanced', '/mode technical', '/mode explore', '/mode list', '/mode show', '/tech ', '/explore ',
             '/style balanced', '/style technical', '/style forensic', '/style vivid', '/style terse', '/style list',
             '/key save', '/key save gemini', '/key gemini', '/key forget', '/key forget gemini', '/key status', '/key status gemini',
             '/evidence refresh', '/evidence latest', '/evidence search', '/verify latest', '/verify search',
@@ -8922,7 +9116,7 @@ def run_interactive(args: argparse.Namespace | None = None) -> int:
             break
         if not line:
             continue
-        routed = line if line.startswith("/") else _route_natural_language(line)
+        routed = line if line.startswith("/") else _route_natural_language(line, session.recent_route_intents(limit=4))
         if routed and routed.startswith("/"):
             try:
                 if not _handle_interactive_command(session, routed):

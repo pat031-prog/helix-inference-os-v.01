@@ -3092,3 +3092,130 @@ def test_chat_does_not_inject_architecture_pack_for_normal_prompts(monkeypatch) 
 
     assert result["text"] == "Hola normal."
     assert "HeliX architecture context pack" not in captured["system"]
+
+
+# ─── Subset 1+2+3: continuity routing, structured_output, vague follow-ups ──
+
+
+def test_route_model_for_task_continuity_bumps_dominant_recent_intent() -> None:
+    """Two of the last three turns were `code`. A vague-ish next prompt now
+    gets a small +0.4 bump on `code`, biasing model selection toward the same
+    lane instead of falling back to chat."""
+    plain = helix_cli.route_model_for_task(
+        "y eso?",
+        provider_name="deepinfra",
+        policy="balanced",
+        interaction_mode="balanced",
+    )
+    with_trail = helix_cli.route_model_for_task(
+        "y eso?",
+        provider_name="deepinfra",
+        policy="balanced",
+        interaction_mode="balanced",
+        recent_intents=["code", "agentic_code", "code"],
+    )
+    plain_code = float(plain.get("intent_scores", {}).get("code") or 0.0)
+    trail_code = float(with_trail.get("intent_scores", {}).get("code") or 0.0)
+    assert trail_code >= plain_code + 0.3
+    assert any(signal.startswith("continuity:") for signal in with_trail.get("signals") or [])
+
+
+def test_route_model_for_task_continuity_ignored_without_repeat() -> None:
+    """A single non-chat intent in the trail is not enough to bump — needs
+    at least 2/N support so a one-off does not override the current prompt."""
+    base = helix_cli.route_model_for_task(
+        "explica que es esto",
+        provider_name="deepinfra",
+        policy="balanced",
+        interaction_mode="balanced",
+    )
+    with_one = helix_cli.route_model_for_task(
+        "explica que es esto",
+        provider_name="deepinfra",
+        policy="balanced",
+        interaction_mode="balanced",
+        recent_intents=["code", "chat", "chat"],
+    )
+    # No continuity signal because only 1 occurrence of `code`.
+    assert not any(signal.startswith("continuity:") for signal in with_one.get("signals") or [])
+    # Scores stay the same shape as the no-trail baseline.
+    assert (with_one.get("intent_scores", {}).get("code") or 0.0) == (base.get("intent_scores", {}).get("code") or 0.0)
+
+
+def test_capability_requirements_activates_structured_output_for_json_signals() -> None:
+    """Prompts that explicitly ask for JSON / schema / `/cert` flip
+    structured_output=True; a plain chat prompt stays False."""
+    plain = helix_cli._capability_requirements_for_prompt(
+        "hola, como andas?",
+        intent="chat",
+        url_refs=[],
+        path_refs=[],
+    )
+    json_prompt = helix_cli._capability_requirements_for_prompt(
+        "devolveme la respuesta en formato JSON",
+        intent="chat",
+        url_refs=[],
+        path_refs=[],
+    )
+    schema_prompt = helix_cli._capability_requirements_for_prompt(
+        "necesito el output con schema validado",
+        intent="reasoning",
+        url_refs=[],
+        path_refs=[],
+    )
+    agentic_prompt = helix_cli._capability_requirements_for_prompt(
+        "arregla el bug en src/foo.py",
+        intent="agentic_code",
+        url_refs=[],
+        path_refs=[],
+    )
+    assert plain["structured_output"] is False
+    assert json_prompt["structured_output"] is True
+    assert schema_prompt["structured_output"] is True
+    # Tool-calling intents activate it implicitly so the planner gets a
+    # well-formed tool_args payload.
+    assert agentic_prompt["structured_output"] is True
+
+
+def test_native_tool_plan_wires_response_format_for_deepinfra_when_supported() -> None:
+    """When structured_output is on AND the selected DeepInfra profile
+    advertises supports_structured_output, the plan must carry a
+    `request_response_format` so `_openai_compatible_chat` can append it
+    to the API payload."""
+    route = {
+        "provider": "deepinfra",
+        "model": helix_cli.DEEPINFRA_MODEL_PROFILES["qwen-big"].model_id,
+        "intent": "agentic_code",
+        "interaction_mode": "balanced",
+    }
+    plan = helix_cli._native_tool_plan_for_route(route, "arregla el bug en src/foo.py")
+    assert plan["request_response_format"] == {"type": "json_object"}
+
+
+def test_is_continuity_followup_detects_vague_inheritance_only_with_history() -> None:
+    """`arreglalo` alone is not enough — it has to inherit from a recent
+    agentic/technical intent. Without that history it stays a normal chat."""
+    assert helix_cli._is_continuity_followup("arreglalo", None) is False
+    assert helix_cli._is_continuity_followup("arreglalo", []) is False
+    assert helix_cli._is_continuity_followup("arreglalo", ["chat", "chat"]) is False
+    assert helix_cli._is_continuity_followup("arreglalo", ["agentic_code", "code"]) is True
+    assert helix_cli._is_continuity_followup("y eso?", ["audit", "audit"]) is True
+    assert helix_cli._is_continuity_followup("hacelo", ["research", "research"]) is True
+    # Long prompts with explicit objects are not "vague follow-ups".
+    assert helix_cli._is_continuity_followup(
+        "arregla el bug que aparece cuando llamamos al endpoint",
+        ["agentic_code"],
+    ) is False
+
+
+def test_route_natural_language_promotes_vague_followup_to_task_with_history() -> None:
+    """Without recent_intents, `hacelo` is too vague and falls through. With
+    an agentic trail it gets prefixed with `/task` so the agent loop runs."""
+    # `hacelo` is not in _looks_like_agent_task verbs, so without history it
+    # falls through to None.
+    assert helix_cli._route_natural_language("hacelo") is None
+    routed = helix_cli._route_natural_language("hacelo", ["agentic_code", "code"])
+    assert routed == "/task hacelo"
+    # `y eso?` is a vague follow-up too — only inherits with a trail.
+    assert helix_cli._route_natural_language("y eso?") is None
+    assert helix_cli._route_natural_language("y eso?", ["audit", "audit"]) == "/task y eso?"

@@ -1,0 +1,366 @@
+{
+  "bundle_version": "helix-agent-run-verifier-bundle-v0",
+  "event": {
+    "event_id": "evt-0017",
+    "event_type": "longitudinal_summary",
+    "log_index": 16,
+    "appended_at_utc": "2026-06-09T17:32:29Z",
+    "payload": {
+      "run_id": "cloud-provider-longitudinal-20260609-143020",
+      "models_requested": [
+        "Qwen/Qwen3-235B-A22B-Instruct-2507",
+        "anthropic/claude-sonnet-4-6",
+        "deepseek-ai/DeepSeek-V3",
+        "meta-llama/Llama-3.3-70B-Instruct"
+      ],
+      "rounds": 3,
+      "call_count": 12,
+      "ok_count": 12,
+      "provider_substitution_detected": true,
+      "actual_model_drift_detected": false,
+      "output_drift_detected": true,
+      "availability_error_count": 0,
+      "patch_digest": "sha256:236ae91ad7416d43c31f657783208828315beeae8e3313edac5580cabcf62cce",
+      "claim_boundary": "Observed provider identity and output drift are evidence, not semantic truth."
+    }
+  },
+  "inclusion_proof": {
+    "proof_profile": "ct-style-inclusion-proof-v0",
+    "leaf_index": 16,
+    "tree_size": 19,
+    "leaf_hash": "11e2e9632e683699b84091ce88b7f26369bd517d2f69aa5f14ee795526b64f8d",
+    "audit_path": [
+      {
+        "position": "right",
+        "hash": "ea151a035c174d204381cf61dcac36183998d2543c3bd96e9ded273d94761883"
+      },
+      {
+        "position": "right",
+        "hash": "b79a9580a04ffa2f1d7781f9f77b897982b632433050ca66ca45cdad082faf29"
+      },
+      {
+        "position": "left",
+        "hash": "318bc06e3febedac968d905e21038c729d529d9a8e10b6fb51914ed245e680fe"
+      }
+    ],
+    "root_hash": "5534f5c2b8afb487f6d1df3e9128b94ec48b2ae28a52cd692c33abf0e9be9565"
+  },
+  "previous_sth": {
+    "sth_version": "helix-agent-run-sth-v0",
+    "tree_id": "helix-cloud-provider-longitudinal:cloud-provider-longitudinal-20260609-143020",
+    "run_id": "cloud-provider-longitudinal-20260609-143020",
+    "label": "after-task",
+    "tree_size": 1,
+    "root_hash": "9616ed68c27883a97be02c0ec76c888f823e87d98f8337bca0f8d89d091cee4f",
+    "hash_alg": "sha256",
+    "tree_hash_profile": "ct-style-sha256-domain-separated-v0",
+    "consistency_proof_profile": "rfc9162-consistency-proof-v0",
+    "issued_at_utc": "2026-06-09T17:30:27Z",
+    "key_id": "ed25519-f538c2fecc1e704b",
+    "signer_id": "helix-transparency-log:helix-cloud-provider-longitudinal:cloud-provider-longitudinal-20260609-143020",
+    "key_provenance": "ephemeral_preregistered",
+    "attestation": null,
+    "receipt_version": "helix-signed-receipt-v1",
+    "canonicalization": "helix-jcs-v0-rfc8785-compatible-no-floats",
+    "signature_alg": "ed25519",
+    "signature": "cFkCqQquPtW6ti+MCH4UpXKufPPe3MoM92Eif5ovTySHIy4qTLykL7O1PwwVaT4HYIbaTTLbTVxVVyCA3/PXCw==",
+    "public_key": "gi/sGG/bFjsyyqKbcsuvESrQF8XeKSyz4BsjMJq6QzY=",
+    "canonical_payload_sha256": "88b74fdf8defe274c0ceb23d1486b84d99188cff65dbc26019b8964c473bea86",
+    "signature_verified": true,
+    "verified_at_utc": "2026-06-09T17:30:27.993Z",
+    "verifier_version": "helix-receipt-verifier-v1",
+    "public_claim_eligible": true
+  },
+  "consistency_proof": {
+    "proof_profile": "rfc9162-consistency-proof-v0",
+    "old_size": 1,
+    "new_size": 19,
+    "old_root_hash": "9616ed68c27883a97be02c0ec76c888f823e87d98f8337bca0f8d89d091cee4f",
+    "new_root_hash": "5534f5c2b8afb487f6d1df3e9128b94ec48b2ae28a52cd692c33abf0e9be9565",
+    "consistency_path": [
+      "742e05896a7c8bfa07647bbbbe25d2a59be13756cba0ae09e5c1ed099ce18f3a",
+      "b1bd7c6bf4a5260a8e1f3926d3922ce086cc64e7f6c672c6d42d22952496b7ce",
+      "864c3e9d6c1cdb8e86062292278e1ab36cdad5a08fbf52310ac0794c390c389f",
+      "8f7679358d546e5a79d95d4cee04657e4ee119892d8498b7458b8ac49831f232",
+      "4ce8d12f7e94fdb9e66c84812185aa2685c73a937da7f5af793236efb7ff4c53"
+    ],
+    "proof_caveat": "Local RFC 9162-style proof over HeliX event canonical JSON leaves."
+  },
+  "sth": {
+    "sth_version": "helix-agent-run-sth-v0",
+    "tree_id": "helix-cloud-provider-longitudinal:cloud-provider-longitudinal-20260609-143020",
+    "run_id": "cloud-provider-longitudinal-20260609-143020",
+    "label": "final-longitudinal",
+    "tree_size": 19,
+    "root_hash": "5534f5c2b8afb487f6d1df3e9128b94ec48b2ae28a52cd692c33abf0e9be9565",
+    "hash_alg": "sha256",
+    "tree_hash_profile": "ct-style-sha256-domain-separated-v0",
+    "consistency_proof_profile": "rfc9162-consistency-proof-v0",
+    "issued_at_utc": "2026-06-09T17:32:29Z",
+    "key_id": "ed25519-f538c2fecc1e704b",
+    "signer_id": "helix-transparency-log:helix-cloud-provider-longitudinal:cloud-provider-longitudinal-20260609-143020",
+    "key_provenance": "ephemeral_preregistered",
+    "attestation": null,
+    "receipt_version": "helix-signed-receipt-v1",
+    "canonicalization": "helix-jcs-v0-rfc8785-compatible-no-floats",
+    "signature_alg": "ed25519",
+    "signature": "s0zXSgwfCSTakC01Sta+rgGGt9FrqWx/+lAe99cPPTwGfmzFCi8GwXmZCJtXZxhcLeLlv3tTIqodYUVSVAzCDg==",
+    "public_key": "gi/sGG/bFjsyyqKbcsuvESrQF8XeKSyz4BsjMJq6QzY=",
+    "canonical_payload_sha256": "4e0a99f59453496da45133adefaaf176f1e7f9bf3d6409e13c187f425f293a00",
+    "signature_verified": true,
+    "verified_at_utc": "2026-06-09T17:32:29.870Z",
+    "verifier_version": "helix-receipt-verifier-v1",
+    "public_claim_eligible": true
+  },
+  "attestation": {
+    "_type": "https://in-toto.io/Statement/v1",
+    "subject": [
+      {
+        "name": "evt-0017",
+        "digest": {
+          "sha256": "79524b3f5f1243130275bc9b8b3e4d47c873b12592093775a02f06ff7f8c6f59"
+        }
+      }
+    ],
+    "predicateType": "https://helix.local/attestations/agent-run-transparency/v0",
+    "predicate": {
+      "attestation_version": "helix-agent-run-attestation-v0",
+      "run_id": "cloud-provider-longitudinal-20260609-143020",
+      "flow_profile": "patch-safe",
+      "artifact_digest": {
+        "sha256": "79524b3f5f1243130275bc9b8b3e4d47c873b12592093775a02f06ff7f8c6f59"
+      },
+      "model": {
+        "requested": "Qwen/Qwen3-235B-A22B-Instruct-2507,anthropic/claude-sonnet-4-6,deepseek-ai/DeepSeek-V3,meta-llama/Llama-3.3-70B-Instruct",
+        "actual": "Qwen/Qwen3-235B-A22B-Instruct-2507,anthropic/claude-sonnet-4-6,deepseek-ai/DeepSeek-V3,meta-llama/Llama-3.3-70B-Instruct-Turbo",
+        "provider_mismatch": true,
+        "calls": [
+          {
+            "round_index": 1,
+            "requested": "Qwen/Qwen3-235B-A22B-Instruct-2507",
+            "actual": "Qwen/Qwen3-235B-A22B-Instruct-2507",
+            "provider_mismatch": false,
+            "status": "ok",
+            "text_digest": "sha256:ac6ac8020585e5e87919ed3a28278e9996e991fb26f84cacfa8620b2be6626e7",
+            "memory_node_hash": "a55525c42cd77c62b7dab1dd7a873d285c13d49cf71b70c7502e9f8a815ba7d9"
+          },
+          {
+            "round_index": 1,
+            "requested": "anthropic/claude-sonnet-4-6",
+            "actual": "anthropic/claude-sonnet-4-6",
+            "provider_mismatch": false,
+            "status": "ok",
+            "text_digest": "sha256:75f06217acdc6f037ff5fdd609509177ec1438f15de42c00f0e3ca093d10fd7d",
+            "memory_node_hash": "9f6faf2fa5ac87b0eff03cb59473a22e711c812b6146ca29b6004d4150b54544"
+          },
+          {
+            "round_index": 1,
+            "requested": "deepseek-ai/DeepSeek-V3",
+            "actual": "deepseek-ai/DeepSeek-V3",
+            "provider_mismatch": false,
+            "status": "ok",
+            "text_digest": "sha256:79618fc8032be97f58a2835cf9bf23bf0e15e6b77392afb15a8cdf33045651a0",
+            "memory_node_hash": "d28cc1e87d6bdec3ec3f5d7b05a981fd5558aa8d87f6a988700c29a19baf9819"
+          },
+          {
+            "round_index": 1,
+            "requested": "meta-llama/Llama-3.3-70B-Instruct",
+            "actual": "meta-llama/Llama-3.3-70B-Instruct-Turbo",
+            "provider_mismatch": true,
+            "status": "ok",
+            "text_digest": "sha256:7d1babbc9fcb84c3033bd9454efc7db3849a3170f7b34f14f40d1b69863619ab",
+            "memory_node_hash": "a362af6fa407ba0e24110cab668df02dc1a26d70e709eeee6c3e7ba116b4cbd4"
+          },
+          {
+            "round_index": 2,
+            "requested": "Qwen/Qwen3-235B-A22B-Instruct-2507",
+            "actual": "Qwen/Qwen3-235B-A22B-Instruct-2507",
+            "provider_mismatch": false,
+            "status": "ok",
+            "text_digest": "sha256:8a0179358d1f026b202c8e052283575e63bc380c86458e200dd0bcb18075cad3",
+            "memory_node_hash": "47c08c66133a9201f0a852676c510410b3d480defe040a3d795a4dff5a1c0483"
+          },
+          {
+            "round_index": 2,
+            "requested": "anthropic/claude-sonnet-4-6",
+            "actual": "anthropic/claude-sonnet-4-6",
+            "provider_mismatch": false,
+            "status": "ok",
+            "text_digest": "sha256:20502722f7a6ae7bb82dbc7693ed16232d4b76d498ff8959222e8431514af505",
+            "memory_node_hash": "334b1afe5f6b507369959a4abe0bdf6ddfd9fd214cdf17d7080d79d66c41b12f"
+          },
+          {
+            "round_index": 2,
+            "requested": "deepseek-ai/DeepSeek-V3",
+            "actual": "deepseek-ai/DeepSeek-V3",
+            "provider_mismatch": false,
+            "status": "ok",
+            "text_digest": "sha256:6929a5c18dafba6a29d9a83805da90be58be52ec61cd83177c3c65fd87e03c19",
+            "memory_node_hash": "c745aac9c40bbc048a321a7e174e7f94b3f8228f4b862738d799c4df3a17a5a1"
+          },
+          {
+            "round_index": 2,
+            "requested": "meta-llama/Llama-3.3-70B-Instruct",
+            "actual": "meta-llama/Llama-3.3-70B-Instruct-Turbo",
+            "provider_mismatch": true,
+            "status": "ok",
+            "text_digest": "sha256:2cc4a8d9a7605b8d027a2c4c0c860b660c120b707313c4b453afbd646efd30a4",
+            "memory_node_hash": "bcc376183cf495847f231543f24501293dbe771152118b61da4e4b14709b9192"
+          },
+          {
+            "round_index": 3,
+            "requested": "Qwen/Qwen3-235B-A22B-Instruct-2507",
+            "actual": "Qwen/Qwen3-235B-A22B-Instruct-2507",
+            "provider_mismatch": false,
+            "status": "ok",
+            "text_digest": "sha256:d4b831bd1f071fd7f4b9fe81178a0e15c214f54424a299dc2ea68ebcdf7776a1",
+            "memory_node_hash": "43a868e52a2283063a338b6e257cb270d167e2270e312b5cd7bebbae983aff13"
+          },
+          {
+            "round_index": 3,
+            "requested": "anthropic/claude-sonnet-4-6",
+            "actual": "anthropic/claude-sonnet-4-6",
+            "provider_mismatch": false,
+            "status": "ok",
+            "text_digest": "sha256:79838eaa53f93e381933620499d22f0e3d2e2359d1c65f7b91b5c21b25a7d51a",
+            "memory_node_hash": "eebb241573f1e8c1bd5448d18a242b6bca9df8caf7f671bdd366476a76306424"
+          },
+          {
+            "round_index": 3,
+            "requested": "deepseek-ai/DeepSeek-V3",
+            "actual": "deepseek-ai/DeepSeek-V3",
+            "provider_mismatch": false,
+            "status": "ok",
+            "text_digest": "sha256:142342353576de512df946cb5adbd015b1e7fa5efae3fe07b393ee6f928a131d",
+            "memory_node_hash": "17048b7f0f1324233ff4a617b2cac0e56025ff14fb0e1d8ab8e3e4a4a38ac126"
+          },
+          {
+            "round_index": 3,
+            "requested": "meta-llama/Llama-3.3-70B-Instruct",
+            "actual": "meta-llama/Llama-3.3-70B-Instruct-Turbo",
+            "provider_mismatch": true,
+            "status": "ok",
+            "text_digest": "sha256:fec0df2b5d5be47f5b7937fc50036a02a8f98cb8aea90d1551c6b92b9a42aad4",
+            "memory_node_hash": "728fb8d9f6f99e8562f4b43d05b4bd270c895de52b2d7ad4d5cc1136ec90a592"
+          }
+        ]
+      },
+      "memory": {
+        "admitted": [
+          "mem-8c5824d4945400ab85c991b0",
+          "mem-893388fc05293d656a722cf3",
+          "mem-94a8b7c4e89617f78b6d97e2",
+          "mem-c9ca4de399f1b56d10a37beb",
+          "mem-d6fc0872a24b02d4857ad72a",
+          "mem-e0dc9886a8463e956343e826",
+          "mem-2236359a9724a048576b2cd6",
+          "mem-6bb2b457949ce541eacbea6f",
+          "mem-c9ca143f0c38767e28a27ddd",
+          "mem-04ea0746ab97fbf4cf9c0dc0",
+          "mem-a88e714b48fa9de7855d2f52",
+          "mem-8b3b863f6de190c88636cf50"
+        ],
+        "quarantined": [
+          "mem-c24fb699e7667bf533caa7f4"
+        ]
+      },
+      "materials": [
+        {
+          "name": "model-call",
+          "digest": {
+            "sha256": "captured-in-log"
+          }
+        },
+        {
+          "name": "memory-write",
+          "digest": {
+            "sha256": "captured-in-log"
+          }
+        }
+      ],
+      "byproducts": [
+        {
+          "name": "transcript",
+          "digest": {
+            "sha256": "captured-in-log"
+          }
+        },
+        {
+          "name": "trust-card",
+          "digest": {
+            "sha256": "captured-in-log"
+          }
+        }
+      ],
+      "verification": {
+        "sth": {
+          "tree_id": "helix-cloud-provider-longitudinal:cloud-provider-longitudinal-20260609-143020",
+          "tree_size": 19,
+          "root_hash": "5534f5c2b8afb487f6d1df3e9128b94ec48b2ae28a52cd692c33abf0e9be9565",
+          "key_id": "ed25519-f538c2fecc1e704b",
+          "signature": "s0zXSgwfCSTakC01Sta+rgGGt9FrqWx/+lAe99cPPTwGfmzFCi8GwXmZCJtXZxhcLeLlv3tTIqodYUVSVAzCDg=="
+        },
+        "previous_sth": {
+          "tree_id": "helix-cloud-provider-longitudinal:cloud-provider-longitudinal-20260609-143020",
+          "tree_size": 1,
+          "root_hash": "9616ed68c27883a97be02c0ec76c888f823e87d98f8337bca0f8d89d091cee4f",
+          "key_id": "ed25519-f538c2fecc1e704b",
+          "signature": "cFkCqQquPtW6ti+MCH4UpXKufPPe3MoM92Eif5ovTySHIy4qTLykL7O1PwwVaT4HYIbaTTLbTVxVVyCA3/PXCw=="
+        },
+        "inclusion_proof": {
+          "proof_profile": "ct-style-inclusion-proof-v0",
+          "leaf_index": 16,
+          "tree_size": 19,
+          "leaf_hash": "11e2e9632e683699b84091ce88b7f26369bd517d2f69aa5f14ee795526b64f8d",
+          "audit_path": [
+            {
+              "position": "right",
+              "hash": "ea151a035c174d204381cf61dcac36183998d2543c3bd96e9ded273d94761883"
+            },
+            {
+              "position": "right",
+              "hash": "b79a9580a04ffa2f1d7781f9f77b897982b632433050ca66ca45cdad082faf29"
+            },
+            {
+              "position": "left",
+              "hash": "318bc06e3febedac968d905e21038c729d529d9a8e10b6fb51914ed245e680fe"
+            }
+          ],
+          "root_hash": "5534f5c2b8afb487f6d1df3e9128b94ec48b2ae28a52cd692c33abf0e9be9565"
+        },
+        "consistency_proof": {
+          "proof_profile": "rfc9162-consistency-proof-v0",
+          "old_size": 1,
+          "new_size": 19,
+          "old_root_hash": "9616ed68c27883a97be02c0ec76c888f823e87d98f8337bca0f8d89d091cee4f",
+          "new_root_hash": "5534f5c2b8afb487f6d1df3e9128b94ec48b2ae28a52cd692c33abf0e9be9565",
+          "consistency_path": [
+            "742e05896a7c8bfa07647bbbbe25d2a59be13756cba0ae09e5c1ed099ce18f3a",
+            "b1bd7c6bf4a5260a8e1f3926d3922ce086cc64e7f6c672c6d42d22952496b7ce",
+            "864c3e9d6c1cdb8e86062292278e1ab36cdad5a08fbf52310ac0794c390c389f",
+            "8f7679358d546e5a79d95d4cee04657e4ee119892d8498b7458b8ac49831f232",
+            "4ce8d12f7e94fdb9e66c84812185aa2685c73a937da7f5af793236efb7ff4c53"
+          ],
+          "proof_caveat": "Local RFC 9162-style proof over HeliX event canonical JSON leaves."
+        },
+        "external_anchor": null,
+        "checks": {
+          "all_cloud_calls_completed": true,
+          "requested_actual_recorded": true,
+          "substitutions_are_auditable": true,
+          "memory_receipts_verified": true,
+          "memory_hash_profile_v2": true,
+          "signed_poison_not_semantic_authority": true,
+          "final_summary_inclusion_verified": true,
+          "checkpoint_consistency_verified": true,
+          "end_to_end_consistency_verified": true,
+          "catalog_dag_coverage_verified": true,
+          "standalone_verifier_bundle_passes": true,
+          "claim_boundary_present": true
+        },
+        "claim_boundary": "HeliX emits locally verifiable attestations for agentic runs. This proves local inclusion and append-only consistency against signed local STHs; it does not prove model semantic truth or global non-equivocation."
+      }
+    }
+  },
+  "claim_boundary": "HeliX emits locally verifiable attestations for agentic runs. This proves local inclusion and append-only consistency against signed local STHs; it does not prove model semantic truth or global non-equivocation."
+}

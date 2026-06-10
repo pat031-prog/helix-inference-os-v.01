@@ -26,6 +26,10 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 use tokio::net::TcpListener;
 
+const DAG_HASH_PROFILE_LEGACY: &str = "helix-merkle-dag-v1-legacy-concat-sha256";
+const DAG_HASH_PROFILE_V2: &str = "helix-merkle-dag-v2-domain-length-sha256";
+const DAG_HASH_V2_DOMAIN: &[u8] = b"HLX-DAG-V2";
+
 // ─── Privacy filter ───
 
 struct PrivacyFilter {
@@ -77,6 +81,12 @@ struct MerkleNode {
     parent_hash: Option<String>,
     timestamp_ms: f64,
     depth: u32,
+    #[serde(default = "default_hash_profile")]
+    hash_profile: String,
+}
+
+fn default_hash_profile() -> String {
+    DAG_HASH_PROFILE_LEGACY.to_string()
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -253,13 +263,44 @@ fn snapshot_ring_stats(path: &std::path::Path, keep: usize) -> Value {
 
 // ─── Crypto / tokenization ───
 
-fn compute_hash(content: &str, parent_hash: Option<&str>) -> String {
+fn compute_hash_legacy(content: &str, parent_hash: Option<&str>) -> String {
     let mut h = Sha256::new();
     h.update(content.as_bytes());
     if let Some(ph) = parent_hash {
         h.update(ph.as_bytes());
     }
     hex::encode(h.finalize())
+}
+
+fn compute_hash_v2(content: &str, parent_hash: Option<&str>) -> String {
+    let content_bytes = content.as_bytes();
+    let parent_bytes = parent_hash.map(str::as_bytes).unwrap_or_default();
+    let mut h = Sha256::new();
+    h.update(DAG_HASH_V2_DOMAIN);
+    h.update((content_bytes.len() as u64).to_be_bytes());
+    h.update(content_bytes);
+    h.update([u8::from(parent_hash.is_some())]);
+    h.update((parent_bytes.len() as u64).to_be_bytes());
+    h.update(parent_bytes);
+    hex::encode(h.finalize())
+}
+
+fn compute_hash(content: &str, parent_hash: Option<&str>) -> String {
+    compute_hash_v2(content, parent_hash)
+}
+
+fn compute_hash_for_profile(content: &str, parent_hash: Option<&str>, hash_profile: &str) -> Option<String> {
+    match hash_profile {
+        DAG_HASH_PROFILE_LEGACY | "" => Some(compute_hash_legacy(content, parent_hash)),
+        DAG_HASH_PROFILE_V2 => Some(compute_hash_v2(content, parent_hash)),
+        _ => None,
+    }
+}
+
+fn hash_matches_node(node: &MerkleNode) -> bool {
+    compute_hash_for_profile(&node.content, node.parent_hash.as_deref(), &node.hash_profile)
+        .map(|recomputed| node.hash == recomputed)
+        .unwrap_or(false)
 }
 
 fn tokenize(text: &str) -> Vec<String> {
@@ -369,6 +410,7 @@ fn canonical_sha256(value: &Value) -> Result<String, String> {
 fn receipt_payload(params: &Value, metadata: &IndexedMetadata, node: &MerkleNode, signer_id: &str) -> Value {
     serde_json::json!({
         "node_hash": node.hash.clone(),
+        "node_hash_profile": node.hash_profile.clone(),
         "parent_hash": node.parent_hash.clone(),
         "memory_id": metadata.memory_id.clone(),
         "project": metadata.project.clone(),
@@ -571,6 +613,7 @@ struct PreparedRecord {
     parent_hash: Option<String>,
     metadata: IndexedMetadata,
     node_hash: String,
+    hash_profile: String,
     timestamp_ms: f64,
     content_counts: HashMap<String, u32>,
     summary_counts: HashMap<String, u32>,
@@ -602,6 +645,7 @@ fn parse_metadata_value(v: &Value) -> IndexedMetadata {
 
 fn prepare_record(content: String, parent_hash: Option<String>, metadata: IndexedMetadata) -> PreparedRecord {
     let node_hash = compute_hash(&content, parent_hash.as_deref());
+    let hash_profile = DAG_HASH_PROFILE_V2.to_string();
     let ts = now_ms();
     let cc = token_counts(&metadata.index_content);
     let sc = token_counts(&metadata.summary);
@@ -614,6 +658,7 @@ fn prepare_record(content: String, parent_hash: Option<String>, metadata: Indexe
         parent_hash,
         metadata,
         node_hash,
+        hash_profile,
         timestamp_ms: ts,
         content_counts: cc,
         summary_counts: sc,
@@ -640,6 +685,7 @@ fn insert_prepared(state: &mut IndexedState, p: PreparedRecord) -> Result<Merkle
         parent_hash: p.parent_hash,
         timestamp_ms: p.timestamp_ms,
         depth,
+        hash_profile: p.hash_profile,
     };
     let indexed = IndexedNode {
         node: node.clone(),
@@ -785,6 +831,7 @@ fn search_bm25(state: &IndexedState, query: &str, limit: usize, filters: &Value)
             .unwrap_or_default();
         let mut row = serde_json::json!({
             "node_hash": hash,
+            "hash_profile": idx.node.hash_profile,
             "score": score,
             "matched_terms": terms,
             "project": idx.metadata.project,
@@ -822,7 +869,12 @@ fn gc_tombstone(state: &mut IndexedState, criteria: &Value) -> Value {
         let mm = target_mid.as_ref().map(|v| indexed.metadata.memory_id.as_deref() == Some(v.as_str())).unwrap_or(false);
         if !hm && !mm { continue }
         if !indexed.metadata.content_available { continue }
-        let orig_hash = compute_hash(&indexed.node.content, indexed.node.parent_hash.as_deref());
+        let orig_hash = compute_hash_for_profile(
+            &indexed.node.content,
+            indexed.node.parent_hash.as_deref(),
+            &indexed.node.hash_profile,
+        )
+        .unwrap_or_else(|| indexed.node.hash.clone());
         let orig_size = indexed.node.content.len();
         indexed.node.content = format!("[GC_TOMBSTONE:sha256={},size={}]", orig_hash, orig_size);
         indexed.metadata.content_available = false;
@@ -844,9 +896,11 @@ fn verify_chain(state: &IndexedState, leaf_hash: &str) -> Value {
     let mut signed_receipts = Vec::new();
     let mut signature_verified_count = 0usize;
     let mut unsigned_legacy_count = 0usize;
+    let mut hash_profiles = HashSet::new();
     while let Some(h) = current {
         let Some(idx) = state.nodes.get(h) else { missing = Some(h.into()); break };
         chain_len += 1;
+        hash_profiles.insert(idx.node.hash_profile.clone());
         if let Some(receipt) = state.receipts.get(h).and_then(|raw| serde_json::from_str::<Value>(raw).ok()) {
             if receipt.get("signature_verified").and_then(Value::as_bool).unwrap_or(false) {
                 signature_verified_count += 1;
@@ -858,8 +912,7 @@ fn verify_chain(state: &IndexedState, leaf_hash: &str) -> Value {
         } else {
             unsigned_legacy_count += 1;
         }
-        let re = compute_hash(&idx.node.content, idx.node.parent_hash.as_deref());
-        if re != idx.node.hash {
+        if !hash_matches_node(&idx.node) {
             if idx.metadata.content_available { failed_at = Some(idx.node.hash.clone()); break }
             tombstoned += 1;
         }
@@ -872,6 +925,8 @@ fn verify_chain(state: &IndexedState, leaf_hash: &str) -> Value {
     } else {
         "verified"
     };
+    let mut hash_profile_values: Vec<String> = hash_profiles.into_iter().collect();
+    hash_profile_values.sort();
     serde_json::json!({
         "status": status,
         "leaf_hash": leaf_hash,
@@ -881,6 +936,7 @@ fn verify_chain(state: &IndexedState, leaf_hash: &str) -> Value {
         "missing_parent": missing,
         "signature_verified_count": signature_verified_count,
         "unsigned_legacy_count": unsigned_legacy_count,
+        "hash_profiles": hash_profile_values,
         "attestation_status": if signed_receipts.iter().any(|r| r.get("attestation").and_then(|a| a.get("verified")).and_then(Value::as_bool).unwrap_or(false)) { "verified" } else { "none" },
         "signed_receipts": signed_receipts,
     })
@@ -968,6 +1024,7 @@ fn dispatch(ctx: &DispatchContext, method: &str, params: &Value) -> Value {
                     ctx.write_counter.fetch_add(1, Ordering::Relaxed);
                     serde_json::json!({
                         "node_hash": node.hash,
+                        "node_hash_profile": node.hash_profile,
                         "depth": node.depth,
                         "signed_receipt": receipt,
                         "signature_enforcement_default": std::env::var("HELIX_RETRIEVAL_SIGNATURE_ENFORCEMENT").unwrap_or_else(|_| "strict".into())
@@ -1010,7 +1067,7 @@ fn dispatch(ctx: &DispatchContext, method: &str, params: &Value) -> Value {
                         if let Some(sid) = session_id {
                             st.session_heads.insert(sid, nh.clone());
                         }
-                        results.push(serde_json::json!({"node_hash": node.hash, "depth": node.depth, "signed_receipt": receipt}));
+                        results.push(serde_json::json!({"node_hash": node.hash, "node_hash_profile": node.hash_profile, "depth": node.depth, "signed_receipt": receipt}));
                     }
                     Err(e) => results.push(serde_json::json!({"error": e})),
                 }
@@ -1042,7 +1099,12 @@ fn dispatch(ctx: &DispatchContext, method: &str, params: &Value) -> Value {
                 if let Some(ref kf) = kind_f { if indexed.metadata.record_kind != *kf { continue } }
                 if let Some(ref pf) = proj_f { if indexed.metadata.project != *pf { continue } }
                 if let Some(ref af) = agent_f { if indexed.metadata.agent_id != *af { continue } }
-                let orig = compute_hash(&indexed.node.content, indexed.node.parent_hash.as_deref());
+                let orig = compute_hash_for_profile(
+                    &indexed.node.content,
+                    indexed.node.parent_hash.as_deref(),
+                    &indexed.node.hash_profile,
+                )
+                .unwrap_or_else(|| indexed.node.hash.clone());
                 let orig_len = indexed.node.content.len() as i64;
                 indexed.node.content = format!("[GC_TOMBSTONE:sha256={},size={}]", orig, orig_len);
                 bytes_freed += orig_len - indexed.node.content.len() as i64;
@@ -1271,6 +1333,18 @@ mod tests {
             snapshot_every: 10_000,
             snapshot_keep: 3,
         }
+    }
+
+    #[test]
+    fn merkle_hash_v2_separates_legacy_concat_ambiguity() {
+        assert_eq!(
+            compute_hash_legacy("ab", Some("c")),
+            compute_hash_legacy("a", Some("bc"))
+        );
+        assert_ne!(
+            compute_hash_v2("ab", Some("c")),
+            compute_hash_v2("a", Some("bc"))
+        );
     }
 
     #[test]

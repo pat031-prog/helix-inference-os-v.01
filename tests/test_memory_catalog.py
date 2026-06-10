@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pytest
 
-from helix_kv.memory_catalog import MemoryCatalog, privacy_filter
+from helix_kv.memory_catalog import MemoryCatalog, _rust_index_supports_dag_hash_v2, privacy_filter
 
 try:
     from _helix_merkle_dag import RustIndexedMerkleDAG  # noqa: F401
@@ -529,6 +529,9 @@ def test_memory_catalog_legacy_unsigned_warn_default_and_strict_filter(
 def test_memory_catalog_uses_rust_bm25_when_extension_is_available(tmp_path: Path) -> None:
     if RustIndexedMerkleDAG is None:
         pytest.skip("Rust indexed MerkleDAG extension is not installed")
+    compatible, reason = _rust_index_supports_dag_hash_v2()
+    if not compatible:
+        pytest.skip(f"Rust indexed MerkleDAG extension is not hash-v2 compatible: {reason}")
 
     catalog = MemoryCatalog.open(tmp_path / "memory.sqlite")
     try:

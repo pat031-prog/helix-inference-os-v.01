@@ -6,6 +6,7 @@ from pathlib import Path
 import pytest
 
 from helix_proto.blueprints import load_blueprint, quality_check_html, render_meta_microsite, sanitize_model_text
+from tools import run_hybrid_blueprint_demo
 from tools import run_local_blueprint_demo
 
 
@@ -121,3 +122,37 @@ def test_blueprint_runner_real_only_skips_without_prepared_aliases(tmp_path: Pat
     )
 
     assert payload["status"] in {"skipped_model_not_cached", "completed"}
+
+
+def test_nvidia_privacy_swarm_blueprint_loads() -> None:
+    blueprint = load_blueprint("blueprints/nvidia-privacy-swarm.json")
+
+    assert blueprint.blueprint_id == "nvidia-privacy-swarm"
+    assert blueprint.payload["models"]["nvidia-coder-model"]["endpoint"] == "nvidia"
+    assert blueprint.payload["outputs"]["artifact"] == "local-blueprint-nvidia-privacy-swarm-demo.json"
+
+
+def test_hybrid_runner_mock_accepts_nvidia_cloud_provider(tmp_path: Path) -> None:
+    site_output = tmp_path / "site-dist" / "nvidia-demo.html"
+    payload = run_hybrid_blueprint_demo.run_hybrid_demo(
+        run_hybrid_blueprint_demo.build_parser().parse_args(
+            [
+                "--blueprint",
+                "blueprints/nvidia-privacy-swarm.json",
+                "--cloud-provider",
+                "nvidia",
+                "--mode",
+                "mock-only",
+                "--output-dir",
+                str(tmp_path),
+                "--site-output",
+                str(site_output),
+            ]
+        )
+    )
+
+    assert payload["status"] == "completed"
+    assert payload["blueprint_id"] == "nvidia-privacy-swarm"
+    assert payload["cloud_generation_used"] is False
+    assert any(item["endpoint"] == "nvidia" for item in payload["hybrid_events"])
+    assert (tmp_path / "local-blueprint-nvidia-privacy-swarm-demo.json").exists()

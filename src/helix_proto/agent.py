@@ -1134,6 +1134,37 @@ class AgentRunner:
         kv_phase_trace: list[dict[str, Any]] = []
         active_memory_events: list[dict[str, Any]] = []
         memory_context = initial_memory_context
+        context_plan_started = time.perf_counter()
+        memory_hits = self.search_memory(
+            effective_agent_id,
+            goal,
+            top_k=4,
+            memory_project=memory_project,
+            session_id=run_id,
+            retrieval_scope=retrieval_scope,
+            exclude_memory_ids=memory_exclude_ids,
+        )["results"]
+        knowledge_hits = self.search_knowledge(effective_agent_id, goal, top_k=4)["results"]
+        hybrid_hits = self.search_hybrid(
+            effective_agent_id,
+            goal,
+            top_k=4,
+            memory_project=memory_project,
+            session_id=run_id,
+            retrieval_scope=retrieval_scope,
+            exclude_memory_ids=memory_exclude_ids,
+        )["results"]
+        context_plan = {
+            "source": "single_retrieval_plan",
+            "cache_key": f"{run_id}:{hash(goal)}:{retrieval_scope}:{memory_mode}",
+            "context_plan_ms": round((time.perf_counter() - context_plan_started) * 1000, 3),
+            "invalidates_on_tool_context_change": True,
+            "refresh_count": 0,
+            "memory_hit_count": len(memory_hits),
+            "knowledge_hit_count": len(knowledge_hits),
+            "hybrid_hit_count": len(hybrid_hits),
+        }
+        planner_context_cache: dict[int, dict[str, Any]] = {0: dict(initial_memory_context)}
         policy = AgentRoutingPolicy(
             local_planner_alias=local_planner_alias,
             remote_model_ref=remote_model_ref,
@@ -1148,39 +1179,27 @@ class AgentRunner:
         final_planner = None
 
         for step_index in range(max_steps):
-            memory_hits = self.search_memory(
-                effective_agent_id,
-                goal,
-                top_k=4,
-                memory_project=memory_project,
-                session_id=run_id,
-                retrieval_scope=retrieval_scope,
-                exclude_memory_ids=memory_exclude_ids,
-            )["results"]
-            knowledge_hits = self.search_knowledge(effective_agent_id, goal, top_k=4)["results"]
-            hybrid_hits = self.search_hybrid(
-                effective_agent_id,
-                goal,
-                top_k=4,
-                memory_project=memory_project,
-                session_id=run_id,
-                retrieval_scope=retrieval_scope,
-                exclude_memory_ids=memory_exclude_ids,
-            )["results"]
-            memory_context = self._build_step_memory_context(
-                goal=goal,
-                agent_name=effective_agent_id,
-                memory_project=memory_project,
-                session_id=run_id,
-                retrieval_scope=retrieval_scope,
-                exclude_memory_ids=memory_exclude_ids,
-                memory_mode=memory_mode,
-                memory_budget_tokens=memory_budget_tokens,
-                tool_name="__planner__",
-                arguments={},
-                scratchpad=scratchpad,
-                observations=observations,
-            )
+            observation_count = len(observations)
+            if observation_count not in planner_context_cache:
+                refreshed_context = self._build_step_memory_context(
+                    goal=goal,
+                    agent_name=effective_agent_id,
+                    memory_project=memory_project,
+                    session_id=run_id,
+                    retrieval_scope=retrieval_scope,
+                    exclude_memory_ids=memory_exclude_ids,
+                    memory_mode=memory_mode,
+                    memory_budget_tokens=memory_budget_tokens,
+                    tool_name="__planner__",
+                    arguments={},
+                    scratchpad=scratchpad,
+                    observations=observations,
+                )
+                context_plan["refresh_count"] = int(context_plan.get("refresh_count") or 0) + 1
+                planner_context_cache[observation_count] = refreshed_context
+            memory_context = dict(planner_context_cache[observation_count])
+            memory_context["source"] = "hmem-cached"
+            memory_context["context_plan"] = context_plan
             active_memory_events.append(
                 _active_memory_event(step_index=step_index, tool_name="__planner__", context=memory_context)
             )
@@ -1373,6 +1392,7 @@ class AgentRunner:
             "final_planner": final_planner,
             "memory_context": memory_context,
             "initial_memory_context": initial_memory_context,
+            "context_plan": context_plan,
             "active_memory_events": active_memory_events,
             "memory_hits": memory_hits if "memory_hits" in locals() else [],
             "knowledge_hits": knowledge_hits if "knowledge_hits" in locals() else [],
@@ -1459,6 +1479,37 @@ class AgentRunner:
         kv_phase_trace: list[dict[str, Any]] = []
         active_memory_events: list[dict[str, Any]] = []
         memory_context = initial_memory_context
+        context_plan_started = time.perf_counter()
+        memory_hits = self.search_memory(
+            effective_agent_id,
+            goal,
+            top_k=4,
+            memory_project=memory_project,
+            session_id=run_id,
+            retrieval_scope=retrieval_scope,
+            exclude_memory_ids=memory_exclude_ids,
+        )["results"]
+        knowledge_hits = self.search_knowledge(effective_agent_id, goal, top_k=4)["results"]
+        hybrid_hits = self.search_hybrid(
+            effective_agent_id,
+            goal,
+            top_k=4,
+            memory_project=memory_project,
+            session_id=run_id,
+            retrieval_scope=retrieval_scope,
+            exclude_memory_ids=memory_exclude_ids,
+        )["results"]
+        context_plan = {
+            "source": "single_retrieval_plan",
+            "cache_key": f"{run_id}:{hash(goal)}:{retrieval_scope}:{memory_mode}",
+            "context_plan_ms": round((time.perf_counter() - context_plan_started) * 1000, 3),
+            "invalidates_on_tool_context_change": True,
+            "refresh_count": 0,
+            "memory_hit_count": len(memory_hits),
+            "knowledge_hit_count": len(knowledge_hits),
+            "hybrid_hit_count": len(hybrid_hits),
+        }
+        planner_context_cache: dict[int, dict[str, Any]] = {0: dict(initial_memory_context)}
         policy = AgentRoutingPolicy(
             local_planner_alias=local_planner_alias,
             remote_model_ref=remote_model_ref,
@@ -1478,50 +1529,35 @@ class AgentRunner:
             "goal": goal,
             "default_model_alias": default_model_alias,
             "memory_context": initial_memory_context,
+            "context_plan": context_plan,
             "tool_policy": tool_policy or {},
             "retrieval_scope": retrieval_scope,
         }
 
         final_answer: str | None = None
         final_planner = None
-        memory_hits: list[dict[str, Any]] = []
-        knowledge_hits: list[dict[str, Any]] = []
-        hybrid_hits: list[dict[str, Any]] = []
-
         for step_index in range(max_steps):
-            memory_hits = self.search_memory(
-                effective_agent_id,
-                goal,
-                top_k=4,
-                memory_project=memory_project,
-                session_id=run_id,
-                retrieval_scope=retrieval_scope,
-                exclude_memory_ids=memory_exclude_ids,
-            )["results"]
-            knowledge_hits = self.search_knowledge(effective_agent_id, goal, top_k=4)["results"]
-            hybrid_hits = self.search_hybrid(
-                effective_agent_id,
-                goal,
-                top_k=4,
-                memory_project=memory_project,
-                session_id=run_id,
-                retrieval_scope=retrieval_scope,
-                exclude_memory_ids=memory_exclude_ids,
-            )["results"]
-            memory_context = self._build_step_memory_context(
-                goal=goal,
-                agent_name=effective_agent_id,
-                memory_project=memory_project,
-                session_id=run_id,
-                retrieval_scope=retrieval_scope,
-                exclude_memory_ids=memory_exclude_ids,
-                memory_mode=memory_mode,
-                memory_budget_tokens=memory_budget_tokens,
-                tool_name="__planner__",
-                arguments={},
-                scratchpad=scratchpad,
-                observations=observations,
-            )
+            observation_count = len(observations)
+            if observation_count not in planner_context_cache:
+                refreshed_context = self._build_step_memory_context(
+                    goal=goal,
+                    agent_name=effective_agent_id,
+                    memory_project=memory_project,
+                    session_id=run_id,
+                    retrieval_scope=retrieval_scope,
+                    exclude_memory_ids=memory_exclude_ids,
+                    memory_mode=memory_mode,
+                    memory_budget_tokens=memory_budget_tokens,
+                    tool_name="__planner__",
+                    arguments={},
+                    scratchpad=scratchpad,
+                    observations=observations,
+                )
+                context_plan["refresh_count"] = int(context_plan.get("refresh_count") or 0) + 1
+                planner_context_cache[observation_count] = refreshed_context
+            memory_context = dict(planner_context_cache[observation_count])
+            memory_context["source"] = "hmem-cached"
+            memory_context["context_plan"] = context_plan
             active_memory_events.append(
                 _active_memory_event(step_index=step_index, tool_name="__planner__", context=memory_context)
             )
@@ -1762,6 +1798,7 @@ class AgentRunner:
             "final_planner": final_planner,
             "memory_context": memory_context,
             "initial_memory_context": initial_memory_context,
+            "context_plan": context_plan,
             "active_memory_events": active_memory_events,
             "memory_hits": memory_hits,
             "knowledge_hits": knowledge_hits,

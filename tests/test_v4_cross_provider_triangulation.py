@@ -18,6 +18,7 @@ REQUESTED_MODEL = "meta-llama/Llama-3.2-3B-Instruct"
 
 FIXTURE_OUTPUTS = {
     "deepinfra": "Receipt: provider_returned_model=meta-llama/Llama-3.2-11B-Vision-Instruct; concise answer.",
+    "nvidia": "Receipt provider_returned_model=meta-llama/Llama-3.2-3B-Instruct via NVIDIA Build. Concise answer.",
     "together": "Receipt provider_returned_model=meta-llama/Llama-3.2-3B-Instruct. Concise answer.",
     "fireworks": "- provider_returned_model: meta-llama/Llama-3.2-3B-Instruct\n- answer: concise",
     "groq": "I cannot verify hidden model identity; provider_returned_model=llama-3.2-3b.",

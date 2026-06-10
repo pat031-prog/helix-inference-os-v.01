@@ -11,7 +11,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Iterable
 
-from helix_kv.merkle_dag import MerkleDAG
+from helix_kv.merkle_dag import DAG_HASH_PROFILE_V2, MerkleDAG
 from helix_kv.semantic_router import RoutedQuery, SemanticQueryRouter, tokenize as _router_tokenize
 from helix_proto.signed_receipts import (
     attach_verification,
@@ -24,13 +24,51 @@ from helix_proto.signed_receipts import (
     unsigned_legacy_receipt,
 )
 
-try:  # Optional fast path: built by crates/helix-merkle-dag via maturin.
-    from _helix_merkle_dag import RustIndexedMerkleDAG
+try:  # Optional fast path: prefer the repo/package-local extension build.
+    from helix_kv._helix_merkle_dag import RustIndexedMerkleDAG
 except Exception:  # noqa: BLE001
     try:
-        from helix_kv._helix_merkle_dag import RustIndexedMerkleDAG
+        from _helix_merkle_dag import RustIndexedMerkleDAG
     except Exception:  # noqa: BLE001
         RustIndexedMerkleDAG = None  # type: ignore[assignment]
+
+_RUST_INDEX_V2_COMPAT: tuple[bool, str | None] | None = None
+
+
+def _rust_index_supports_dag_hash_v2() -> tuple[bool, str | None]:
+    global _RUST_INDEX_V2_COMPAT
+    if _RUST_INDEX_V2_COMPAT is not None:
+        return _RUST_INDEX_V2_COMPAT
+    if RustIndexedMerkleDAG is None:
+        _RUST_INDEX_V2_COMPAT = (False, "RustIndexedMerkleDAG unavailable")
+        return _RUST_INDEX_V2_COMPAT
+    try:
+        probe = RustIndexedMerkleDAG()
+        node = probe.insert_indexed(
+            "__helix_hash_v2_probe__",
+            None,
+            json.dumps(
+                {
+                    "record_kind": "probe",
+                    "project": "helix",
+                    "agent_id": "probe",
+                    "index_content": "__helix_hash_v2_probe__",
+                },
+                sort_keys=True,
+            ),
+        )
+        profile = str(getattr(node, "hash_profile", "") or "")
+    except Exception as exc:  # noqa: BLE001
+        _RUST_INDEX_V2_COMPAT = (False, f"RustIndexedMerkleDAG compatibility probe failed: {exc}")
+        return _RUST_INDEX_V2_COMPAT
+    if profile != DAG_HASH_PROFILE_V2:
+        _RUST_INDEX_V2_COMPAT = (
+            False,
+            f"RustIndexedMerkleDAG hash profile incompatible: {profile or 'missing'}",
+        )
+        return _RUST_INDEX_V2_COMPAT
+    _RUST_INDEX_V2_COMPAT = (True, None)
+    return _RUST_INDEX_V2_COMPAT
 
 PRIVATE_TAG_RE = re.compile(r"<private>[\s\S]*?</private>", re.IGNORECASE)
 SECRET_PATTERNS = [
@@ -192,10 +230,11 @@ class MemoryCatalog:
         self.dag = MerkleDAG()
         rust_index_disabled = os.environ.get("HELIX_MEMORY_RUST_INDEX", "1").lower() in {"0", "false", "off", "no"}
         rust_index_required = os.environ.get("HELIX_MEMORY_REQUIRE_RUST_INDEX", "0").lower() in {"1", "true", "on", "yes"}
-        if rust_index_required and (RustIndexedMerkleDAG is None or rust_index_disabled):
-            raise RuntimeError("HELIX_MEMORY_REQUIRE_RUST_INDEX is set but RustIndexedMerkleDAG is unavailable or disabled")
-        self._rust_index = RustIndexedMerkleDAG() if RustIndexedMerkleDAG is not None and not rust_index_disabled else None
-        self._rust_index_error: str | None = None
+        rust_index_compatible, rust_index_error = _rust_index_supports_dag_hash_v2()
+        if rust_index_required and (RustIndexedMerkleDAG is None or rust_index_disabled or not rust_index_compatible):
+            raise RuntimeError("HELIX_MEMORY_REQUIRE_RUST_INDEX is set but RustIndexedMerkleDAG is unavailable, disabled, or incompatible")
+        self._rust_index = RustIndexedMerkleDAG() if rust_index_compatible and not rust_index_disabled else None
+        self._rust_index_error: str | None = None if self._rust_index is not None else rust_index_error
         self._lock = threading.Lock()
         router_disabled = os.environ.get("HELIX_SEMANTIC_QUERY_ROUTER", "1").lower() in {"0", "false", "off", "no"}
         self._semantic_router = None if router_disabled else SemanticQueryRouter()
@@ -935,8 +974,12 @@ class MemoryCatalog:
             payload = dict(entry["payload"])
             content_dump = str(entry["content_dump"])
             parent_hash = entry.get("parent_hash")
-            node = self.dag._insert_unlocked(content_dump, parent_hash=parent_hash)
             stored_hash = entry.get("node_hash")
+            node = self.dag._insert_unlocked(
+                content_dump,
+                parent_hash=parent_hash,
+                expected_hash=str(stored_hash) if stored_hash else None,
+            )
             if stored_hash and stored_hash != node.hash:
                 raise ValueError(f"observation node hash mismatch: {stored_hash} != {node.hash}")
             self._insert_rust_indexed(
@@ -945,6 +988,7 @@ class MemoryCatalog:
                 metadata={
                     **payload,
                     **(entry.get("lineage") or {}),
+                    "hash_profile": node.hash_profile,
                     "record_kind": "observation",
                     "index_content": payload.get("content") or "",
                     "content_available": True,
@@ -970,8 +1014,12 @@ class MemoryCatalog:
             item = MemoryItem(**payload)
             content_dump = str(entry["content_dump"])
             parent_hash = entry.get("parent_hash")
-            node = self.dag._insert_unlocked(content_dump, parent_hash=parent_hash)
             stored_hash = entry.get("node_hash")
+            node = self.dag._insert_unlocked(
+                content_dump,
+                parent_hash=parent_hash,
+                expected_hash=str(stored_hash) if stored_hash else None,
+            )
             if stored_hash and stored_hash != node.hash:
                 raise ValueError(f"memory node hash mismatch: {stored_hash} != {node.hash}")
             self._insert_rust_indexed(
@@ -980,6 +1028,7 @@ class MemoryCatalog:
                 metadata={
                     **item.to_dict(),
                     **(entry.get("lineage") or {}),
+                    "hash_profile": node.hash_profile,
                     "record_kind": "memory",
                     "index_content": item.content,
                     "content_available": True,
@@ -1006,8 +1055,12 @@ class MemoryCatalog:
             item = MemoryItem(**payload)
             content_dump = str(entry["content_dump"])
             parent_hash = entry.get("parent_hash")
-            node = self.dag._insert_unlocked(content_dump, parent_hash=parent_hash)
             stored_hash = entry.get("node_hash")
+            node = self.dag._insert_unlocked(
+                content_dump,
+                parent_hash=parent_hash,
+                expected_hash=str(stored_hash) if stored_hash else None,
+            )
             if stored_hash and stored_hash != node.hash:
                 raise ValueError(f"quarantined memory node hash mismatch: {stored_hash} != {node.hash}")
             lineage = entry.get("lineage") if isinstance(entry.get("lineage"), dict) else None
@@ -1017,6 +1070,7 @@ class MemoryCatalog:
                 metadata={
                     **item.to_dict(),
                     **(lineage or {}),
+                    "hash_profile": node.hash_profile,
                     "record_kind": str((lineage or {}).get("record_kind") or "memory"),
                     "index_content": item.content,
                     "content_available": True,
@@ -1100,6 +1154,7 @@ class MemoryCatalog:
                 metadata={
                     **payload,
                     **lineage,
+                    "hash_profile": node.hash_profile,
                     "record_kind": "observation",
                     "index_content": clean_content,
                     "content_available": True,
@@ -1115,6 +1170,7 @@ class MemoryCatalog:
                     "content_dump": content_dump,
                     "parent_hash": parent,
                     "node_hash": node.hash,
+                    "node_hash_profile": node.hash_profile,
                     "lineage": lineage,
                     "checkpoint": checkpoint,
                     "quarantine_record": quarantine_record,
@@ -1199,6 +1255,7 @@ class MemoryCatalog:
                 parent_hash=parent,
                 llm_call_id=llm_call_id,
                 lineage=lineage,
+                node_hash_profile=node.hash_profile,
             )
             self._insert_rust_indexed(
                 content_dump=content_dump,
@@ -1206,6 +1263,7 @@ class MemoryCatalog:
                 metadata={
                     **item.to_dict(),
                     **lineage,
+                    "hash_profile": node.hash_profile,
                     "record_kind": "memory",
                     "index_content": clean_content,
                     "content_available": True,
@@ -1224,6 +1282,7 @@ class MemoryCatalog:
                     "content_dump": content_dump,
                     "parent_hash": parent,
                     "node_hash": node.hash,
+                    "node_hash_profile": node.hash_profile,
                     "receipt": receipt,
                     "lineage": lineage,
                     "checkpoint": checkpoint,
@@ -1303,6 +1362,7 @@ class MemoryCatalog:
                 parent_hash=parent,
                 llm_call_id=llm_call_id,
                 lineage=lineage,
+                node_hash_profile=node.hash_profile,
             )
             self._insert_rust_indexed(
                 content_dump=content_dump,
@@ -1310,6 +1370,7 @@ class MemoryCatalog:
                 metadata={
                     **item.to_dict(),
                     **lineage,
+                    "hash_profile": node.hash_profile,
                     "record_kind": str(record_kind),
                     "index_content": clean_content,
                     "content_available": True,
@@ -1328,6 +1389,7 @@ class MemoryCatalog:
                     "content_dump": content_dump,
                     "parent_hash": parent,
                     "node_hash": node.hash,
+                    "node_hash_profile": node.hash_profile,
                     "receipt": receipt,
                     "lineage": lineage,
                     "quarantine_record": quarantine_record,
@@ -1429,6 +1491,7 @@ class MemoryCatalog:
                     parent_hash=parent,
                     llm_call_id=llm_call_id,
                     lineage=lineage,
+                    node_hash_profile=node.hash_profile,
                 )
                 self._memory_receipts[item.memory_id] = receipt
                 self._index_router_item_unlocked(item)
@@ -1439,6 +1502,7 @@ class MemoryCatalog:
                         "content_dump": content_dump,
                         "parent_hash": parent,
                         "node_hash": node.hash,
+                        "node_hash_profile": node.hash_profile,
                         "receipt": receipt,
                         "lineage": lineage,
                         "checkpoint": checkpoint,
@@ -1674,11 +1738,13 @@ class MemoryCatalog:
         parent_hash: str | None,
         signer_id: str,
         llm_call_id: str | None,
+        node_hash_profile: str = DAG_HASH_PROFILE_V2,
         lineage: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         lineage_payload = dict(lineage or {})
         return {
             "node_hash": str(node_hash),
+            "node_hash_profile": str(node_hash_profile or DAG_HASH_PROFILE_V2),
             "parent_hash": parent_hash,
             "memory_id": item.memory_id,
             "project": item.project,
@@ -1707,6 +1773,7 @@ class MemoryCatalog:
         parent_hash: str | None,
         llm_call_id: str | None,
         lineage: dict[str, Any] | None = None,
+        node_hash_profile: str = DAG_HASH_PROFILE_V2,
     ) -> dict[str, Any]:
         mode = os.environ.get("HELIX_RECEIPT_SIGNING_MODE", "local_self_signed").lower()
         signer_id = os.environ.get("HELIX_RECEIPT_SIGNER_ID") or item.agent_id
@@ -1714,6 +1781,7 @@ class MemoryCatalog:
             item=item,
             node_hash=node_hash,
             parent_hash=parent_hash,
+            node_hash_profile=node_hash_profile,
             signer_id=signer_id,
             llm_call_id=llm_call_id,
             lineage=lineage,
@@ -2021,12 +2089,18 @@ class MemoryCatalog:
                     reverse=True,
                 )
             results = []
+            query_terms = set(_tokenize(routed.original_query or routed.routed_query or ""))
             for item in candidates[: int(limit)]:
                 updated_item = MemoryItem(**{**item.to_dict(), "last_access_ms": now})
                 self._memories[item.memory_id] = updated_item
+                item_terms = set(_tokenize(" ".join([item.summary, item.content, " ".join(item.tags)])))
+                matched_terms = sorted(query_terms & item_terms)
                 payload = updated_item.to_dict()
-                payload["score"] = float(item.importance) * float(item.decay_score)
-                payload["matched_terms"] = []
+                payload["score"] = (
+                    float(item.importance) * float(item.decay_score)
+                    + (100.0 * len(matched_terms))
+                )
+                payload["matched_terms"] = matched_terms
                 payload["search_backend"] = "semantic_router_recent_fallback"
                 payload["thread_id"] = updated_item.session_id
                 payload["thread_match"] = bool(session_filter and updated_item.session_id == session_filter)
@@ -2088,6 +2162,7 @@ class MemoryCatalog:
             term_infos.sort(key=lambda item: item[1])
             if not term_infos:
                 return []
+            original_term_set = set(_tokenize(routed.original_query or ""))
 
             stopword_min_docs = 100
             doc_count = max(len(global_field_counts), 1)
@@ -2157,6 +2232,9 @@ class MemoryCatalog:
                 # Quality boost matching Rust: importance/10 * 0.20 + decay * 0.10
                 quality = 1.0 + (max(float(item.importance), 0.0) / 10.0) * 0.20 + max(float(item.decay_score), 0.0) * 0.10
                 score *= quality
+                original_matches = original_term_set & set(tf_by_term)
+                if original_matches:
+                    score += 100.0 * len(original_matches)
                 if session_filter and item.session_id == session_filter and retrieval_scope == "workspace":
                     score += 1000.0
                 scored.append((score, item))
@@ -2177,6 +2255,8 @@ class MemoryCatalog:
                 self._memories[item.memory_id] = updated_item
                 payload = updated_item.to_dict()
                 payload["score"] = float(score)
+                item_terms = set(_tokenize(" ".join([item.summary, item.content, " ".join(item.tags)])))
+                payload["matched_terms"] = sorted(original_term_set & item_terms)
                 payload["search_backend"] = "python_bm25_fallback"
                 payload["thread_id"] = updated_item.session_id
                 payload["thread_match"] = bool(session_filter and updated_item.session_id == session_filter)
@@ -2197,11 +2277,7 @@ class MemoryCatalog:
         if not chain:
             missing_parent = str(leaf_hash)
         for node in chain:
-            expected_payload = node.content.encode("utf-8")
-            if node.parent_hash:
-                expected_payload += node.parent_hash.encode("utf-8")
-            expected = hashlib.sha256(expected_payload).hexdigest()
-            if expected != node.hash and not str(node.content).startswith("[GC_TOMBSTONE:"):
+            if not self.dag.hash_matches(node) and not str(node.content).startswith("[GC_TOMBSTONE:"):
                 failed_at = node.hash
                 break
             if node.parent_hash and self.dag.lookup(node.parent_hash) is None:
@@ -2214,6 +2290,7 @@ class MemoryCatalog:
             "failed_at": failed_at,
             "missing_parent": missing_parent,
             "backend": "python_dag",
+            "hash_profiles": sorted({getattr(node, "hash_profile", "") or "legacy" for node in chain}),
         }
 
     def session_lineage(

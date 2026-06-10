@@ -1,0 +1,39 @@
+﻿{
+    "artifact":  "local-cloud-provider-substitution-longitudinal-run",
+    "generated_by":  "tools/run_cloud_provider_substitution_longitudinal_secure.ps1",
+    "run_id":  "cloud-provider-longitudinal-20260609-143020",
+    "run_started_at_utc":  "2026-06-09T17:30:20.081Z",
+    "run_ended_at_utc":  "2026-06-09T17:32:30.136Z",
+    "run_date_utc":  "2026-06-09",
+    "run_timezone":  "America/Buenos_Aires",
+    "models":  [
+                   "Qwen/Qwen3-235B-A22B-Instruct-2507",
+                   "anthropic/claude-sonnet-4-6",
+                   "deepseek-ai/DeepSeek-V3",
+                   "meta-llama/Llama-3.3-70B-Instruct"
+               ],
+    "rounds":  3,
+    "tokens_per_call":  420,
+    "temperature_milli":  150,
+    "timeout_s":  240,
+    "exit_code":  0,
+    "passed":  true,
+    "log_path":  "C:\\Users\\Big Duck\\proyectos\\helix-backend-repo\\verification\\nuclear-methodology\\cloud-provider-substitution-longitudinal\\local-cloud-provider-substitution-longitudinal-20260609-143020.log",
+    "stable_log_path":  "C:\\Users\\Big Duck\\proyectos\\helix-backend-repo\\verification\\nuclear-methodology\\cloud-provider-substitution-longitudinal\\local-cloud-provider-substitution-longitudinal.log",
+    "log_sha256":  "7bf28ad86092723786b5715c32e397b2d412b8af5950d70a568e1eff47b6313b",
+    "log_bytes":  2562,
+    "artifact_path":  "C:\\Users\\Big Duck\\proyectos\\helix-backend-repo\\verification\\nuclear-methodology\\cloud-provider-substitution-longitudinal\\local-cloud-provider-substitution-longitudinal-v1-cloud-provider-longitudinal-20260609-143020.json",
+    "artifact_sha256":  "4c6d9f108623d4dd9b1af5fd64405f6079c732d0939be60ea45e0b40d79a7cea",
+    "artifact_bytes":  104728,
+    "extract_markdown_path":  "C:\\Users\\Big Duck\\proyectos\\helix-backend-repo\\verification\\nuclear-methodology\\cloud-provider-substitution-longitudinal\\local-cloud-provider-substitution-longitudinal-v1-cloud-provider-longitudinal-20260609-143020-extract.md",
+    "transcript_markdown_path":  "C:\\Users\\Big Duck\\proyectos\\helix-backend-repo\\verification\\nuclear-methodology\\cloud-provider-substitution-longitudinal\\local-cloud-provider-substitution-longitudinal-v1-cloud-provider-longitudinal-20260609-143020-transcript.md",
+    "standalone_bundle_path":  "C:\\Users\\Big Duck\\proyectos\\helix-backend-repo\\verification\\nuclear-methodology\\cloud-provider-substitution-longitudinal\\local-cloud-provider-substitution-longitudinal-v1-cloud-provider-longitudinal-20260609-143020-bundle.json",
+    "standalone_bundle_sha256":  "521cf1fe63af6cb3ec74be2e60be3326d1c8cded8b4225c105dad304e22d9e10",
+    "token_handling":  {
+                           "token_prompt_hidden":  true,
+                           "token_written_to_disk":  false,
+                           "api_key_persisted":  false,
+                           "headers_recorded":  false
+                       },
+    "claim_boundary":  "Observed DeepInfra API evidence only. No semantic truth or global non-equivocation claim."
+}

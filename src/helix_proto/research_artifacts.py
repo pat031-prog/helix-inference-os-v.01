@@ -54,6 +54,7 @@ _CANONICAL_RESEARCH_ARTIFACTS = {
     "local-blueprint-meta-microsite-real-cached.json",
     "local-blueprint-frontend-factory-smoke.json",
     "local-blueprint-framework-showcase.json",
+    "local-blueprint-nvidia-privacy-swarm-demo.json",
     "local-memory-catalog-concurrency.json",
     "local-memory-decay-selection.json",
     "local-hlx-layer-chaos.json",
@@ -111,6 +112,7 @@ _ARTIFACT_TITLE_OVERRIDES = {
     "local-blueprint-meta-microsite-real-cached.json": "Blueprint: Meta Microsite real cached",
     "local-blueprint-frontend-factory-smoke.json": "Blueprint: Frontend Factory smoke",
     "local-blueprint-framework-showcase.json": "Blueprint: framework showcase",
+    "local-blueprint-nvidia-privacy-swarm-demo.json": "Blueprint: NVIDIA Privacy Swarm",
     "local-memory-catalog-concurrency.json": "Session OS: MemoryCatalog concurrency",
     "local-memory-decay-selection.json": "Session OS: memory decay selection",
     "local-hlx-layer-chaos.json": "Session OS: .hlx layer chaos",
@@ -588,6 +590,13 @@ def artifact_headline_metrics(name: str, payload: dict[str, Any]) -> dict[str, A
             "status": payload.get("status"),
             "client_surface": payload.get("client_surface"),
             "blueprints_can_target_openai_compatible_api": payload.get("blueprints_can_target_openai_compatible_api"),
+        }
+    if name == "local-blueprint-nvidia-privacy-swarm-demo.json":
+        return {
+            "status": payload.get("status"),
+            "blueprint_id": payload.get("blueprint_id"),
+            "cloud_provider": payload.get("cloud_provider"),
+            "model_count": len(payload.get("models_curated") or []),
         }
     if name == "local-memory-catalog-concurrency.json":
         return {

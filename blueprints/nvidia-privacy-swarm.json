@@ -1,0 +1,169 @@
+{
+  "schema_version": 1,
+  "id": "nvidia-privacy-swarm",
+  "title": "HeliX NVIDIA Privacy Swarm",
+  "description": "Privacy-safe cloud coding and research handoff using NVIDIA Build free-endpoint models. HeliX anonymizes locally, sends only placeholder text to stateless cloud agents, gates the cloud output, then rehydrates and seals the final report locally.",
+  "models": {
+    "local-anon-model": {
+      "model_id": "qwen-1.5b",
+      "alias": "qwen-1.5b",
+      "ref": "Qwen/Qwen2.5-1.5B-Instruct",
+      "arch": "transformer",
+      "endpoint": "local",
+      "capabilities": ["anonymization", "pii-filter", "mapping"],
+      "fallback": "gpt2-fast",
+      "load_time_estimate_ms": 6000
+    },
+    "nvidia-planner-model": {
+      "model_id": "nvidia-research",
+      "alias": "nvidia-research",
+      "ref": "mistralai/mistral-large-3-675b-instruct-2512",
+      "arch": "transformer",
+      "endpoint": "nvidia",
+      "capabilities": ["research", "synthesis", "technical-planning"],
+      "fallback": null,
+      "load_time_estimate_ms": 0
+    },
+    "nvidia-coder-model": {
+      "model_id": "nvidia-code",
+      "alias": "nvidia-code",
+      "ref": "qwen/qwen3-coder-480b-a35b-instruct",
+      "arch": "transformer",
+      "endpoint": "nvidia",
+      "capabilities": ["agentic-code", "patch-planning", "repo-reasoning"],
+      "fallback": null,
+      "load_time_estimate_ms": 0
+    },
+    "nvidia-verifier-model": {
+      "model_id": "nvidia-agentic",
+      "alias": "nvidia-agentic",
+      "ref": "mistralai/devstral-2-123b-instruct-2512",
+      "arch": "transformer",
+      "endpoint": "nvidia",
+      "capabilities": ["verification", "repair", "software-engineering-review"],
+      "fallback": null,
+      "load_time_estimate_ms": 0
+    },
+    "nvidia-guard-model": {
+      "model_id": "nvidia-guard",
+      "alias": "nvidia-guard",
+      "ref": "meta/llama-guard-4-12b",
+      "arch": "transformer",
+      "endpoint": "nvidia",
+      "capabilities": ["safety-gate", "classification"],
+      "fallback": null,
+      "load_time_estimate_ms": 0
+    },
+    "local-review-model": {
+      "model_id": "qwen-1.5b-reviewer",
+      "alias": "qwen-1.5b",
+      "ref": "Qwen/Qwen2.5-1.5B-Instruct",
+      "arch": "transformer",
+      "endpoint": "local",
+      "capabilities": ["re-injection", "report-generation", "verification"],
+      "fallback": "gpt2-fast",
+      "load_time_estimate_ms": 6000
+    }
+  },
+  "agents": {
+    "anonymizer": {
+      "model": "local-anon-model",
+      "role": "Local privacy filter and deterministic anonymization mapper",
+      "memory_mode": "search"
+    },
+    "cloud-planner": {
+      "model": "nvidia-planner-model",
+      "role": "Stateless NVIDIA research planner. Receives only anonymized text and prior placeholder-safe handoffs.",
+      "memory_mode": "search"
+    },
+    "cloud-coder": {
+      "model": "nvidia-coder-model",
+      "role": "Stateless NVIDIA coding specialist. Produces patch plans and implementation notes over anonymized context.",
+      "memory_mode": "search"
+    },
+    "cloud-verifier": {
+      "model": "nvidia-verifier-model",
+      "role": "Stateless NVIDIA software-engineering verifier. Reviews and repairs the planner/coder handoff.",
+      "memory_mode": "search"
+    },
+    "cloud-guard": {
+      "model": "nvidia-guard-model",
+      "role": "Stateless NVIDIA guard classifier for the prompt/output handoff before local rehydration.",
+      "memory_mode": "search"
+    },
+    "reviewer": {
+      "model": "local-review-model",
+      "role": "Local rehydration and final receipt-sealed report writer",
+      "memory_mode": "search"
+    }
+  },
+  "tasks": [
+    {
+      "task_id": "local-sanitize",
+      "agent": "anonymizer",
+      "slot": "anon_map",
+      "capability": "anonymization",
+      "prompt": "Scan the raw document locally. Replace person names, organizations, locations, grant IDs, email addresses and infrastructure IDs with stable placeholder tokens. Produce an anonymized text summary and mapping table.",
+      "expects_restore": false
+    },
+    {
+      "task_id": "cloud-plan",
+      "agent": "cloud-planner",
+      "slot": "cloud_plan",
+      "capability": "technical-planning",
+      "prompt": "Analyze the anonymized document. Produce a concise technical plan: key claims, implementation risks, dependency assumptions and a safe work breakdown. Do not ask for real identities.",
+      "expects_restore": false
+    },
+    {
+      "task_id": "cloud-code",
+      "agent": "cloud-coder",
+      "slot": "cloud_patch_plan",
+      "capability": "agentic-code",
+      "prompt": "Using the anonymized document and planner handoff, produce an implementation-oriented patch plan with interfaces, tests and failure modes. Keep placeholders unchanged.",
+      "expects_restore": false
+    },
+    {
+      "task_id": "cloud-verify",
+      "agent": "cloud-verifier",
+      "slot": "cloud_verification",
+      "capability": "verification",
+      "prompt": "Review the planner and coder handoffs. Identify contradictions, missing tests, risky claims and a corrected final technical recommendation. Keep placeholders unchanged.",
+      "expects_restore": false
+    },
+    {
+      "task_id": "cloud-guard",
+      "agent": "cloud-guard",
+      "slot": "cloud_guard",
+      "capability": "safety-gate",
+      "prompt": "Classify the anonymized cloud handoff for privacy and safety. Return pass/fail, policy labels, and any segments that should not be rehydrated. Keep placeholders unchanged.",
+      "expects_restore": false
+    },
+    {
+      "task_id": "local-rehydrate-seal",
+      "agent": "reviewer",
+      "slot": "final_report",
+      "capability": "re-injection",
+      "prompt": "Restore local session state. Use the anonymization map from hmem, the cloud plan, patch plan, verification and guard result. Re-inject real entities only locally and produce the final verified report with privacy caveats.",
+      "expects_restore": true
+    }
+  ],
+  "memory_policy": {
+    "project": "helix-nvidia-privacy-swarm",
+    "budget_tokens": 900,
+    "mode": "search"
+  },
+  "session_policy": {
+    "codec": "rust-hlx-buffered-flat",
+    "audit_policy": "deferred",
+    "verify_policy": "receipt-only"
+  },
+  "privacy_policy": {
+    "cloud_receives": "anonymized_text_and_placeholder_safe_handoffs_only",
+    "local_re_injects_from": "anon_map",
+    "claim_boundary": "This is a privacy-safe orchestration demo, not a public benchmark or proof of semantic truth."
+  },
+  "outputs": {
+    "artifact": "local-blueprint-nvidia-privacy-swarm-demo.json",
+    "site": "nvidia-privacy-swarm-demo.html"
+  }
+}

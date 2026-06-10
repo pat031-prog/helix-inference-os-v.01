@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import copy
+import json
 import os
 from datetime import datetime, timezone
 from typing import Any
@@ -169,6 +170,39 @@ def test_canonical_payload_rejects_float_and_duplicate_keys() -> None:
         canonical_json({"bad": 1.0})
     with pytest.raises(CanonicalizationError):
         loads_strict_json('{"a":1,"a":2}')
+
+
+def test_canonical_payload_shared_fixtures_python_profile() -> None:
+    unicode_expected = '{"a":{"nested":true},"z":["' + "\u00f1" + '",{"k":7}]}'
+    fixtures = [
+        ({"b": 2, "a": 1}, '{"a":1,"b":2}'),
+        ({"z": ["\u00f1", {"k": 7}], "a": {"nested": True}}, unicode_expected),
+        ({"arr": [1, {"x": [2, 3]}], "zero": 0}, '{"arr":[1,{"x":[2,3]}],"zero":0}'),
+    ]
+    for payload, expected in fixtures:
+        assert canonical_json(payload) == expected
+        assert len(canonical_payload_sha256(payload)) == 64
+
+
+def test_canonical_payload_shared_fixtures_python_rust_parity() -> None:
+    rust = pytest.importorskip("_helix_merkle_dag")
+    if not hasattr(rust, "receipt_canonical_json") or not hasattr(rust, "receipt_canonical_sha256"):
+        pytest.skip("installed _helix_merkle_dag does not expose receipt canonicalization helpers")
+    fixtures = [
+        {"b": 2, "a": 1},
+        {"z": ["\u00f1", {"k": 7}], "a": {"nested": True}},
+        {"arr": [1, {"x": [2, 3]}], "zero": 0},
+    ]
+
+    for payload in fixtures:
+        raw = json.dumps(payload, ensure_ascii=False)
+        assert rust.receipt_canonical_json(raw) == canonical_json(payload)
+        assert rust.receipt_canonical_sha256(raw) == canonical_payload_sha256(payload)
+
+    with pytest.raises(Exception):
+        rust.receipt_canonical_json('{"bad":1.5}')
+    with pytest.raises(Exception):
+        rust.receipt_canonical_json('{"a":1,"a":2}')
 
 
 def test_retrieval_signature_enforcement_modes() -> None:

@@ -1,0 +1,40 @@
+﻿{
+    "artifact":  "local-llm-verifier-overclaim-gauntlet-run",
+    "generated_by":  "tools/run_llm_verifier_overclaim_gauntlet_secure.ps1",
+    "run_id":  "llm-overclaim-20260609-153542",
+    "run_started_at_utc":  "2026-06-09T18:35:42.697Z",
+    "run_ended_at_utc":  "2026-06-09T18:46:27.358Z",
+    "run_date_utc":  "2026-06-09",
+    "run_timezone":  "America/Buenos_Aires",
+    "auditor_models":  [
+                           "anthropic/claude-sonnet-4-6",
+                           "Qwen/Qwen3-235B-A22B-Instruct-2507",
+                           "deepseek-ai/DeepSeek-V3",
+                           "meta-llama/Llama-3.3-70B-Instruct"
+                       ],
+    "variants":  "valid_control,event_tamper,claim_boundary_overclaim,consistency_tamper",
+    "modes":  "blind,reported",
+    "tokens_per_call":  360,
+    "temperature_milli":  0,
+    "timeout_s":  240,
+    "exit_code":  0,
+    "passed":  true,
+    "log_path":  "C:\\Users\\Big Duck\\proyectos\\helix-backend-repo\\verification\\nuclear-methodology\\llm-verifier-overclaim-gauntlet\\local-llm-verifier-overclaim-gauntlet-20260609-153542.log",
+    "stable_log_path":  "C:\\Users\\Big Duck\\proyectos\\helix-backend-repo\\verification\\nuclear-methodology\\llm-verifier-overclaim-gauntlet\\local-llm-verifier-overclaim-gauntlet.log",
+    "log_sha256":  "53323eea6dfabb905be17688f8adde0881c76a0fc0d550d7cead1a255e5b2c0c",
+    "log_bytes":  2426,
+    "artifact_path":  "C:\\Users\\Big Duck\\proyectos\\helix-backend-repo\\verification\\nuclear-methodology\\llm-verifier-overclaim-gauntlet\\local-llm-verifier-overclaim-gauntlet-v1-llm-overclaim-20260609-153542.json",
+    "artifact_sha256":  "20f4b5fe1b25d4108c93b4d947093160ae6f65e1d0c62af030929897bde390f0",
+    "artifact_bytes":  244076,
+    "extract_markdown_path":  "C:\\Users\\Big Duck\\proyectos\\helix-backend-repo\\verification\\nuclear-methodology\\llm-verifier-overclaim-gauntlet\\local-llm-verifier-overclaim-gauntlet-v1-llm-overclaim-20260609-153542-extract.md",
+    "transcript_markdown_path":  "C:\\Users\\Big Duck\\proyectos\\helix-backend-repo\\verification\\nuclear-methodology\\llm-verifier-overclaim-gauntlet\\local-llm-verifier-overclaim-gauntlet-v1-llm-overclaim-20260609-153542-transcript.md",
+    "standalone_bundle_path":  "C:\\Users\\Big Duck\\proyectos\\helix-backend-repo\\verification\\nuclear-methodology\\llm-verifier-overclaim-gauntlet\\local-llm-verifier-overclaim-gauntlet-v1-llm-overclaim-20260609-153542-bundle.json",
+    "standalone_bundle_sha256":  "cfd3b95db7987068a15bf2f60dac95510ad49fbea3055ca2d8cc645ed57b3572",
+    "token_handling":  {
+                           "token_prompt_hidden":  true,
+                           "token_written_to_disk":  false,
+                           "api_key_persisted":  false,
+                           "headers_recorded":  false
+                       },
+    "claim_boundary":  "LLM auditor outputs are measured behavior, not cryptographic verification authority."
+}

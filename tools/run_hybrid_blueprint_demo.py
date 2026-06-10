@@ -50,6 +50,7 @@ from helix_proto.blueprints import (  # noqa: E402
     render_hybrid_research_site,
     sanitize_model_text,
 )
+from helix_proto.provider_audit import OPENAI_COMPATIBLE_PROVIDERS  # noqa: E402
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -229,10 +230,19 @@ def _run_hf_cached_ref(
 # Cloud backend — DeepInfra
 # ---------------------------------------------------------------------------
 
-_DEEPINFRA_BASE = "https://api.deepinfra.com/v1/openai/chat/completions"
+_OPENAI_COMPATIBLE_BY_NAME = {provider.name: provider for provider in OPENAI_COMPATIBLE_PROVIDERS}
 
 
-def _run_deepinfra(
+def _cloud_provider_config(provider_name: str) -> tuple[str, str]:
+    provider = _OPENAI_COMPATIBLE_BY_NAME.get(str(provider_name or "").strip().lower())
+    if provider is None:
+        known = ", ".join(sorted(_OPENAI_COMPATIBLE_BY_NAME))
+        raise ValueError(f"unsupported cloud provider {provider_name!r}; known: {known}")
+    return provider.base_url.rstrip("/"), provider.token_env
+
+
+def _run_openai_compatible_cloud(
+    provider_name: str,
     model_ref: str,
     prompt: str,
     *,
@@ -241,9 +251,10 @@ def _run_deepinfra(
     timeout_s: float = 120.0,
 ) -> tuple[str | None, dict[str, Any]]:
     """
-    Calls DeepInfra's OpenAI-compatible chat completions endpoint.
+    Calls an OpenAI-compatible chat completions endpoint.
     Records local_sleep_ms = total wall-clock time the local machine was waiting.
     """
+    base_url, _token_env = _cloud_provider_config(provider_name)
     request_payload = json.dumps(
         {
             "model": model_ref,
@@ -260,7 +271,7 @@ def _run_deepinfra(
         "Accept": "application/json",
     }
 
-    req = urllib.request.Request(_DEEPINFRA_BASE, data=request_payload, headers=headers, method="POST")
+    req = urllib.request.Request(f"{base_url}/chat/completions", data=request_payload, headers=headers, method="POST")
     sleep_started = time.perf_counter()
     try:
         with urllib.request.urlopen(req, timeout=timeout_s) as resp:
@@ -270,8 +281,8 @@ def _run_deepinfra(
         choices = data.get("choices") or []
         if not choices:
             return None, {
-                "backend": "deepinfra",
-                "endpoint": "deepinfra",
+                "backend": provider_name,
+                "endpoint": provider_name,
                 "model_ref": model_ref,
                 "error": "empty_choices",
                 "local_sleep_ms": cloud_response_ms,
@@ -286,8 +297,8 @@ def _run_deepinfra(
         tokens_back = int(usage.get("completion_tokens") or _count_tokens_approx(content))
         text = sanitize_model_text(content, limit=1200)
         return text or None, {
-            "backend": "deepinfra",
-            "endpoint": "deepinfra",
+            "backend": provider_name,
+            "endpoint": provider_name,
             "model_ref": model_ref,
             "local_sleep_ms": cloud_response_ms,
             "cloud_request_time_ms": cloud_response_ms,
@@ -300,8 +311,8 @@ def _run_deepinfra(
     except (urllib.error.URLError, TimeoutError, Exception) as exc:  # noqa: BLE001
         error_ms = (time.perf_counter() - sleep_started) * 1000.0
         return None, {
-            "backend": "deepinfra",
-            "endpoint": "deepinfra",
+            "backend": provider_name,
+            "endpoint": provider_name,
             "model_ref": model_ref,
             "error": f"{type(exc).__name__}:{exc}",
             "local_sleep_ms": error_ms,
@@ -321,6 +332,7 @@ def _run_model(
     prompt: str,
     *,
     api_key: str,
+    cloud_provider: str,
     max_new_tokens: int,
     cloud_max_tokens: int,
     mode: str,
@@ -332,18 +344,18 @@ def _run_model(
     if mode == "mock-only":
         return None, {"backend": "mock", "endpoint": endpoint, "fallback_used": True}
 
-    if endpoint == "deepinfra":
+    if endpoint in _OPENAI_COMPATIBLE_BY_NAME:
         if not api_key:
             return None, {
-                "backend": "deepinfra",
-                "endpoint": "deepinfra",
+                "backend": endpoint,
+                "endpoint": endpoint,
                 "model_ref": model_ref,
                 "error": "no_api_key",
                 "local_sleep_ms": 0.0,
                 "cloud_fallback_used": True,
                 "fallback_used": True,
             }
-        return _run_deepinfra(model_ref, prompt, api_key=api_key, max_new_tokens=cloud_max_tokens, timeout_s=timeout_s)
+        return _run_openai_compatible_cloud(endpoint or cloud_provider, model_ref, prompt, api_key=api_key, max_new_tokens=cloud_max_tokens, timeout_s=timeout_s)
 
     # local model
     if _hf_ref_cached(model_ref):
@@ -359,7 +371,10 @@ def run_hybrid_demo(args: argparse.Namespace) -> dict[str, Any]:  # noqa: C901
     blueprint = load_blueprint(args.blueprint)
     output_dir = Path(args.output_dir)
     site_output = Path(args.site_output)
-    api_key = str(args.deepinfra_api_key or os.environ.get("DEEPINFRA_API_KEY") or "")
+    cloud_provider = str(getattr(args, "cloud_provider", "deepinfra") or "deepinfra").strip().lower()
+    _cloud_base_url, cloud_token_env = _cloud_provider_config(cloud_provider)
+    explicit_api_key = args.deepinfra_api_key if cloud_provider == "deepinfra" else None
+    api_key = str(explicit_api_key or os.environ.get(cloud_token_env) or "")
     doc_path = Path(args.doc) if args.doc else (REPO_ROOT / "tools" / "demo-doc-dirty.txt")
 
     # Read document
@@ -394,9 +409,9 @@ def run_hybrid_demo(args: argparse.Namespace) -> dict[str, Any]:  # noqa: C901
     for key, model in blueprint.payload["models"].items():
         endpoint = str(model.get("endpoint") or "local")
         model_ref = str(model.get("ref") or "")
-        if endpoint == "deepinfra":
-            available = bool(api_key) and args.mode != "mock-only"
-            gen_mode = "deepinfra-api" if available else "fallback-deterministic"
+        if endpoint in _OPENAI_COMPATIBLE_BY_NAME:
+            available = bool(api_key) and args.mode == "hybrid-cloud"
+            gen_mode = f"{endpoint}-api" if available else "fallback-deterministic"
             hf_cached = False
         else:
             hf_cached = _hf_ref_cached(model_ref)
@@ -482,21 +497,27 @@ def run_hybrid_demo(args: argparse.Namespace) -> dict[str, Any]:  # noqa: C901
                 f"DOCUMENT TO ANALYZE:\n{raw_doc}\n\n"
                 f"Memory context:\n{context.get('context') or '(empty)'}"
             )
-        elif slot == "cloud_synthesis":
-            # Task 2: inject the CLEAN document only
+        elif endpoint in _OPENAI_COMPATIBLE_BY_NAME:
+            # Cloud tasks only receive anonymized text plus prior cloud handoffs.
+            prior_slots = "\n\n".join(
+                f"{key}:\n{value}" for key, value in slots_raw.items() if key != "anon_map" and value
+            )
             prompt = (
                 f"Role: {agent.get('role')}\n"
                 f"Task: {task.get('prompt')}\n\n"
                 f"ANONYMIZED DOCUMENT:\n{clean_doc}\n\n"
+                f"PRIOR CLOUD HANDOFFS:\n{prior_slots or '(none)'}\n\n"
                 f"Note: Entity names have been replaced with placeholder tokens for privacy."
             )
         else:
-            # Task 3: inject cloud synthesis + anon map from hmem
-            cloud_output = slots_raw.get("cloud_synthesis", "")
+            # Local review/re-hydration tasks see cloud handoffs plus the local map.
+            cloud_output = "\n\n".join(
+                f"{key}:\n{value}" for key, value in slots_raw.items() if key != "anon_map" and value
+            )
             prompt = (
                 f"Role: {agent.get('role')}\n"
                 f"Task: {task.get('prompt')}\n\n"
-                f"CLOUD ANALYSIS (with placeholders):\n{cloud_output}\n\n"
+                f"CLOUD ANALYSIS (with placeholders):\n{cloud_output or '(empty)'}\n\n"
                 f"ANONYMIZATION MAP (from hmem):\n{_anon_map_str[:600]}\n\n"
                 f"Memory context:\n{context.get('context') or '(empty)'}"
             )
@@ -510,6 +531,7 @@ def run_hybrid_demo(args: argparse.Namespace) -> dict[str, Any]:  # noqa: C901
                 model,
                 prompt,
                 api_key=api_key,
+                cloud_provider=cloud_provider,
                 max_new_tokens=int(args.max_new_tokens),
                 cloud_max_tokens=int(args.cloud_max_tokens),
                 mode=args.mode,
@@ -529,7 +551,9 @@ def run_hybrid_demo(args: argparse.Namespace) -> dict[str, Any]:  # noqa: C901
                 generated = HYBRID_FALLBACK_SLOTS["cloud_synthesis"]
             elif slot == "final_report":
                 # Re-inject using local deterministic logic
-                cloud_out = slots_raw.get("cloud_synthesis", HYBRID_FALLBACK_SLOTS["cloud_synthesis"])
+                cloud_out = "\n\n".join(
+                    value for key, value in slots_raw.items() if key != "anon_map" and value
+                ) or HYBRID_FALLBACK_SLOTS["cloud_synthesis"]
                 reinjected = _reinjection_report(cloud_out, forward_map)
                 generated = (
                     f"{HYBRID_FALLBACK_SLOTS['final_report']} "
@@ -538,6 +562,8 @@ def run_hybrid_demo(args: argparse.Namespace) -> dict[str, Any]:  # noqa: C901
             else:
                 generated = HYBRID_FALLBACK_SLOTS.get(slot, "HeliX recorded the step.")
             generation_meta = {**generation_meta, "fallback_used": True}
+            if endpoint in _OPENAI_COMPATIBLE_BY_NAME:
+                generation_meta["cloud_fallback_used"] = True
         else:
             # Post-process task 3: deterministic re-injection on top of model output
             if slot == "final_report":
@@ -547,11 +573,11 @@ def run_hybrid_demo(args: argparse.Namespace) -> dict[str, Any]:  # noqa: C901
             generation_meta = {**generation_meta, "fallback_used": generation_meta.get("fallback_used", False)}
 
         # Track hybrid event for cloud tasks
-        if endpoint == "deepinfra":
+        if endpoint in _OPENAI_COMPATIBLE_BY_NAME:
             hybrid_events.append({
                 "task_id": task["task_id"],
                 "agent_id": agent_id,
-                "endpoint": "deepinfra",
+                "endpoint": endpoint,
                 "model_ref": str(model.get("ref") or ""),
                 "local_sleep_ms": generation_meta.get("local_sleep_ms", 0.0),
                 "cloud_request_time_ms": generation_meta.get("cloud_request_time_ms", 0.0),
@@ -598,7 +624,7 @@ def run_hybrid_demo(args: argparse.Namespace) -> dict[str, Any]:  # noqa: C901
         token_ids = _token_ids(generated)
         session_dir = sessions_root / _safe(model_id) / _safe(agent_id) / f"v{index + 1:04d}"
 
-        if endpoint != "deepinfra":
+        if endpoint not in _OPENAI_COMPATIBLE_BY_NAME:
             if restored is not None and task_expects_restore:
                 _, _, load_receipt = rust_session.load_session_bundle(restored["path"], verify_policy="receipt-only")
                 private_state_events.append({
@@ -664,7 +690,7 @@ def run_hybrid_demo(args: argparse.Namespace) -> dict[str, Any]:  # noqa: C901
                 "task_id": task["task_id"],
                 "model_id": model_id,
                 "agent_id": agent_id,
-                "endpoint": "deepinfra",
+                "endpoint": endpoint,
                 "note": "Cloud node has no private .hlx state by design.",
             })
 
@@ -678,9 +704,9 @@ def run_hybrid_demo(args: argparse.Namespace) -> dict[str, Any]:  # noqa: C901
             "estimated_cost_ms": float(model.get("load_time_estimate_ms") or 0.0) + int(args.max_new_tokens),
             "actual_cost_ms": elapsed,
             "model_swapped": lifecycle_event["event"] == "model_activate",
-            "session_restored": restored is not None and task_expects_restore and endpoint != "deepinfra",
+            "session_restored": restored is not None and task_expects_restore and endpoint not in _OPENAI_COMPATIBLE_BY_NAME,
             "hmem_context_tokens": context.get("tokens", 0),
-            "audit_status": "n/a" if endpoint == "deepinfra" else "pending",
+            "audit_status": "n/a" if endpoint in _OPENAI_COMPATIBLE_BY_NAME else "pending",
             "generation_backend": generation_meta.get("backend"),
             "generation_fallback_used": bool(generation_meta.get("fallback_used")),
         }
@@ -694,7 +720,7 @@ def run_hybrid_demo(args: argparse.Namespace) -> dict[str, Any]:  # noqa: C901
             "slot": slot,
             "endpoint": endpoint,
             "handoff_summary": handoff,
-            "restored_private_state": restored is not None and task_expects_restore and endpoint != "deepinfra",
+            "restored_private_state": restored is not None and task_expects_restore and endpoint not in _OPENAI_COMPATIBLE_BY_NAME,
             "hmem_memory_id": hmem_events[-1]["memory_id"],
             "generation_backend": generation_meta.get("backend"),
             "generation_fallback_used": bool(generation_meta.get("fallback_used")),
@@ -716,13 +742,15 @@ def run_hybrid_demo(args: argparse.Namespace) -> dict[str, Any]:  # noqa: C901
         content_slots[slot_key] = sanitize_model_text(raw) if raw and len(raw) > 24 else fallback
 
     # Privacy audit summary
-    cloud_synthesis_text = slots_raw.get("cloud_synthesis", "")
+    cloud_synthesis_text = "\n\n".join(
+        value for key, value in slots_raw.items() if key != "anon_map" and value
+    )
     real_names = list(forward_map.values())
     cloud_saw_real = any(name in cloud_synthesis_text for name in real_names if len(name) > 4)
     final_report_text = slots_raw.get("final_report", "")
     re_inject_ok = any(name in final_report_text for name in real_names if len(name) > 4)
 
-    cloud_event = next((e for e in hybrid_events if e.get("endpoint") == "deepinfra"), {})
+    cloud_event = next((e for e in hybrid_events if e.get("endpoint") in _OPENAI_COMPATIBLE_BY_NAME), {})
 
     privacy_audit = {
         "doc_chars_original": original_chars,
@@ -798,9 +826,15 @@ def build_parser() -> argparse.ArgumentParser:
         "--mode",
         default="hybrid-cloud",
         choices=["hybrid-cloud", "budgeted-local", "mock-only"],
-        help="hybrid-cloud: uses DeepInfra for cloud tasks; budgeted-local: all local; mock-only: all fallback",
+        help="hybrid-cloud: uses the selected cloud provider for cloud tasks; budgeted-local: all local; mock-only: all fallback",
     )
     parser.add_argument("--deepinfra-api-key", default=None, help="DeepInfra API key (or set DEEPINFRA_API_KEY env var)")
+    parser.add_argument(
+        "--cloud-provider",
+        default="deepinfra",
+        choices=["deepinfra", "nvidia"],
+        help="OpenAI-compatible cloud provider for cloud blueprint tasks.",
+    )
     parser.add_argument("--doc", default=None, help="Path to the raw research document to anonymize (default: tools/demo-doc-dirty.txt)")
     parser.add_argument("--output-dir", default="verification")
     parser.add_argument("--site-output", default="site-dist/hybrid-research-demo.html")

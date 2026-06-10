@@ -22,6 +22,7 @@ class ProviderConfig:
 
 OPENAI_COMPATIBLE_PROVIDERS = [
     ProviderConfig("deepinfra", "https://api.deepinfra.com/v1/openai", "DEEPINFRA_API_TOKEN"),
+    ProviderConfig("nvidia", "https://integrate.api.nvidia.com/v1", "NVIDIA_API_KEY"),
     ProviderConfig("together", "https://api.together.xyz/v1", "TOGETHER_API_KEY"),
     ProviderConfig("fireworks", "https://api.fireworks.ai/inference/v1", "FIREWORKS_API_KEY"),
     ProviderConfig("groq", "https://api.groq.com/openai/v1", "GROQ_API_KEY"),

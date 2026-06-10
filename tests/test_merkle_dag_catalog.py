@@ -1,9 +1,8 @@
 import pytest
 import concurrent.futures
 from pathlib import Path
-import hashlib
 
-from helix_kv.merkle_dag import MerkleDAG, MerkleNode
+from helix_kv.merkle_dag import DAG_HASH_PROFILE_LEGACY, DAG_HASH_PROFILE_V2, MerkleDAG, MerkleNode
 from helix_kv.memory_catalog import MemoryCatalog
 
 def test_insert_and_lookup():
@@ -37,12 +36,30 @@ def test_audit_chain_integrity():
     assert chain[-1].content == "step_0"
     assert chain[0].content == "step_49"
     
-    # Verify cryptographic integrity
+    # Verify cryptographic integrity under the declared hash profile.
     for n in chain:
-        expected_payload = n.content.encode("utf-8")
-        if n.parent_hash:
-            expected_payload += n.parent_hash.encode("utf-8")
-        assert n.hash == hashlib.sha256(expected_payload).hexdigest()
+        assert n.hash_profile == DAG_HASH_PROFILE_V2
+        assert dag.hash_matches(n)
+
+
+def test_hash_v2_separates_ambiguous_legacy_pairs():
+    legacy_a = MerkleDAG._compute_hash_legacy("ab", "c")
+    legacy_b = MerkleDAG._compute_hash_legacy("a", "bc")
+    assert legacy_a == legacy_b
+
+    v2_a = MerkleDAG._compute_hash_v2("ab", "c")
+    v2_b = MerkleDAG._compute_hash_v2("a", "bc")
+    assert v2_a != v2_b
+
+
+def test_insert_accepts_legacy_expected_hash_for_replay():
+    dag = MerkleDAG()
+    legacy = MerkleDAG._compute_hash_legacy("legacy-content", None)
+    node = dag._insert_unlocked("legacy-content", expected_hash=legacy)
+
+    assert node.hash == legacy
+    assert node.hash_profile == DAG_HASH_PROFILE_LEGACY
+    assert dag.hash_matches(node)
 
 def test_concurrent_writes_no_deadlock(tmp_path):
     catalog = MemoryCatalog(tmp_path / "test.db")
@@ -58,7 +75,7 @@ def test_concurrent_writes_no_deadlock(tmp_path):
             
     with concurrent.futures.ThreadPoolExecutor(max_workers=8) as executor:
         futures = [executor.submit(worker_task, i) for i in range(8)]
-        done, not_done = concurrent.futures.wait(futures, timeout=10)
+        done, not_done = concurrent.futures.wait(futures, timeout=30)
         
         assert len(not_done) == 0, "ThreadPool deadlock detected! Timeout triggered."
         

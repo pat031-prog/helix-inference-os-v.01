@@ -307,6 +307,15 @@ def search(
             "session_id": session_id,
             "retrieval_scope": retrieval_scope,
         }
+    if str(retrieval_scope or "workspace").lower() == "session":
+        return {
+            "query": query,
+            "top_k": top_k,
+            "results": [],
+            "source": "hmem",
+            "session_id": session_id,
+            "retrieval_scope": retrieval_scope,
+        }
     legacy = search_legacy_memory(agent_id or "default-agent", query, top_k=top_k, root=root)
     legacy_results = [
         {
@@ -349,7 +358,11 @@ def hybrid_search(
         retrieval_scope=retrieval_scope,
         exclude_memory_ids=exclude_memory_ids,
     ).get("results", [])
-    knowledge = search_knowledge(agent_id, query, top_k=top_k, root=root).get("results", [])
+    knowledge = (
+        []
+        if str(retrieval_scope or "workspace").lower() == "session"
+        else search_knowledge(agent_id, query, top_k=top_k, root=root).get("results", [])
+    )
     knowledge_hits = [
         {
             **item,

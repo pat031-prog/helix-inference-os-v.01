@@ -17,10 +17,16 @@ use parking_lot::RwLock;
 use pyo3::exceptions::{PyRuntimeError, PyValueError};
 use pyo3::prelude::*;
 use pyo3::types::PyDict;
-use serde_json::Value;
+use serde::de::{self, Deserialize, Deserializer, MapAccess, SeqAccess, Visitor};
+use serde_json::{Map, Number, Value};
 use sha2::{Digest, Sha256};
 use std::collections::{HashMap, HashSet};
+use std::fmt;
 use std::time::{SystemTime, UNIX_EPOCH};
+
+const DAG_HASH_PROFILE_LEGACY: &str = "helix-merkle-dag-v1-legacy-concat-sha256";
+const DAG_HASH_PROFILE_V2: &str = "helix-merkle-dag-v2-domain-length-sha256";
+const DAG_HASH_V2_DOMAIN: &[u8] = b"HLX-DAG-V2";
 
 /// A single node in the MerkleDAG. Immutable once created.
 #[derive(Clone, Debug)]
@@ -30,6 +36,7 @@ struct MerkleNodeInner {
     parent_hash: Option<String>,
     timestamp_ms: f64,
     depth: u32,
+    hash_profile: String,
 }
 
 #[derive(Clone, Debug)]
@@ -114,6 +121,7 @@ struct PreparedIndexedRecord {
     parent_hash: Option<String>,
     metadata: IndexedMetadata,
     node_hash: String,
+    hash_profile: String,
     timestamp_ms: f64,
     content_counts: HashMap<String, u32>,
     summary_counts: HashMap<String, u32>,
@@ -135,6 +143,8 @@ struct PyMerkleNode {
     timestamp: f64,
     #[pyo3(get)]
     depth: u32,
+    #[pyo3(get)]
+    hash_profile: String,
 }
 
 impl From<&MerkleNodeInner> for PyMerkleNode {
@@ -145,17 +155,132 @@ impl From<&MerkleNodeInner> for PyMerkleNode {
             parent_hash: n.parent_hash.clone(),
             timestamp: n.timestamp_ms,
             depth: n.depth,
+            hash_profile: n.hash_profile.clone(),
         }
     }
 }
 
-fn compute_hash(content: &str, parent_hash: Option<&str>) -> String {
+fn compute_hash_legacy(content: &str, parent_hash: Option<&str>) -> String {
     let mut hasher = Sha256::new();
     hasher.update(content.as_bytes());
     if let Some(ph) = parent_hash {
         hasher.update(ph.as_bytes());
     }
     hex::encode(hasher.finalize())
+}
+
+fn compute_hash_v2(content: &str, parent_hash: Option<&str>) -> String {
+    let content_bytes = content.as_bytes();
+    let parent_bytes = parent_hash.map(str::as_bytes).unwrap_or_default();
+    let mut hasher = Sha256::new();
+    hasher.update(DAG_HASH_V2_DOMAIN);
+    hasher.update((content_bytes.len() as u64).to_be_bytes());
+    hasher.update(content_bytes);
+    hasher.update([u8::from(parent_hash.is_some())]);
+    hasher.update((parent_bytes.len() as u64).to_be_bytes());
+    hasher.update(parent_bytes);
+    hex::encode(hasher.finalize())
+}
+
+fn compute_hash(content: &str, parent_hash: Option<&str>) -> String {
+    compute_hash_v2(content, parent_hash)
+}
+
+fn compute_hash_for_profile(content: &str, parent_hash: Option<&str>, hash_profile: &str) -> Option<String> {
+    match hash_profile {
+        DAG_HASH_PROFILE_LEGACY | "" => Some(compute_hash_legacy(content, parent_hash)),
+        DAG_HASH_PROFILE_V2 => Some(compute_hash_v2(content, parent_hash)),
+        _ => None,
+    }
+}
+
+fn hash_matches_node(node: &MerkleNodeInner) -> bool {
+    compute_hash_for_profile(&node.content, node.parent_hash.as_deref(), &node.hash_profile)
+        .map(|recomputed| node.hash == recomputed)
+        .unwrap_or(false)
+}
+
+struct NoDuplicateValue(Value);
+
+impl<'de> Deserialize<'de> for NoDuplicateValue {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        deserializer.deserialize_any(NoDuplicateVisitor)
+    }
+}
+
+struct NoDuplicateVisitor;
+
+impl<'de> Visitor<'de> for NoDuplicateVisitor {
+    type Value = NoDuplicateValue;
+
+    fn expecting(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter.write_str("JSON without duplicate object keys")
+    }
+
+    fn visit_bool<E>(self, value: bool) -> Result<Self::Value, E> {
+        Ok(NoDuplicateValue(Value::Bool(value)))
+    }
+
+    fn visit_i64<E>(self, value: i64) -> Result<Self::Value, E> {
+        Ok(NoDuplicateValue(Value::Number(Number::from(value))))
+    }
+
+    fn visit_u64<E>(self, value: u64) -> Result<Self::Value, E> {
+        Ok(NoDuplicateValue(Value::Number(Number::from(value))))
+    }
+
+    fn visit_f64<E>(self, _value: f64) -> Result<Self::Value, E>
+    where
+        E: de::Error,
+    {
+        Err(E::custom("floats are not allowed in signed receipt payloads"))
+    }
+
+    fn visit_str<E>(self, value: &str) -> Result<Self::Value, E> {
+        Ok(NoDuplicateValue(Value::String(value.to_string())))
+    }
+
+    fn visit_string<E>(self, value: String) -> Result<Self::Value, E> {
+        Ok(NoDuplicateValue(Value::String(value)))
+    }
+
+    fn visit_none<E>(self) -> Result<Self::Value, E> {
+        Ok(NoDuplicateValue(Value::Null))
+    }
+
+    fn visit_unit<E>(self) -> Result<Self::Value, E> {
+        Ok(NoDuplicateValue(Value::Null))
+    }
+
+    fn visit_seq<A>(self, mut seq: A) -> Result<Self::Value, A::Error>
+    where
+        A: SeqAccess<'de>,
+    {
+        let mut out = Vec::new();
+        while let Some(item) = seq.next_element::<NoDuplicateValue>()? {
+            out.push(item.0);
+        }
+        Ok(NoDuplicateValue(Value::Array(out)))
+    }
+
+    fn visit_map<A>(self, mut map: A) -> Result<Self::Value, A::Error>
+    where
+        A: MapAccess<'de>,
+    {
+        let mut seen = HashSet::new();
+        let mut out = Map::new();
+        while let Some(key) = map.next_key::<String>()? {
+            if !seen.insert(key.clone()) {
+                return Err(de::Error::custom(format!("duplicate JSON object key: {key}")));
+            }
+            let value = map.next_value::<NoDuplicateValue>()?;
+            out.insert(key, value.0);
+        }
+        Ok(NoDuplicateValue(Value::Object(out)))
+    }
 }
 
 fn canonical_json_value(value: &Value) -> PyResult<String> {
@@ -185,9 +310,9 @@ fn canonical_json_value(value: &Value) -> PyResult<String> {
 }
 
 fn canonical_json_from_text(raw: &str) -> PyResult<String> {
-    let value: Value = serde_json::from_str(raw)
+    let value = serde_json::from_str::<NoDuplicateValue>(raw)
         .map_err(|exc| PyValueError::new_err(format!("invalid json payload: {exc}")))?;
-    canonical_json_value(&value)
+    canonical_json_value(&value.0)
 }
 
 fn decode_b64_32(value: &str, label: &str) -> PyResult<[u8; 32]> {
@@ -429,6 +554,7 @@ fn prepare_indexed_record(
     metadata: IndexedMetadata,
 ) -> PreparedIndexedRecord {
     let node_hash = compute_hash(&content, parent_hash.as_deref());
+    let hash_profile = DAG_HASH_PROFILE_V2.to_string();
     let timestamp_ms = now_ms();
     let content_counts = token_counts(&metadata.index_content);
     let summary_counts = token_counts(&metadata.summary);
@@ -441,6 +567,7 @@ fn prepare_indexed_record(
         parent_hash,
         metadata,
         node_hash,
+        hash_profile,
         timestamp_ms,
         content_counts,
         summary_counts,
@@ -479,6 +606,7 @@ fn insert_prepared_locked(
         parent_hash: prepared.parent_hash,
         timestamp_ms: prepared.timestamp_ms,
         depth,
+        hash_profile: prepared.hash_profile,
     };
     let indexed = IndexedNodeInner {
         node,
@@ -785,6 +913,7 @@ impl PyMerkleDAG {
             parent_hash,
             timestamp_ms: ts,
             depth,
+            hash_profile: DAG_HASH_PROFILE_V2.to_string(),
         };
 
         let py_node = PyMerkleNode::from(&inner);
@@ -884,6 +1013,7 @@ impl PyMerkleDAG {
                 parent_hash: parent_hash.clone(),
                 timestamp_ms: ts,
                 depth,
+                hash_profile: DAG_HASH_PROFILE_V2.to_string(),
             };
             let py_node = PyMerkleNode::from(&inner);
             nodes.insert(node_hash, inner);
@@ -1167,6 +1297,7 @@ impl PyIndexedMerkleDAG {
             };
             let dict = PyDict::new_bound(py);
             dict.set_item("node_hash", &indexed.node.hash)?;
+            dict.set_item("hash_profile", &indexed.node.hash_profile)?;
             dict.set_item("score", score)?;
             let terms = matched
                 .get(&hash)
@@ -1243,9 +1374,7 @@ impl PyIndexedMerkleDAG {
                 break;
             };
             chain_len += 1;
-            let recomputed =
-                compute_hash(&indexed.node.content, indexed.node.parent_hash.as_deref());
-            if recomputed != indexed.node.hash {
+            if !hash_matches_node(&indexed.node) {
                 if indexed.metadata.content_available {
                     failed_at = Some(indexed.node.hash.clone());
                     break;
@@ -1297,8 +1426,12 @@ impl PyIndexedMerkleDAG {
             if !indexed.metadata.content_available {
                 continue;
             }
-            let original_hash =
-                compute_hash(&indexed.node.content, indexed.node.parent_hash.as_deref());
+            let original_hash = compute_hash_for_profile(
+                &indexed.node.content,
+                indexed.node.parent_hash.as_deref(),
+                &indexed.node.hash_profile,
+            )
+            .unwrap_or_else(|| indexed.node.hash.clone());
             let original_size = indexed.node.content.len();
             indexed.node.content = format!(
                 "[GC_TOMBSTONE:sha256={},size={}]",
@@ -1402,6 +1535,29 @@ mod tests {
     }
 
     #[test]
+    fn merkle_hash_v2_separates_legacy_concat_ambiguity() {
+        assert_eq!(
+            compute_hash_legacy("ab", Some("c")),
+            compute_hash_legacy("a", Some("bc"))
+        );
+        assert_ne!(
+            compute_hash_v2("ab", Some("c")),
+            compute_hash_v2("a", Some("bc"))
+        );
+    }
+
+    #[test]
+    fn receipt_canonical_json_rejects_duplicate_keys_and_floats() {
+        let expected = format!(r#"{{"a":[1,{{"z":"{}"}}],"b":2}}"#, '\u{00f1}');
+        assert_eq!(
+            canonical_json_from_text(r#"{"b":2,"a":[1,{"z":"\u00f1"}]}"#).unwrap(),
+            expected
+        );
+        assert!(canonical_json_from_text(r#"{"a":1,"a":2}"#).is_err());
+        assert!(canonical_json_from_text(r#"{"bad":1.25}"#).is_err());
+    }
+
+    #[test]
     fn indexed_insert_preserves_parent_depth() {
         pyo3::prepare_freethreaded_python();
         Python::with_gil(|py| {
@@ -1426,10 +1582,11 @@ mod tests {
                         r#"{"project":"p","agent_id":"a","record_kind":"memory","memory_id":"m1"}"#
                             .to_string(),
                     ),
-                )
-                .unwrap();
+            )
+            .unwrap();
             assert_eq!(child.depth, 1);
             assert_eq!(child.parent_hash, Some(root.hash));
+            assert_eq!(child.hash_profile, DAG_HASH_PROFILE_V2);
         });
     }
 

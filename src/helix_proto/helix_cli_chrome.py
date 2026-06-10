@@ -351,6 +351,7 @@ def _toolbar_markup(session: Any) -> str:
     model_name = str(getattr(session, "model", "model"))
     router_policy = str(getattr(session, "router_policy", "balanced"))
     interaction_mode = str(getattr(session, "interaction_mode", "balanced"))
+    blind_state = "on" if bool(getattr(session, "blind_inference_enabled", False)) else "off"
     theme_name = str(getattr(session, "theme_name", DEFAULT_THEME))
     thread_short = thread_id[:18] if len(thread_id) > 18 else thread_id
     return (
@@ -359,6 +360,7 @@ def _toolbar_markup(session: Any) -> str:
         f"  <b>model</b> {html.escape(model_name)}"
         f"  <b>router</b> {html.escape(router_policy)}"
         f"  <b>mode</b> {html.escape(interaction_mode)}"
+        f"  <b>blind</b> {html.escape(blind_state)}"
         f"  <b>theme</b> {html.escape(theme_name)}"
         "  <b>/help</b> directives "
     )
@@ -457,8 +459,12 @@ def render_session_ribbon(active_console: Any, session: Any) -> None:
         f"[muted]theme[/muted] [creamy]{getattr(session, 'theme_name', DEFAULT_THEME)}[/creamy]",
     )
     grid.add_row(
-        f"[muted]transcript[/muted] [creamy]{getattr(session, 'jsonl_path', '')}[/creamy]",
+        f"[muted]blind[/muted] [creamy]{'on' if getattr(session, 'blind_inference_enabled', False) else 'off'}[/creamy]",
         f"[muted]style[/muted] [creamy]{getattr(session, 'response_style', 'balanced')}[/creamy]",
+    )
+    grid.add_row(
+        f"[muted]transcript[/muted] [creamy]{getattr(session, 'jsonl_path', '')}[/creamy]",
+        f"[muted]policy[/muted] [creamy]{(getattr(session, 'blind_inference_policy', None).policy_id if getattr(session, 'blind_inference_enabled', False) and getattr(session, 'blind_inference_policy', None) else '-')}[/creamy]",
     )
     grid.add_row(
         f"[muted]evidence[/muted] [creamy]{getattr(session, 'evidence_root', '')}[/creamy]",
@@ -547,7 +553,13 @@ def render_task_result(
     model = short_model_name(str(result.get("selected_model") or "model"))
     route = result.get("route") if isinstance(result.get("route"), dict) else {}
     intent = str(route.get("intent") or "task")
-    patch_label = "patch ready" if result.get("patch_available") else "no patch"
+    patch_check = result.get("patch_apply_check") if isinstance(result.get("patch_apply_check"), dict) else {}
+    if result.get("patch_available"):
+        patch_label = "apply ready"
+    elif result.get("patch_generated") or patch_check.get("status") == "failed":
+        patch_label = "patch invalid"
+    else:
+        patch_label = "no patch"
     tool_events = list(result.get("tool_events") or [])
 
     meta = Table.grid(expand=True)
@@ -583,7 +595,10 @@ def render_task_result(
             )
         renderables.extend(["", timeline])
     if result.get("patch_available"):
-        renderables.extend(["", "[warning]Patch proposal stored. Use [success]/apply last[/success] to apply after review.[/warning]"])
+        renderables.extend(["", "[warning]Patch checked clean. Use [success]/apply last[/success] to apply after review.[/warning]"])
+    elif result.get("patch_generated") or patch_check.get("status") == "failed":
+        reason = str(patch_check.get("stderr") or patch_check.get("stdout") or patch_check.get("error") or "git apply --check failed").strip()
+        renderables.extend(["", f"[error]Patch generated but not apply-ready.[/error] [muted]{reason[:220]}[/muted]"])
 
     active_console.print()
     active_console.print(

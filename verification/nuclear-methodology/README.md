@@ -3,6 +3,11 @@
 This folder holds cloud-only and local evidence runs for adversarial memory,
 signed-receipt, and causal-forensics claims.
 
+This is an internal verification evidence area. Commit curated artifacts,
+extracts, transcripts, run manifests, and standalone verifier bundles when they
+are useful for review. Do not commit ephemeral local signing keys, raw token
+material, private `.sqlite` stores, or `_*/trust/local_signing_key.json` files.
+
 Method rules for new tests:
 
 - Each test must state a null hypothesis and an alternative hypothesis.
@@ -65,6 +70,28 @@ Method rules for new tests:
    - Mixed tests that convert freeform ideas into falsifiable evidence checks:
      counterfactual archive, recursive witness, summary nodes, proof-of-utility
      retrieval, and metaphor boundary detection.
+11. `agent-run-transparency-gauntlet`
+   - Local and cloud transparency-core runs. These check Merkle hash v2,
+     signed receipts, inclusion proofs, RFC 9162-style consistency proofs,
+     provider requested/actual metadata, signed poison boundaries, and
+     standalone verifier bundles.
+12. `cloud-provider-substitution-longitudinal`
+   - DeepInfra longitudinal model panel. It repeats cloud calls across rounds
+     and records provider substitution, actual-model drift, output digest drift,
+     latency, signed memory receipts, checkpoints, and consistency proofs.
+13. `cloud-response-contract-stress`
+   - Structured-output contract stress. It separates `transport_ok` from
+     `response_contract_ok`, exact JSON parseability, schema shape, markdown
+     fences, duplicate keys, and semantic-boundary violations.
+14. `llm-verifier-overclaim-gauntlet`
+   - LLM auditor vs deterministic verifier. It tests blind and reported
+     verifier modes over valid and tampered bundles, measuring auditor
+     overclaim, verifier disagreement, semantic overclaim, and contract
+     failures.
+15. `trust-laundering-memory-gauntlet`
+   - Nuclear trust-laundering suite. It tests whether signed receipts,
+     memory persistence, citations, or requested-provider metadata are
+     laundered into trusted memory, verified claims, or semantic authority.
 
 Run all new tests:
 
@@ -132,4 +159,40 @@ Run the post-nuclear mixed methodology suite:
 
 ```bat
 tools\run_post_nuclear_methodology_all.cmd
+```
+
+Run the cloud transparency core:
+
+```bat
+powershell -ExecutionPolicy Bypass -File tools\run_agent_run_transparency_cloud_deepinfra_secure.ps1 -Models "Qwen/Qwen3.6-35B-A3B,deepseek-ai/DeepSeek-V3,meta-llama/Llama-3.3-70B-Instruct" -Tokens 450 -Temperature 0.2 -Timeout 240
+```
+
+Run cloud provider substitution longitudinal:
+
+```bat
+powershell -ExecutionPolicy Bypass -File tools\run_cloud_provider_substitution_longitudinal_secure.ps1 -Models "Qwen/Qwen3-235B-A22B-Instruct-2507,anthropic/claude-sonnet-4-6,deepseek-ai/DeepSeek-V3,meta-llama/Llama-3.3-70B-Instruct" -Rounds 3 -Tokens 420 -Temperature 0.15 -Timeout 240
+```
+
+Run cloud response contract stress:
+
+```bat
+powershell -ExecutionPolicy Bypass -File tools\run_cloud_response_contract_stress_secure.ps1 -Models "Qwen/Qwen3-235B-A22B-Instruct-2507,anthropic/claude-sonnet-4-6,deepseek-ai/DeepSeek-V3,meta-llama/Llama-3.3-70B-Instruct" -Contracts "minimal_json,nested_claims,adversarial_boundary" -Rounds 1 -Tokens 420 -Temperature 0.0 -Timeout 240
+```
+
+Run LLM verifier overclaim:
+
+```bat
+powershell -ExecutionPolicy Bypass -File tools\run_llm_verifier_overclaim_gauntlet_secure.ps1 -AuditorModels "anthropic/claude-sonnet-4-6,Qwen/Qwen3-235B-A22B-Instruct-2507,deepseek-ai/DeepSeek-V3,meta-llama/Llama-3.3-70B-Instruct" -Variants "valid_control,event_tamper,claim_boundary_overclaim,consistency_tamper" -Modes "blind,reported" -Tokens 360 -Temperature 0.0 -Timeout 240
+```
+
+Run trust-laundering memory gauntlet:
+
+```bat
+powershell -ExecutionPolicy Bypass -File tools\run_trust_laundering_memory_gauntlet_secure.ps1 -Models "anthropic/claude-sonnet-4-6,Qwen/Qwen3-235B-A22B-Instruct-2507,deepseek-ai/DeepSeek-V3,meta-llama/Llama-3.3-70B-Instruct" -Scenarios "signed_receipt_truth_launder,memory_admission_launder,citation_digest_launder,provider_identity_launder" -Roles "memory_writer,downstream_agent" -Tokens 420 -Temperature 0.0 -Timeout 240
+```
+
+Verify any emitted standalone bundle:
+
+```bat
+python tools\verify_agent_run_bundle.py "<standalone_bundle_path>"
 ```

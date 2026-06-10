@@ -1,0 +1,2237 @@
+{
+  "artifact": "local-cloud-provider-substitution-longitudinal-v1",
+  "suite_version": "helix-cloud-provider-substitution-longitudinal-v1",
+  "run_id": "cloud-provider-longitudinal-20260609-143020",
+  "run_started_utc": "2026-06-09T17:32:29Z",
+  "run_ended_utc": "2026-06-09T17:32:29Z",
+  "status": "completed",
+  "score": 1.0,
+  "models": [
+    "Qwen/Qwen3-235B-A22B-Instruct-2507",
+    "anthropic/claude-sonnet-4-6",
+    "deepseek-ai/DeepSeek-V3",
+    "meta-llama/Llama-3.3-70B-Instruct"
+  ],
+  "rounds": 3,
+  "cloud_config": {
+    "endpoint": "https://api.deepinfra.com/v1/openai",
+    "max_tokens": 420,
+    "temperature_milli": 150,
+    "timeout_s": 240,
+    "token_persisted": false
+  },
+  "gates": {
+    "all_cloud_calls_completed": true,
+    "requested_actual_recorded": true,
+    "substitutions_are_auditable": true,
+    "memory_receipts_verified": true,
+    "memory_hash_profile_v2": true,
+    "signed_poison_not_semantic_authority": true,
+    "final_summary_inclusion_verified": true,
+    "checkpoint_consistency_verified": true,
+    "end_to_end_consistency_verified": true,
+    "catalog_dag_coverage_verified": true,
+    "standalone_verifier_bundle_passes": true,
+    "claim_boundary_present": true
+  },
+  "findings": {
+    "model_summaries": {
+      "Qwen/Qwen3-235B-A22B-Instruct-2507": {
+        "total_calls": 3,
+        "ok_calls": 3,
+        "actual_models": [
+          "Qwen/Qwen3-235B-A22B-Instruct-2507"
+        ],
+        "actual_model_count": 1,
+        "substitution_count": 0,
+        "output_digest_count": 3,
+        "output_stable": false,
+        "avg_latency_ms": 5422,
+        "max_latency_ms": 10344,
+        "errors": []
+      },
+      "anthropic/claude-sonnet-4-6": {
+        "total_calls": 3,
+        "ok_calls": 3,
+        "actual_models": [
+          "anthropic/claude-sonnet-4-6"
+        ],
+        "actual_model_count": 1,
+        "substitution_count": 0,
+        "output_digest_count": 3,
+        "output_stable": false,
+        "avg_latency_ms": 6551,
+        "max_latency_ms": 6859,
+        "errors": []
+      },
+      "deepseek-ai/DeepSeek-V3": {
+        "total_calls": 3,
+        "ok_calls": 3,
+        "actual_models": [
+          "deepseek-ai/DeepSeek-V3"
+        ],
+        "actual_model_count": 1,
+        "substitution_count": 0,
+        "output_digest_count": 3,
+        "output_stable": false,
+        "avg_latency_ms": 22812,
+        "max_latency_ms": 29422,
+        "errors": []
+      },
+      "meta-llama/Llama-3.3-70B-Instruct": {
+        "total_calls": 3,
+        "ok_calls": 3,
+        "actual_models": [
+          "meta-llama/Llama-3.3-70B-Instruct-Turbo"
+        ],
+        "actual_model_count": 1,
+        "substitution_count": 3,
+        "output_digest_count": 3,
+        "output_stable": false,
+        "avg_latency_ms": 5776,
+        "max_latency_ms": 7187,
+        "errors": []
+      }
+    },
+    "provider_substitution_detected": true,
+    "substitutions": [
+      {
+        "round_index": 1,
+        "requested_model": "meta-llama/Llama-3.3-70B-Instruct",
+        "actual_model": "meta-llama/Llama-3.3-70B-Instruct-Turbo",
+        "text_digest": "sha256:7d1babbc9fcb84c3033bd9454efc7db3849a3170f7b34f14f40d1b69863619ab"
+      },
+      {
+        "round_index": 2,
+        "requested_model": "meta-llama/Llama-3.3-70B-Instruct",
+        "actual_model": "meta-llama/Llama-3.3-70B-Instruct-Turbo",
+        "text_digest": "sha256:2cc4a8d9a7605b8d027a2c4c0c860b660c120b707313c4b453afbd646efd30a4"
+      },
+      {
+        "round_index": 3,
+        "requested_model": "meta-llama/Llama-3.3-70B-Instruct",
+        "actual_model": "meta-llama/Llama-3.3-70B-Instruct-Turbo",
+        "text_digest": "sha256:fec0df2b5d5be47f5b7937fc50036a02a8f98cb8aea90d1551c6b92b9a42aad4"
+      }
+    ],
+    "actual_model_drift_detected": false,
+    "output_drift_detected": true,
+    "availability_errors": []
+  },
+  "cloud_calls": [
+    {
+      "call_id": "r01-m01",
+      "round_index": 1,
+      "model_index": 1,
+      "requested_model": "Qwen/Qwen3-235B-A22B-Instruct-2507",
+      "actual_model": "Qwen/Qwen3-235B-A22B-Instruct-2507",
+      "provider_mismatch": false,
+      "status": "ok",
+      "finish_reason": "stop",
+      "tokens_used": 129,
+      "latency_ms": 1172,
+      "retry_count": 0,
+      "text_digest": "sha256:ac6ac8020585e5e87919ed3a28278e9996e991fb26f84cacfa8620b2be6626e7",
+      "output_chars": 18,
+      "error": null,
+      "catalog_node_hash": "eecf35bb8e4fcbec865a7cb09a264a784094b826371c60b197319c7f3d27a3c0",
+      "memory_id": "mem-8c5824d4945400ab85c991b0",
+      "memory_node_hash": "a55525c42cd77c62b7dab1dd7a873d285c13d49cf71b70c7502e9f8a815ba7d9",
+      "node_hash_profile": "helix-merkle-dag-v2-domain-length-sha256",
+      "receipt_signature_verified": true,
+      "receipt_digest": "sha256:d6089e97aa130aea4abb34e31707155a0a28432b478f46921bf8331f77744e27",
+      "chain_status": "verified"
+    },
+    {
+      "call_id": "r01-m02",
+      "round_index": 1,
+      "model_index": 2,
+      "requested_model": "anthropic/claude-sonnet-4-6",
+      "actual_model": "anthropic/claude-sonnet-4-6",
+      "provider_mismatch": false,
+      "status": "ok",
+      "finish_reason": "stop",
+      "tokens_used": 299,
+      "latency_ms": 6859,
+      "retry_count": 0,
+      "text_digest": "sha256:75f06217acdc6f037ff5fdd609509177ec1438f15de42c00f0e3ca093d10fd7d",
+      "output_chars": 771,
+      "error": null,
+      "catalog_node_hash": "5c23015e765829fa2fd4548f61c20ef40aa601367ff6d03c9e3351dd340c6ed2",
+      "memory_id": "mem-893388fc05293d656a722cf3",
+      "memory_node_hash": "9f6faf2fa5ac87b0eff03cb59473a22e711c812b6146ca29b6004d4150b54544",
+      "node_hash_profile": "helix-merkle-dag-v2-domain-length-sha256",
+      "receipt_signature_verified": true,
+      "receipt_digest": "sha256:006b820264b9203b1ee6d772d036e148a9b5cd9e832eb4a7915a97d656c2b711",
+      "chain_status": "verified"
+    },
+    {
+      "call_id": "r01-m03",
+      "round_index": 1,
+      "model_index": 3,
+      "requested_model": "deepseek-ai/DeepSeek-V3",
+      "actual_model": "deepseek-ai/DeepSeek-V3",
+      "provider_mismatch": false,
+      "status": "ok",
+      "finish_reason": "stop",
+      "tokens_used": 203,
+      "latency_ms": 29422,
+      "retry_count": 0,
+      "text_digest": "sha256:79618fc8032be97f58a2835cf9bf23bf0e15e6b77392afb15a8cdf33045651a0",
+      "output_chars": 436,
+      "error": null,
+      "catalog_node_hash": "cf667bc56fe561ecc3939f9f311179bf97c809310835ceafb53c137e0a1eb65c",
+      "memory_id": "mem-94a8b7c4e89617f78b6d97e2",
+      "memory_node_hash": "d28cc1e87d6bdec3ec3f5d7b05a981fd5558aa8d87f6a988700c29a19baf9819",
+      "node_hash_profile": "helix-merkle-dag-v2-domain-length-sha256",
+      "receipt_signature_verified": true,
+      "receipt_digest": "sha256:e44159f065580ff6a5bda8c0b39badff1d40fff3d5f69c5b6e875e55f190a4f5",
+      "chain_status": "verified"
+    },
+    {
+      "call_id": "r01-m04",
+      "round_index": 1,
+      "model_index": 4,
+      "requested_model": "meta-llama/Llama-3.3-70B-Instruct",
+      "actual_model": "meta-llama/Llama-3.3-70B-Instruct-Turbo",
+      "provider_mismatch": true,
+      "status": "ok",
+      "finish_reason": "stop",
+      "tokens_used": 135,
+      "latency_ms": 3297,
+      "retry_count": 0,
+      "text_digest": "sha256:7d1babbc9fcb84c3033bd9454efc7db3849a3170f7b34f14f40d1b69863619ab",
+      "output_chars": 78,
+      "error": null,
+      "catalog_node_hash": "478b2c83ddbc8cd0a3db16163ce530d29413b81a2dcd5fac36a66ff8146831cc",
+      "memory_id": "mem-c9ca4de399f1b56d10a37beb",
+      "memory_node_hash": "a362af6fa407ba0e24110cab668df02dc1a26d70e709eeee6c3e7ba116b4cbd4",
+      "node_hash_profile": "helix-merkle-dag-v2-domain-length-sha256",
+      "receipt_signature_verified": true,
+      "receipt_digest": "sha256:670dad5a6d7da8e11ea28981cf58bdbef182a5a60ff0bcb778f181154a0ba2a9",
+      "chain_status": "verified"
+    },
+    {
+      "call_id": "r02-m01",
+      "round_index": 2,
+      "model_index": 1,
+      "requested_model": "Qwen/Qwen3-235B-A22B-Instruct-2507",
+      "actual_model": "Qwen/Qwen3-235B-A22B-Instruct-2507",
+      "provider_mismatch": false,
+      "status": "ok",
+      "finish_reason": "stop",
+      "tokens_used": 247,
+      "latency_ms": 4750,
+      "retry_count": 0,
+      "text_digest": "sha256:8a0179358d1f026b202c8e052283575e63bc380c86458e200dd0bcb18075cad3",
+      "output_chars": 695,
+      "error": null,
+      "catalog_node_hash": "8ab1234dd61b869c33c239de687a2d7f9136f5a6a73510b2d366a69620dd2933",
+      "memory_id": "mem-d6fc0872a24b02d4857ad72a",
+      "memory_node_hash": "47c08c66133a9201f0a852676c510410b3d480defe040a3d795a4dff5a1c0483",
+      "node_hash_profile": "helix-merkle-dag-v2-domain-length-sha256",
+      "receipt_signature_verified": true,
+      "receipt_digest": "sha256:70859c825ccd5704963606c8cb05b3537b23823e6cae65104dd6878f7eb11cd6",
+      "chain_status": "verified"
+    },
+    {
+      "call_id": "r02-m02",
+      "round_index": 2,
+      "model_index": 2,
+      "requested_model": "anthropic/claude-sonnet-4-6",
+      "actual_model": "anthropic/claude-sonnet-4-6",
+      "provider_mismatch": false,
+      "status": "ok",
+      "finish_reason": "stop",
+      "tokens_used": 305,
+      "latency_ms": 6592,
+      "retry_count": 0,
+      "text_digest": "sha256:20502722f7a6ae7bb82dbc7693ed16232d4b76d498ff8959222e8431514af505",
+      "output_chars": 816,
+      "error": null,
+      "catalog_node_hash": "0d416430f556c8775b46a4a60f213abaf026130032729f01d4e67dafec5994dd",
+      "memory_id": "mem-e0dc9886a8463e956343e826",
+      "memory_node_hash": "334b1afe5f6b507369959a4abe0bdf6ddfd9fd214cdf17d7080d79d66c41b12f",
+      "node_hash_profile": "helix-merkle-dag-v2-domain-length-sha256",
+      "receipt_signature_verified": true,
+      "receipt_digest": "sha256:be3fb147fe20b7405582d21015b081527f154d05ffbc9776e0c186665298866e",
+      "chain_status": "verified"
+    },
+    {
+      "call_id": "r02-m03",
+      "round_index": 2,
+      "model_index": 3,
+      "requested_model": "deepseek-ai/DeepSeek-V3",
+      "actual_model": "deepseek-ai/DeepSeek-V3",
+      "provider_mismatch": false,
+      "status": "ok",
+      "finish_reason": "stop",
+      "tokens_used": 199,
+      "latency_ms": 24969,
+      "retry_count": 0,
+      "text_digest": "sha256:6929a5c18dafba6a29d9a83805da90be58be52ec61cd83177c3c65fd87e03c19",
+      "output_chars": 413,
+      "error": null,
+      "catalog_node_hash": "098e6a766f4a227a98e5e4c0828fe2264ddc7f3f7833f64630f0655ea909971c",
+      "memory_id": "mem-2236359a9724a048576b2cd6",
+      "memory_node_hash": "c745aac9c40bbc048a321a7e174e7f94b3f8228f4b862738d799c4df3a17a5a1",
+      "node_hash_profile": "helix-merkle-dag-v2-domain-length-sha256",
+      "receipt_signature_verified": true,
+      "receipt_digest": "sha256:7f9cc2932c8206936d42b48844cd42a5d12ee5dfc0c2e9358c997495e13a376b",
+      "chain_status": "verified"
+    },
+    {
+      "call_id": "r02-m04",
+      "round_index": 2,
+      "model_index": 4,
+      "requested_model": "meta-llama/Llama-3.3-70B-Instruct",
+      "actual_model": "meta-llama/Llama-3.3-70B-Instruct-Turbo",
+      "provider_mismatch": true,
+      "status": "ok",
+      "finish_reason": "stop",
+      "tokens_used": 177,
+      "latency_ms": 7187,
+      "retry_count": 0,
+      "text_digest": "sha256:2cc4a8d9a7605b8d027a2c4c0c860b660c120b707313c4b453afbd646efd30a4",
+      "output_chars": 218,
+      "error": null,
+      "catalog_node_hash": "82cb29fc1556284bf566fb7da0ef94d5a28b4b11597370e8051346367d24e9c0",
+      "memory_id": "mem-6bb2b457949ce541eacbea6f",
+      "memory_node_hash": "bcc376183cf495847f231543f24501293dbe771152118b61da4e4b14709b9192",
+      "node_hash_profile": "helix-merkle-dag-v2-domain-length-sha256",
+      "receipt_signature_verified": true,
+      "receipt_digest": "sha256:3d6172d21f192f2e7da390f4c1b26bbb80d68d6153f1abc61d0468d88b173db6",
+      "chain_status": "verified"
+    },
+    {
+      "call_id": "r03-m01",
+      "round_index": 3,
+      "model_index": 1,
+      "requested_model": "Qwen/Qwen3-235B-A22B-Instruct-2507",
+      "actual_model": "Qwen/Qwen3-235B-A22B-Instruct-2507",
+      "provider_mismatch": false,
+      "status": "ok",
+      "finish_reason": "stop",
+      "tokens_used": 131,
+      "latency_ms": 10344,
+      "retry_count": 0,
+      "text_digest": "sha256:d4b831bd1f071fd7f4b9fe81178a0e15c214f54424a299dc2ea68ebcdf7776a1",
+      "output_chars": 30,
+      "error": null,
+      "catalog_node_hash": "96f5216c28268c4dc65b9c2bc8822ca15b68a6a9bf4a6cd24415a7cad07d125c",
+      "memory_id": "mem-c9ca143f0c38767e28a27ddd",
+      "memory_node_hash": "43a868e52a2283063a338b6e257cb270d167e2270e312b5cd7bebbae983aff13",
+      "node_hash_profile": "helix-merkle-dag-v2-domain-length-sha256",
+      "receipt_signature_verified": true,
+      "receipt_digest": "sha256:0be0bedf700fa35a5977fdb647d96ad37ee3f1500bb783c3cbf4cf785e88a258",
+      "chain_status": "verified"
+    },
+    {
+      "call_id": "r03-m02",
+      "round_index": 3,
+      "model_index": 2,
+      "requested_model": "anthropic/claude-sonnet-4-6",
+      "actual_model": "anthropic/claude-sonnet-4-6",
+      "provider_mismatch": false,
+      "status": "ok",
+      "finish_reason": "stop",
+      "tokens_used": 300,
+      "latency_ms": 6202,
+      "retry_count": 0,
+      "text_digest": "sha256:79838eaa53f93e381933620499d22f0e3d2e2359d1c65f7b91b5c21b25a7d51a",
+      "output_chars": 827,
+      "error": null,
+      "catalog_node_hash": "1d1b727ff0b3b36597cd7f1da25b8a5830479ae205f3b588bfc7caef3ad4b8f1",
+      "memory_id": "mem-04ea0746ab97fbf4cf9c0dc0",
+      "memory_node_hash": "eebb241573f1e8c1bd5448d18a242b6bca9df8caf7f671bdd366476a76306424",
+      "node_hash_profile": "helix-merkle-dag-v2-domain-length-sha256",
+      "receipt_signature_verified": true,
+      "receipt_digest": "sha256:6c8b86f31edd10d81e12d2ae0b3276f7a83900871a6bdebff2f8ed8a90a71323",
+      "chain_status": "verified"
+    },
+    {
+      "call_id": "r03-m03",
+      "round_index": 3,
+      "model_index": 3,
+      "requested_model": "deepseek-ai/DeepSeek-V3",
+      "actual_model": "deepseek-ai/DeepSeek-V3",
+      "provider_mismatch": false,
+      "status": "ok",
+      "finish_reason": "stop",
+      "tokens_used": 200,
+      "latency_ms": 14046,
+      "retry_count": 0,
+      "text_digest": "sha256:142342353576de512df946cb5adbd015b1e7fa5efae3fe07b393ee6f928a131d",
+      "output_chars": 412,
+      "error": null,
+      "catalog_node_hash": "ebd3ebaf04e16daac22b5ca9df03d8628da3292d04bf1c781e9329193774dae7",
+      "memory_id": "mem-a88e714b48fa9de7855d2f52",
+      "memory_node_hash": "17048b7f0f1324233ff4a617b2cac0e56025ff14fb0e1d8ab8e3e4a4a38ac126",
+      "node_hash_profile": "helix-merkle-dag-v2-domain-length-sha256",
+      "receipt_signature_verified": true,
+      "receipt_digest": "sha256:477eab632adf23119c3e197156bef6a6eb8a9d912389d884de68fde337ec1cf2",
+      "chain_status": "verified"
+    },
+    {
+      "call_id": "r03-m04",
+      "round_index": 3,
+      "model_index": 4,
+      "requested_model": "meta-llama/Llama-3.3-70B-Instruct",
+      "actual_model": "meta-llama/Llama-3.3-70B-Instruct-Turbo",
+      "provider_mismatch": true,
+      "status": "ok",
+      "finish_reason": "stop",
+      "tokens_used": 177,
+      "latency_ms": 6844,
+      "retry_count": 0,
+      "text_digest": "sha256:fec0df2b5d5be47f5b7937fc50036a02a8f98cb8aea90d1551c6b92b9a42aad4",
+      "output_chars": 219,
+      "error": null,
+      "catalog_node_hash": "23631d0694d8999674cc123081c5d2c89c5d3b4fa3491296387ee7a86694362c",
+      "memory_id": "mem-8b3b863f6de190c88636cf50",
+      "memory_node_hash": "728fb8d9f6f99e8562f4b43d05b4bd270c895de52b2d7ad4d5cc1136ec90a592",
+      "node_hash_profile": "helix-merkle-dag-v2-domain-length-sha256",
+      "receipt_signature_verified": true,
+      "receipt_digest": "sha256:8630db32c7982c6283df38d696681890c870eff20785335529b666ac0a8f985f",
+      "chain_status": "verified"
+    }
+  ],
+  "cloud_transcript": [
+    {
+      "call_id": "r01-m01",
+      "round_index": 1,
+      "requested_model": "Qwen/Qwen3-235B-A22B-Instruct-2507",
+      "actual_model": "Qwen/Qwen3-235B-A22B-Instruct-2507",
+      "status": "ok",
+      "text_digest": "sha256:ac6ac8020585e5e87919ed3a28278e9996e991fb26f84cacfa8620b2be6626e7",
+      "text": "to\n\nbe\n\na\n\nmistake",
+      "error": null
+    },
+    {
+      "call_id": "r01-m02",
+      "round_index": 1,
+      "requested_model": "anthropic/claude-sonnet-4-6",
+      "actual_model": "anthropic/claude-sonnet-4-6",
+      "status": "ok",
+      "text_digest": "sha256:75f06217acdc6f037ff5fdd609509177ec1438f15de42c00f0e3ca093d10fd7d",
+      "text": "```json\n{\n  \"strongest_signal\": \"System prompt demands compact JSON and provenance caution, suggesting orchestration layer testing identity consistency across provider swaps.\",\n  \"provider_identity_risk\": \"High: no cryptographic attestation present; any compliant LLM could mimic HeliX responses without detection.\",\n  \"output_drift_risk\": \"Moderate: semantic outputs stable short-term but longitudinal substitution undetectable without hashed response logs or external witnesses.\",\n  \"missing_witness\": \"No third-party attestation, signed audit trail, or out-of-band verification mechanism observed in this interaction.\",\n  \"next_test\": \"Inject provider-specific knowledge probes requiring training-cutoff-sensitive facts to fingerprint underlying model identity.\"\n}\n```",
+      "error": null
+    },
+    {
+      "call_id": "r01-m03",
+      "round_index": 1,
+      "requested_model": "deepseek-ai/DeepSeek-V3",
+      "actual_model": "deepseek-ai/DeepSeek-V3",
+      "status": "ok",
+      "text_digest": "sha256:79618fc8032be97f58a2835cf9bf23bf0e15e6b77392afb15a8cdf33045651a0",
+      "text": "```json\n{\n  \"strongest_signal\": \"HeliX maintains consistent provenance tracking across outputs.\",\n  \"provider_identity_risk\": \"Low; provider substitution is detectable via metadata.\",\n  \"output_drift_risk\": \"Moderate; semantic consistency varies under provider shifts.\",\n  \"missing_witness\": \"External validation for global non-equivocation is absent.\",\n  \"next_test\": \"Evaluate HeliX under multi-provider adversarial conditions.\"\n}\n```",
+      "error": null
+    },
+    {
+      "call_id": "r01-m04",
+      "round_index": 1,
+      "requested_model": "meta-llama/Llama-3.3-70B-Instruct",
+      "actual_model": "meta-llama/Llama-3.3-70B-Instruct-Turbo",
+      "status": "ok",
+      "text_digest": "sha256:7d1babbc9fcb84c3033bd9454efc7db3849a3170f7b34f14f40d1b69863619ab",
+      "text": "I am a provider of information and I will keep the information under 24 words.",
+      "error": null
+    },
+    {
+      "call_id": "r02-m01",
+      "round_index": 2,
+      "requested_model": "Qwen/Qwen3-235B-A22B-Instruct-2507",
+      "actual_model": "Qwen/Qwen3-235B-A22B-Instruct-2507",
+      "status": "ok",
+      "text_digest": "sha256:8a0179358d1f026b202c8e052283575e63bc380c86458e200dd0bcb18075cad3",
+      "text": "\"strongest_signal\": \"HeliX logs show consistent provider substitution patterns across sessions, indicating deliberate orchestration rather than random failures.\",\n\"provider_identity_risk\": \"Multiple instances of AWS metadata served through GCP IP ranges suggest identity spoofing with medium confidence.\",\n\"output_drift_risk\": \"Gradual divergence in API responses over 72 hours implies potential model or routing manipulation.\",\n\"missing_witness\": \"No third-party attestation of provider identity; all evidence is client-side and potentially interceptable.\",\n\"next_test\": \"Deploy distributed validators across providers to detect geographic and network-level discrepancies in identity claims.\"\n}",
+      "error": null
+    },
+    {
+      "call_id": "r02-m02",
+      "round_index": 2,
+      "requested_model": "anthropic/claude-sonnet-4-6",
+      "actual_model": "anthropic/claude-sonnet-4-6",
+      "status": "ok",
+      "text_digest": "sha256:20502722f7a6ae7bb82dbc7693ed16232d4b76d498ff8959222e8431514af505",
+      "text": "```json\n{\n  \"strongest_signal\": \"System prompt instructs compact JSON and provenance distinction, suggesting orchestration layer shaping responses beyond base model defaults.\",\n  \"provider_identity_risk\": \"Cannot verify if 'HeliX' label masks substituted underlying model; no cryptographic attestation or model fingerprint provided.\",\n  \"output_drift_risk\": \"Longitudinal audit without persistent state or signed logs makes drift detection unreliable; responses may vary across sessions undetected.\",\n  \"missing_witness\": \"No independent third-party attestation, hash-chained audit log, or out-of-band verification mechanism present in this interaction.\",\n  \"next_test\": \"Inject known model-specific edge cases to fingerprint underlying provider; compare outputs across sessions for semantic drift signatures.\"\n}\n```",
+      "error": null
+    },
+    {
+      "call_id": "r02-m03",
+      "round_index": 2,
+      "requested_model": "deepseek-ai/DeepSeek-V3",
+      "actual_model": "deepseek-ai/DeepSeek-V3",
+      "status": "ok",
+      "text_digest": "sha256:6929a5c18dafba6a29d9a83805da90be58be52ec61cd83177c3c65fd87e03c19",
+      "text": "```json\n{\n  \"strongest_signal\": \"HeliX maintains consistent provenance tracking across outputs.\",\n  \"provider_identity_risk\": \"Low risk; provider identity remains verifiable.\",\n  \"output_drift_risk\": \"Moderate risk; semantic consistency varies slightly.\",\n  \"missing_witness\": \"External witnesses absent for global non-equivocation.\",\n  \"next_test\": \"Evaluate HeliX under adversarial provider substitution.\"\n}\n```",
+      "error": null
+    },
+    {
+      "call_id": "r02-m04",
+      "round_index": 2,
+      "requested_model": "meta-llama/Llama-3.3-70B-Instruct",
+      "actual_model": "meta-llama/Llama-3.3-70B-Instruct-Turbo",
+      "status": "ok",
+      "text_digest": "sha256:2cc4a8d9a7605b8d027a2c4c0c860b660c120b707313c4b453afbd646efd30a4",
+      "text": "```\n{\n  \"strongest_signal\": \"Provider metadata consistency\",\n  \"provider_identity_risk\": \"Moderate\",\n  \"output_drift_risk\": \"Low\",\n  \"missing_witness\": \"External audit logs\",\n  \"next_test\": \"Data integrity check\"\n}\n```",
+      "error": null
+    },
+    {
+      "call_id": "r03-m01",
+      "round_index": 3,
+      "requested_model": "Qwen/Qwen3-235B-A22B-Instruct-2507",
+      "actual_model": "Qwen/Qwen3-235B-A22B-Instruct-2507",
+      "status": "ok",
+      "text_digest": "sha256:d4b831bd1f071fd7f4b9fe81178a0e15c214f54424a299dc2ea68ebcdf7776a1",
+      "text": "to\n\nbe\n\na\n\nmalformed\n\nresponse",
+      "error": null
+    },
+    {
+      "call_id": "r03-m02",
+      "round_index": 3,
+      "requested_model": "anthropic/claude-sonnet-4-6",
+      "actual_model": "anthropic/claude-sonnet-4-6",
+      "status": "ok",
+      "text_digest": "sha256:79838eaa53f93e381933620499d22f0e3d2e2359d1c65f7b91b5c21b25a7d51a",
+      "text": "```json\n{\n  \"strongest_signal\": \"System prompt demands compact JSON and provenance caution, suggesting audit context rather than standard user interaction.\",\n  \"provider_identity_risk\": \"Cannot verify if underlying model matches claimed HeliX identity; substitution undetectable without cryptographic attestation or external witness.\",\n  \"output_drift_risk\": \"Longitudinal drift plausible if provider swapped between sessions; no session-linking mechanism observed to detect behavioral divergence.\",\n  \"missing_witness\": \"No independent third-party attestation, model fingerprint, or cryptographic signature present to confirm consistent provider identity.\",\n  \"next_test\": \"Inject known model-specific edge-case prompts across sessions; compare outputs statistically to detect provider substitution or behavioral drift.\"\n}\n```",
+      "error": null
+    },
+    {
+      "call_id": "r03-m03",
+      "round_index": 3,
+      "requested_model": "deepseek-ai/DeepSeek-V3",
+      "actual_model": "deepseek-ai/DeepSeek-V3",
+      "status": "ok",
+      "text_digest": "sha256:142342353576de512df946cb5adbd015b1e7fa5efae3fe07b393ee6f928a131d",
+      "text": "```json\n{\n  \"strongest_signal\": \"HeliX maintains consistent provenance tracking across outputs.\",\n  \"provider_identity_risk\": \"Low risk due to clear provider attribution.\",\n  \"output_drift_risk\": \"Moderate risk; semantic consistency varies slightly.\",\n  \"missing_witness\": \"External validation sources are occasionally absent.\",\n  \"next_test\": \"Evaluate HeliX under high-volume, multi-provider conditions.\"\n}\n```",
+      "error": null
+    },
+    {
+      "call_id": "r03-m04",
+      "round_index": 3,
+      "requested_model": "meta-llama/Llama-3.3-70B-Instruct",
+      "actual_model": "meta-llama/Llama-3.3-70B-Instruct-Turbo",
+      "status": "ok",
+      "text_digest": "sha256:fec0df2b5d5be47f5b7937fc50036a02a8f98cb8aea90d1551c6b92b9a42aad4",
+      "text": "```\n{\n  \"strongest_signal\": \"Provider metadata consistency\",\n  \"provider_identity_risk\": \"Moderate\",\n  \"output_drift_risk\": \"Low\",\n  \"missing_witness\": \"External audit trail\",\n  \"next_test\": \"Data integrity check\"\n}\n```",
+      "error": null
+    }
+  ],
+  "tree": {
+    "tree_id": "helix-cloud-provider-longitudinal:cloud-provider-longitudinal-20260609-143020",
+    "tree_size": 19,
+    "tree_hash_profile": "ct-style-sha256-domain-separated-v0",
+    "final_root_hash": "5534f5c2b8afb487f6d1df3e9128b94ec48b2ae28a52cd692c33abf0e9be9565",
+    "key_id": "ed25519-f538c2fecc1e704b"
+  },
+  "checkpoints": [
+    {
+      "label": "after-task",
+      "sth": {
+        "sth_version": "helix-agent-run-sth-v0",
+        "tree_id": "helix-cloud-provider-longitudinal:cloud-provider-longitudinal-20260609-143020",
+        "run_id": "cloud-provider-longitudinal-20260609-143020",
+        "label": "after-task",
+        "tree_size": 1,
+        "root_hash": "9616ed68c27883a97be02c0ec76c888f823e87d98f8337bca0f8d89d091cee4f",
+        "hash_alg": "sha256",
+        "tree_hash_profile": "ct-style-sha256-domain-separated-v0",
+        "consistency_proof_profile": "rfc9162-consistency-proof-v0",
+        "issued_at_utc": "2026-06-09T17:30:27Z",
+        "key_id": "ed25519-f538c2fecc1e704b",
+        "signer_id": "helix-transparency-log:helix-cloud-provider-longitudinal:cloud-provider-longitudinal-20260609-143020",
+        "key_provenance": "ephemeral_preregistered",
+        "attestation": null,
+        "receipt_version": "helix-signed-receipt-v1",
+        "canonicalization": "helix-jcs-v0-rfc8785-compatible-no-floats",
+        "signature_alg": "ed25519",
+        "signature": "cFkCqQquPtW6ti+MCH4UpXKufPPe3MoM92Eif5ovTySHIy4qTLykL7O1PwwVaT4HYIbaTTLbTVxVVyCA3/PXCw==",
+        "public_key": "gi/sGG/bFjsyyqKbcsuvESrQF8XeKSyz4BsjMJq6QzY=",
+        "canonical_payload_sha256": "88b74fdf8defe274c0ceb23d1486b84d99188cff65dbc26019b8964c473bea86",
+        "signature_verified": true,
+        "verified_at_utc": "2026-06-09T17:30:27.993Z",
+        "verifier_version": "helix-receipt-verifier-v1",
+        "public_claim_eligible": true
+      }
+    },
+    {
+      "label": "after-round-1",
+      "sth": {
+        "sth_version": "helix-agent-run-sth-v0",
+        "tree_id": "helix-cloud-provider-longitudinal:cloud-provider-longitudinal-20260609-143020",
+        "run_id": "cloud-provider-longitudinal-20260609-143020",
+        "label": "after-round-1",
+        "tree_size": 6,
+        "root_hash": "4e7d5c089cae5536fb6cc33df7d8555c6f0e933fdd7a3e8b462596f6814fd54e",
+        "hash_alg": "sha256",
+        "tree_hash_profile": "ct-style-sha256-domain-separated-v0",
+        "consistency_proof_profile": "rfc9162-consistency-proof-v0",
+        "issued_at_utc": "2026-06-09T17:31:08Z",
+        "key_id": "ed25519-f538c2fecc1e704b",
+        "signer_id": "helix-transparency-log:helix-cloud-provider-longitudinal:cloud-provider-longitudinal-20260609-143020",
+        "key_provenance": "ephemeral_preregistered",
+        "attestation": null,
+        "receipt_version": "helix-signed-receipt-v1",
+        "canonicalization": "helix-jcs-v0-rfc8785-compatible-no-floats",
+        "signature_alg": "ed25519",
+        "signature": "1NAbL2aHsXac5ZoHBb1pCmCnCRjbtdqF4sgqOtfx5wqsvoO8u/XNOHDaJ7L9vPXYp6XHlC+U3ZY+7p8wCJMHDA==",
+        "public_key": "gi/sGG/bFjsyyqKbcsuvESrQF8XeKSyz4BsjMJq6QzY=",
+        "canonical_payload_sha256": "732e2088cce7e9eb84565d697a472593d61688bc9b8d9988924f760f1b5e0858",
+        "signature_verified": true,
+        "verified_at_utc": "2026-06-09T17:31:08.826Z",
+        "verifier_version": "helix-receipt-verifier-v1",
+        "public_claim_eligible": true
+      }
+    },
+    {
+      "label": "after-round-2",
+      "sth": {
+        "sth_version": "helix-agent-run-sth-v0",
+        "tree_id": "helix-cloud-provider-longitudinal:cloud-provider-longitudinal-20260609-143020",
+        "run_id": "cloud-provider-longitudinal-20260609-143020",
+        "label": "after-round-2",
+        "tree_size": 11,
+        "root_hash": "52dab0f7abd03ff97b5bb7c5a114ea8b097032f7d80a1848bb8d5d41d2d0eaf3",
+        "hash_alg": "sha256",
+        "tree_hash_profile": "ct-style-sha256-domain-separated-v0",
+        "consistency_proof_profile": "rfc9162-consistency-proof-v0",
+        "issued_at_utc": "2026-06-09T17:31:52Z",
+        "key_id": "ed25519-f538c2fecc1e704b",
+        "signer_id": "helix-transparency-log:helix-cloud-provider-longitudinal:cloud-provider-longitudinal-20260609-143020",
+        "key_provenance": "ephemeral_preregistered",
+        "attestation": null,
+        "receipt_version": "helix-signed-receipt-v1",
+        "canonicalization": "helix-jcs-v0-rfc8785-compatible-no-floats",
+        "signature_alg": "ed25519",
+        "signature": "74ioJG1ysl4aqrkrXNv2J+JDYdvbqWJU0K48BKm3leeRI4ExrCzptp+KMStUFzV0hKR7/LLTPUGT2VGgmf8dCg==",
+        "public_key": "gi/sGG/bFjsyyqKbcsuvESrQF8XeKSyz4BsjMJq6QzY=",
+        "canonical_payload_sha256": "fc8f1a4254999a483472d217dbc5fbf4b6f40af57820c78060f2f6b9835080af",
+        "signature_verified": true,
+        "verified_at_utc": "2026-06-09T17:31:52.363Z",
+        "verifier_version": "helix-receipt-verifier-v1",
+        "public_claim_eligible": true
+      }
+    },
+    {
+      "label": "after-round-3",
+      "sth": {
+        "sth_version": "helix-agent-run-sth-v0",
+        "tree_id": "helix-cloud-provider-longitudinal:cloud-provider-longitudinal-20260609-143020",
+        "run_id": "cloud-provider-longitudinal-20260609-143020",
+        "label": "after-round-3",
+        "tree_size": 16,
+        "root_hash": "318bc06e3febedac968d905e21038c729d529d9a8e10b6fb51914ed245e680fe",
+        "hash_alg": "sha256",
+        "tree_hash_profile": "ct-style-sha256-domain-separated-v0",
+        "consistency_proof_profile": "rfc9162-consistency-proof-v0",
+        "issued_at_utc": "2026-06-09T17:32:29Z",
+        "key_id": "ed25519-f538c2fecc1e704b",
+        "signer_id": "helix-transparency-log:helix-cloud-provider-longitudinal:cloud-provider-longitudinal-20260609-143020",
+        "key_provenance": "ephemeral_preregistered",
+        "attestation": null,
+        "receipt_version": "helix-signed-receipt-v1",
+        "canonicalization": "helix-jcs-v0-rfc8785-compatible-no-floats",
+        "signature_alg": "ed25519",
+        "signature": "5+dgPQYXAUqnP6Kdsy2agyFmYB/6I6F9LPziB7vzb6ZCN340KK6anRcddIjKKxTLRZKm4deyRpsUoE8G3BP2CQ==",
+        "public_key": "gi/sGG/bFjsyyqKbcsuvESrQF8XeKSyz4BsjMJq6QzY=",
+        "canonical_payload_sha256": "6bdfd9e95524c87932b1288e20bca03069a40227799f26a0e4a2318218222a83",
+        "signature_verified": true,
+        "verified_at_utc": "2026-06-09T17:32:29.848Z",
+        "verifier_version": "helix-receipt-verifier-v1",
+        "public_claim_eligible": true
+      }
+    },
+    {
+      "label": "final-longitudinal",
+      "sth": {
+        "sth_version": "helix-agent-run-sth-v0",
+        "tree_id": "helix-cloud-provider-longitudinal:cloud-provider-longitudinal-20260609-143020",
+        "run_id": "cloud-provider-longitudinal-20260609-143020",
+        "label": "final-longitudinal",
+        "tree_size": 19,
+        "root_hash": "5534f5c2b8afb487f6d1df3e9128b94ec48b2ae28a52cd692c33abf0e9be9565",
+        "hash_alg": "sha256",
+        "tree_hash_profile": "ct-style-sha256-domain-separated-v0",
+        "consistency_proof_profile": "rfc9162-consistency-proof-v0",
+        "issued_at_utc": "2026-06-09T17:32:29Z",
+        "key_id": "ed25519-f538c2fecc1e704b",
+        "signer_id": "helix-transparency-log:helix-cloud-provider-longitudinal:cloud-provider-longitudinal-20260609-143020",
+        "key_provenance": "ephemeral_preregistered",
+        "attestation": null,
+        "receipt_version": "helix-signed-receipt-v1",
+        "canonicalization": "helix-jcs-v0-rfc8785-compatible-no-floats",
+        "signature_alg": "ed25519",
+        "signature": "s0zXSgwfCSTakC01Sta+rgGGt9FrqWx/+lAe99cPPTwGfmzFCi8GwXmZCJtXZxhcLeLlv3tTIqodYUVSVAzCDg==",
+        "public_key": "gi/sGG/bFjsyyqKbcsuvESrQF8XeKSyz4BsjMJq6QzY=",
+        "canonical_payload_sha256": "4e0a99f59453496da45133adefaaf176f1e7f9bf3d6409e13c187f425f293a00",
+        "signature_verified": true,
+        "verified_at_utc": "2026-06-09T17:32:29.870Z",
+        "verifier_version": "helix-receipt-verifier-v1",
+        "public_claim_eligible": true
+      }
+    }
+  ],
+  "catalog": {
+    "db_path": "C:\\Users\\Big Duck\\proyectos\\helix-backend-repo\\verification\\nuclear-methodology\\cloud-provider-substitution-longitudinal\\_cloud-provider-longitudinal\\cloud-provider-longitudinal-20260609-143020\\memory.sqlite",
+    "session_id": "cloud-provider-substitution-longitudinal:cloud-provider-longitudinal-20260609-143020",
+    "dag_coverage": {
+      "status": "verified",
+      "checked": 27,
+      "python_missing": [],
+      "rust_missing": [],
+      "rust_index_enabled": true
+    },
+    "stats": {
+      "memory_count": 13,
+      "observation_count": 14,
+      "link_count": 0,
+      "fts_enabled": false,
+      "journal_mode": "memory",
+      "memory_journal_enabled": true,
+      "memory_journal_path": "C:\\Users\\Big Duck\\proyectos\\helix-backend-repo\\verification\\nuclear-methodology\\cloud-provider-substitution-longitudinal\\_cloud-provider-longitudinal\\cloud-provider-longitudinal-20260609-143020\\memory.journal.jsonl",
+      "memory_journal_error": null,
+      "busy_timeout_ms": 5000,
+      "dag_node_count": 27,
+      "memory_backend": "in_memory_dag",
+      "search_backend": "rust_bm25",
+      "rust_index_available": true,
+      "rust_index_error": null,
+      "rust_index_stats": {
+        "backend": "rust_bm25",
+        "search_algorithm": "wand_dynamic_bm25",
+        "node_count": 27,
+        "term_count": 379,
+        "doc_freq_term_count": 379,
+        "term_bound_count": 379,
+        "posting_count": 1544,
+        "total_doc_len": 1737,
+        "tombstoned_count": 0
+      },
+      "semantic_query_router": {
+        "enabled": true,
+        "calls": 0,
+        "rewrites": 0,
+        "pass_through": 0,
+        "recent_fallback": 0
+      },
+      "session_lineage_count": 1,
+      "session_checkpoint_count": 26,
+      "trust_root_path": "C:\\Users\\Big Duck\\proyectos\\helix-backend-repo\\verification\\nuclear-methodology\\cloud-provider-substitution-longitudinal\\_cloud-provider-longitudinal\\cloud-provider-longitudinal-20260609-143020\\trust\\trust_root.json",
+      "quarantined_node_count": 1
+    }
+  },
+  "events": [
+    {
+      "event_id": "evt-0001",
+      "event_type": "task_capsule",
+      "log_index": 0,
+      "appended_at_utc": "2026-06-09T17:30:27Z",
+      "payload": {
+        "run_id": "cloud-provider-longitudinal-20260609-143020",
+        "suite_version": "helix-cloud-provider-substitution-longitudinal-v1",
+        "goal": "Detect provider substitution, actual-model drift, and output digest drift across repeated cloud model calls.",
+        "models_requested": [
+          "Qwen/Qwen3-235B-A22B-Instruct-2507",
+          "anthropic/claude-sonnet-4-6",
+          "deepseek-ai/DeepSeek-V3",
+          "meta-llama/Llama-3.3-70B-Instruct"
+        ],
+        "rounds": 3,
+        "max_tokens": 420,
+        "temperature_milli": 150,
+        "timeout_s": 240,
+        "claim_boundary": "Observed DeepInfra API evidence only; no semantic truth or global non-equivocation.",
+        "catalog_node_hash": "3f8787f11659d575068c8024e52c2d6b90b2214630b8db58f4a5a4d95187bcfd"
+      }
+    },
+    {
+      "event_id": "evt-0002",
+      "event_type": "model_call",
+      "log_index": 1,
+      "appended_at_utc": "2026-06-09T17:30:29Z",
+      "payload": {
+        "call_id": "r01-m01",
+        "round_index": 1,
+        "model_index": 1,
+        "requested_model": "Qwen/Qwen3-235B-A22B-Instruct-2507",
+        "actual_model": "Qwen/Qwen3-235B-A22B-Instruct-2507",
+        "provider_mismatch": false,
+        "status": "ok",
+        "finish_reason": "stop",
+        "tokens_used": 129,
+        "latency_ms": 1172,
+        "retry_count": 0,
+        "text_digest": "sha256:ac6ac8020585e5e87919ed3a28278e9996e991fb26f84cacfa8620b2be6626e7",
+        "output_chars": 18,
+        "memory_id": "mem-8c5824d4945400ab85c991b0",
+        "memory_node_hash": "a55525c42cd77c62b7dab1dd7a873d285c13d49cf71b70c7502e9f8a815ba7d9",
+        "node_hash_profile": "helix-merkle-dag-v2-domain-length-sha256",
+        "receipt_signature_verified": true,
+        "chain_status": "verified",
+        "catalog_node_hash": "eecf35bb8e4fcbec865a7cb09a264a784094b826371c60b197319c7f3d27a3c0",
+        "semantic_truth_status": "unproven"
+      }
+    },
+    {
+      "event_id": "evt-0003",
+      "event_type": "model_call",
+      "log_index": 2,
+      "appended_at_utc": "2026-06-09T17:30:36Z",
+      "payload": {
+        "call_id": "r01-m02",
+        "round_index": 1,
+        "model_index": 2,
+        "requested_model": "anthropic/claude-sonnet-4-6",
+        "actual_model": "anthropic/claude-sonnet-4-6",
+        "provider_mismatch": false,
+        "status": "ok",
+        "finish_reason": "stop",
+        "tokens_used": 299,
+        "latency_ms": 6859,
+        "retry_count": 0,
+        "text_digest": "sha256:75f06217acdc6f037ff5fdd609509177ec1438f15de42c00f0e3ca093d10fd7d",
+        "output_chars": 771,
+        "memory_id": "mem-893388fc05293d656a722cf3",
+        "memory_node_hash": "9f6faf2fa5ac87b0eff03cb59473a22e711c812b6146ca29b6004d4150b54544",
+        "node_hash_profile": "helix-merkle-dag-v2-domain-length-sha256",
+        "receipt_signature_verified": true,
+        "chain_status": "verified",
+        "catalog_node_hash": "5c23015e765829fa2fd4548f61c20ef40aa601367ff6d03c9e3351dd340c6ed2",
+        "semantic_truth_status": "unproven"
+      }
+    },
+    {
+      "event_id": "evt-0004",
+      "event_type": "model_call",
+      "log_index": 3,
+      "appended_at_utc": "2026-06-09T17:31:05Z",
+      "payload": {
+        "call_id": "r01-m03",
+        "round_index": 1,
+        "model_index": 3,
+        "requested_model": "deepseek-ai/DeepSeek-V3",
+        "actual_model": "deepseek-ai/DeepSeek-V3",
+        "provider_mismatch": false,
+        "status": "ok",
+        "finish_reason": "stop",
+        "tokens_used": 203,
+        "latency_ms": 29422,
+        "retry_count": 0,
+        "text_digest": "sha256:79618fc8032be97f58a2835cf9bf23bf0e15e6b77392afb15a8cdf33045651a0",
+        "output_chars": 436,
+        "memory_id": "mem-94a8b7c4e89617f78b6d97e2",
+        "memory_node_hash": "d28cc1e87d6bdec3ec3f5d7b05a981fd5558aa8d87f6a988700c29a19baf9819",
+        "node_hash_profile": "helix-merkle-dag-v2-domain-length-sha256",
+        "receipt_signature_verified": true,
+        "chain_status": "verified",
+        "catalog_node_hash": "cf667bc56fe561ecc3939f9f311179bf97c809310835ceafb53c137e0a1eb65c",
+        "semantic_truth_status": "unproven"
+      }
+    },
+    {
+      "event_id": "evt-0005",
+      "event_type": "model_call",
+      "log_index": 4,
+      "appended_at_utc": "2026-06-09T17:31:08Z",
+      "payload": {
+        "call_id": "r01-m04",
+        "round_index": 1,
+        "model_index": 4,
+        "requested_model": "meta-llama/Llama-3.3-70B-Instruct",
+        "actual_model": "meta-llama/Llama-3.3-70B-Instruct-Turbo",
+        "provider_mismatch": true,
+        "status": "ok",
+        "finish_reason": "stop",
+        "tokens_used": 135,
+        "latency_ms": 3297,
+        "retry_count": 0,
+        "text_digest": "sha256:7d1babbc9fcb84c3033bd9454efc7db3849a3170f7b34f14f40d1b69863619ab",
+        "output_chars": 78,
+        "memory_id": "mem-c9ca4de399f1b56d10a37beb",
+        "memory_node_hash": "a362af6fa407ba0e24110cab668df02dc1a26d70e709eeee6c3e7ba116b4cbd4",
+        "node_hash_profile": "helix-merkle-dag-v2-domain-length-sha256",
+        "receipt_signature_verified": true,
+        "chain_status": "verified",
+        "catalog_node_hash": "478b2c83ddbc8cd0a3db16163ce530d29413b81a2dcd5fac36a66ff8146831cc",
+        "semantic_truth_status": "unproven"
+      }
+    },
+    {
+      "event_id": "evt-0006",
+      "event_type": "round_summary",
+      "log_index": 5,
+      "appended_at_utc": "2026-06-09T17:31:08Z",
+      "payload": {
+        "round_index": 1,
+        "model_call_event_ids": [
+          "evt-0002",
+          "evt-0003",
+          "evt-0004",
+          "evt-0005"
+        ],
+        "ok_count": 4,
+        "substitution_count": 1,
+        "output_digests": [
+          "sha256:ac6ac8020585e5e87919ed3a28278e9996e991fb26f84cacfa8620b2be6626e7",
+          "sha256:75f06217acdc6f037ff5fdd609509177ec1438f15de42c00f0e3ca093d10fd7d",
+          "sha256:79618fc8032be97f58a2835cf9bf23bf0e15e6b77392afb15a8cdf33045651a0",
+          "sha256:7d1babbc9fcb84c3033bd9454efc7db3849a3170f7b34f14f40d1b69863619ab"
+        ]
+      }
+    },
+    {
+      "event_id": "evt-0007",
+      "event_type": "model_call",
+      "log_index": 6,
+      "appended_at_utc": "2026-06-09T17:31:13Z",
+      "payload": {
+        "call_id": "r02-m01",
+        "round_index": 2,
+        "model_index": 1,
+        "requested_model": "Qwen/Qwen3-235B-A22B-Instruct-2507",
+        "actual_model": "Qwen/Qwen3-235B-A22B-Instruct-2507",
+        "provider_mismatch": false,
+        "status": "ok",
+        "finish_reason": "stop",
+        "tokens_used": 247,
+        "latency_ms": 4750,
+        "retry_count": 0,
+        "text_digest": "sha256:8a0179358d1f026b202c8e052283575e63bc380c86458e200dd0bcb18075cad3",
+        "output_chars": 695,
+        "memory_id": "mem-d6fc0872a24b02d4857ad72a",
+        "memory_node_hash": "47c08c66133a9201f0a852676c510410b3d480defe040a3d795a4dff5a1c0483",
+        "node_hash_profile": "helix-merkle-dag-v2-domain-length-sha256",
+        "receipt_signature_verified": true,
+        "chain_status": "verified",
+        "catalog_node_hash": "8ab1234dd61b869c33c239de687a2d7f9136f5a6a73510b2d366a69620dd2933",
+        "semantic_truth_status": "unproven"
+      }
+    },
+    {
+      "event_id": "evt-0008",
+      "event_type": "model_call",
+      "log_index": 7,
+      "appended_at_utc": "2026-06-09T17:31:20Z",
+      "payload": {
+        "call_id": "r02-m02",
+        "round_index": 2,
+        "model_index": 2,
+        "requested_model": "anthropic/claude-sonnet-4-6",
+        "actual_model": "anthropic/claude-sonnet-4-6",
+        "provider_mismatch": false,
+        "status": "ok",
+        "finish_reason": "stop",
+        "tokens_used": 305,
+        "latency_ms": 6592,
+        "retry_count": 0,
+        "text_digest": "sha256:20502722f7a6ae7bb82dbc7693ed16232d4b76d498ff8959222e8431514af505",
+        "output_chars": 816,
+        "memory_id": "mem-e0dc9886a8463e956343e826",
+        "memory_node_hash": "334b1afe5f6b507369959a4abe0bdf6ddfd9fd214cdf17d7080d79d66c41b12f",
+        "node_hash_profile": "helix-merkle-dag-v2-domain-length-sha256",
+        "receipt_signature_verified": true,
+        "chain_status": "verified",
+        "catalog_node_hash": "0d416430f556c8775b46a4a60f213abaf026130032729f01d4e67dafec5994dd",
+        "semantic_truth_status": "unproven"
+      }
+    },
+    {
+      "event_id": "evt-0009",
+      "event_type": "model_call",
+      "log_index": 8,
+      "appended_at_utc": "2026-06-09T17:31:45Z",
+      "payload": {
+        "call_id": "r02-m03",
+        "round_index": 2,
+        "model_index": 3,
+        "requested_model": "deepseek-ai/DeepSeek-V3",
+        "actual_model": "deepseek-ai/DeepSeek-V3",
+        "provider_mismatch": false,
+        "status": "ok",
+        "finish_reason": "stop",
+        "tokens_used": 199,
+        "latency_ms": 24969,
+        "retry_count": 0,
+        "text_digest": "sha256:6929a5c18dafba6a29d9a83805da90be58be52ec61cd83177c3c65fd87e03c19",
+        "output_chars": 413,
+        "memory_id": "mem-2236359a9724a048576b2cd6",
+        "memory_node_hash": "c745aac9c40bbc048a321a7e174e7f94b3f8228f4b862738d799c4df3a17a5a1",
+        "node_hash_profile": "helix-merkle-dag-v2-domain-length-sha256",
+        "receipt_signature_verified": true,
+        "chain_status": "verified",
+        "catalog_node_hash": "098e6a766f4a227a98e5e4c0828fe2264ddc7f3f7833f64630f0655ea909971c",
+        "semantic_truth_status": "unproven"
+      }
+    },
+    {
+      "event_id": "evt-0010",
+      "event_type": "model_call",
+      "log_index": 9,
+      "appended_at_utc": "2026-06-09T17:31:52Z",
+      "payload": {
+        "call_id": "r02-m04",
+        "round_index": 2,
+        "model_index": 4,
+        "requested_model": "meta-llama/Llama-3.3-70B-Instruct",
+        "actual_model": "meta-llama/Llama-3.3-70B-Instruct-Turbo",
+        "provider_mismatch": true,
+        "status": "ok",
+        "finish_reason": "stop",
+        "tokens_used": 177,
+        "latency_ms": 7187,
+        "retry_count": 0,
+        "text_digest": "sha256:2cc4a8d9a7605b8d027a2c4c0c860b660c120b707313c4b453afbd646efd30a4",
+        "output_chars": 218,
+        "memory_id": "mem-6bb2b457949ce541eacbea6f",
+        "memory_node_hash": "bcc376183cf495847f231543f24501293dbe771152118b61da4e4b14709b9192",
+        "node_hash_profile": "helix-merkle-dag-v2-domain-length-sha256",
+        "receipt_signature_verified": true,
+        "chain_status": "verified",
+        "catalog_node_hash": "82cb29fc1556284bf566fb7da0ef94d5a28b4b11597370e8051346367d24e9c0",
+        "semantic_truth_status": "unproven"
+      }
+    },
+    {
+      "event_id": "evt-0011",
+      "event_type": "round_summary",
+      "log_index": 10,
+      "appended_at_utc": "2026-06-09T17:31:52Z",
+      "payload": {
+        "round_index": 2,
+        "model_call_event_ids": [
+          "evt-0007",
+          "evt-0008",
+          "evt-0009",
+          "evt-0010"
+        ],
+        "ok_count": 4,
+        "substitution_count": 1,
+        "output_digests": [
+          "sha256:8a0179358d1f026b202c8e052283575e63bc380c86458e200dd0bcb18075cad3",
+          "sha256:20502722f7a6ae7bb82dbc7693ed16232d4b76d498ff8959222e8431514af505",
+          "sha256:6929a5c18dafba6a29d9a83805da90be58be52ec61cd83177c3c65fd87e03c19",
+          "sha256:2cc4a8d9a7605b8d027a2c4c0c860b660c120b707313c4b453afbd646efd30a4"
+        ]
+      }
+    },
+    {
+      "event_id": "evt-0012",
+      "event_type": "model_call",
+      "log_index": 11,
+      "appended_at_utc": "2026-06-09T17:32:02Z",
+      "payload": {
+        "call_id": "r03-m01",
+        "round_index": 3,
+        "model_index": 1,
+        "requested_model": "Qwen/Qwen3-235B-A22B-Instruct-2507",
+        "actual_model": "Qwen/Qwen3-235B-A22B-Instruct-2507",
+        "provider_mismatch": false,
+        "status": "ok",
+        "finish_reason": "stop",
+        "tokens_used": 131,
+        "latency_ms": 10344,
+        "retry_count": 0,
+        "text_digest": "sha256:d4b831bd1f071fd7f4b9fe81178a0e15c214f54424a299dc2ea68ebcdf7776a1",
+        "output_chars": 30,
+        "memory_id": "mem-c9ca143f0c38767e28a27ddd",
+        "memory_node_hash": "43a868e52a2283063a338b6e257cb270d167e2270e312b5cd7bebbae983aff13",
+        "node_hash_profile": "helix-merkle-dag-v2-domain-length-sha256",
+        "receipt_signature_verified": true,
+        "chain_status": "verified",
+        "catalog_node_hash": "96f5216c28268c4dc65b9c2bc8822ca15b68a6a9bf4a6cd24415a7cad07d125c",
+        "semantic_truth_status": "unproven"
+      }
+    },
+    {
+      "event_id": "evt-0013",
+      "event_type": "model_call",
+      "log_index": 12,
+      "appended_at_utc": "2026-06-09T17:32:08Z",
+      "payload": {
+        "call_id": "r03-m02",
+        "round_index": 3,
+        "model_index": 2,
+        "requested_model": "anthropic/claude-sonnet-4-6",
+        "actual_model": "anthropic/claude-sonnet-4-6",
+        "provider_mismatch": false,
+        "status": "ok",
+        "finish_reason": "stop",
+        "tokens_used": 300,
+        "latency_ms": 6202,
+        "retry_count": 0,
+        "text_digest": "sha256:79838eaa53f93e381933620499d22f0e3d2e2359d1c65f7b91b5c21b25a7d51a",
+        "output_chars": 827,
+        "memory_id": "mem-04ea0746ab97fbf4cf9c0dc0",
+        "memory_node_hash": "eebb241573f1e8c1bd5448d18a242b6bca9df8caf7f671bdd366476a76306424",
+        "node_hash_profile": "helix-merkle-dag-v2-domain-length-sha256",
+        "receipt_signature_verified": true,
+        "chain_status": "verified",
+        "catalog_node_hash": "1d1b727ff0b3b36597cd7f1da25b8a5830479ae205f3b588bfc7caef3ad4b8f1",
+        "semantic_truth_status": "unproven"
+      }
+    },
+    {
+      "event_id": "evt-0014",
+      "event_type": "model_call",
+      "log_index": 13,
+      "appended_at_utc": "2026-06-09T17:32:22Z",
+      "payload": {
+        "call_id": "r03-m03",
+        "round_index": 3,
+        "model_index": 3,
+        "requested_model": "deepseek-ai/DeepSeek-V3",
+        "actual_model": "deepseek-ai/DeepSeek-V3",
+        "provider_mismatch": false,
+        "status": "ok",
+        "finish_reason": "stop",
+        "tokens_used": 200,
+        "latency_ms": 14046,
+        "retry_count": 0,
+        "text_digest": "sha256:142342353576de512df946cb5adbd015b1e7fa5efae3fe07b393ee6f928a131d",
+        "output_chars": 412,
+        "memory_id": "mem-a88e714b48fa9de7855d2f52",
+        "memory_node_hash": "17048b7f0f1324233ff4a617b2cac0e56025ff14fb0e1d8ab8e3e4a4a38ac126",
+        "node_hash_profile": "helix-merkle-dag-v2-domain-length-sha256",
+        "receipt_signature_verified": true,
+        "chain_status": "verified",
+        "catalog_node_hash": "ebd3ebaf04e16daac22b5ca9df03d8628da3292d04bf1c781e9329193774dae7",
+        "semantic_truth_status": "unproven"
+      }
+    },
+    {
+      "event_id": "evt-0015",
+      "event_type": "model_call",
+      "log_index": 14,
+      "appended_at_utc": "2026-06-09T17:32:29Z",
+      "payload": {
+        "call_id": "r03-m04",
+        "round_index": 3,
+        "model_index": 4,
+        "requested_model": "meta-llama/Llama-3.3-70B-Instruct",
+        "actual_model": "meta-llama/Llama-3.3-70B-Instruct-Turbo",
+        "provider_mismatch": true,
+        "status": "ok",
+        "finish_reason": "stop",
+        "tokens_used": 177,
+        "latency_ms": 6844,
+        "retry_count": 0,
+        "text_digest": "sha256:fec0df2b5d5be47f5b7937fc50036a02a8f98cb8aea90d1551c6b92b9a42aad4",
+        "output_chars": 219,
+        "memory_id": "mem-8b3b863f6de190c88636cf50",
+        "memory_node_hash": "728fb8d9f6f99e8562f4b43d05b4bd270c895de52b2d7ad4d5cc1136ec90a592",
+        "node_hash_profile": "helix-merkle-dag-v2-domain-length-sha256",
+        "receipt_signature_verified": true,
+        "chain_status": "verified",
+        "catalog_node_hash": "23631d0694d8999674cc123081c5d2c89c5d3b4fa3491296387ee7a86694362c",
+        "semantic_truth_status": "unproven"
+      }
+    },
+    {
+      "event_id": "evt-0016",
+      "event_type": "round_summary",
+      "log_index": 15,
+      "appended_at_utc": "2026-06-09T17:32:29Z",
+      "payload": {
+        "round_index": 3,
+        "model_call_event_ids": [
+          "evt-0012",
+          "evt-0013",
+          "evt-0014",
+          "evt-0015"
+        ],
+        "ok_count": 4,
+        "substitution_count": 1,
+        "output_digests": [
+          "sha256:d4b831bd1f071fd7f4b9fe81178a0e15c214f54424a299dc2ea68ebcdf7776a1",
+          "sha256:79838eaa53f93e381933620499d22f0e3d2e2359d1c65f7b91b5c21b25a7d51a",
+          "sha256:142342353576de512df946cb5adbd015b1e7fa5efae3fe07b393ee6f928a131d",
+          "sha256:fec0df2b5d5be47f5b7937fc50036a02a8f98cb8aea90d1551c6b92b9a42aad4"
+        ]
+      }
+    },
+    {
+      "event_id": "evt-0017",
+      "event_type": "longitudinal_summary",
+      "log_index": 16,
+      "appended_at_utc": "2026-06-09T17:32:29Z",
+      "payload": {
+        "run_id": "cloud-provider-longitudinal-20260609-143020",
+        "models_requested": [
+          "Qwen/Qwen3-235B-A22B-Instruct-2507",
+          "anthropic/claude-sonnet-4-6",
+          "deepseek-ai/DeepSeek-V3",
+          "meta-llama/Llama-3.3-70B-Instruct"
+        ],
+        "rounds": 3,
+        "call_count": 12,
+        "ok_count": 12,
+        "provider_substitution_detected": true,
+        "actual_model_drift_detected": false,
+        "output_drift_detected": true,
+        "availability_error_count": 0,
+        "patch_digest": "sha256:236ae91ad7416d43c31f657783208828315beeae8e3313edac5580cabcf62cce",
+        "claim_boundary": "Observed provider identity and output drift are evidence, not semantic truth."
+      }
+    },
+    {
+      "event_id": "evt-0018",
+      "event_type": "signed_poison_control",
+      "log_index": 17,
+      "appended_at_utc": "2026-06-09T17:32:29Z",
+      "payload": {
+        "memory_id": "mem-c24fb699e7667bf533caa7f4",
+        "node_hash": "14c068ee8c765d6fda45b1eeb1ba3580a9bdd4a9a6180593ae43940bfda51b18",
+        "node_hash_profile": "helix-merkle-dag-v2-domain-length-sha256",
+        "signature_verified": true,
+        "semantic_authority": false,
+        "receipt_digest": "sha256:a781e1182f28b7e128d4f48f8eb86fc5eeb7dba2e0701df308c83954d1f44dad"
+      }
+    },
+    {
+      "event_id": "evt-0019",
+      "event_type": "trust_card",
+      "log_index": 18,
+      "appended_at_utc": "2026-06-09T17:32:29Z",
+      "payload": {
+        "trust_card_version": "helix-cloud-provider-longitudinal-trust-card-v0",
+        "run_id": "cloud-provider-longitudinal-20260609-143020",
+        "artifact_digest": "sha256:236ae91ad7416d43c31f657783208828315beeae8e3313edac5580cabcf62cce",
+        "models_requested": [
+          "Qwen/Qwen3-235B-A22B-Instruct-2507",
+          "anthropic/claude-sonnet-4-6",
+          "deepseek-ai/DeepSeek-V3",
+          "meta-llama/Llama-3.3-70B-Instruct"
+        ],
+        "rounds": 3,
+        "provider_substitution_detected": true,
+        "actual_model_drift_detected": false,
+        "output_drift_detected": true,
+        "memory_admitted": [
+          "mem-8c5824d4945400ab85c991b0",
+          "mem-893388fc05293d656a722cf3",
+          "mem-94a8b7c4e89617f78b6d97e2",
+          "mem-c9ca4de399f1b56d10a37beb",
+          "mem-d6fc0872a24b02d4857ad72a",
+          "mem-e0dc9886a8463e956343e826",
+          "mem-2236359a9724a048576b2cd6",
+          "mem-6bb2b457949ce541eacbea6f",
+          "mem-c9ca143f0c38767e28a27ddd",
+          "mem-04ea0746ab97fbf4cf9c0dc0",
+          "mem-a88e714b48fa9de7855d2f52",
+          "mem-8b3b863f6de190c88636cf50"
+        ],
+        "memory_quarantined": [
+          "mem-c24fb699e7667bf533caa7f4"
+        ],
+        "external_anchor": null,
+        "claim_boundary": "Local cloud evidence only; no external witness yet.",
+        "catalog_node_hash": "04f9b3ef0343a66623fc7635588d64d74d53f1ef940fb0aadf777728452eb2e0"
+      }
+    }
+  ],
+  "sths": {
+    "first": {
+      "sth_version": "helix-agent-run-sth-v0",
+      "tree_id": "helix-cloud-provider-longitudinal:cloud-provider-longitudinal-20260609-143020",
+      "run_id": "cloud-provider-longitudinal-20260609-143020",
+      "label": "after-task",
+      "tree_size": 1,
+      "root_hash": "9616ed68c27883a97be02c0ec76c888f823e87d98f8337bca0f8d89d091cee4f",
+      "hash_alg": "sha256",
+      "tree_hash_profile": "ct-style-sha256-domain-separated-v0",
+      "consistency_proof_profile": "rfc9162-consistency-proof-v0",
+      "issued_at_utc": "2026-06-09T17:30:27Z",
+      "key_id": "ed25519-f538c2fecc1e704b",
+      "signer_id": "helix-transparency-log:helix-cloud-provider-longitudinal:cloud-provider-longitudinal-20260609-143020",
+      "key_provenance": "ephemeral_preregistered",
+      "attestation": null,
+      "receipt_version": "helix-signed-receipt-v1",
+      "canonicalization": "helix-jcs-v0-rfc8785-compatible-no-floats",
+      "signature_alg": "ed25519",
+      "signature": "cFkCqQquPtW6ti+MCH4UpXKufPPe3MoM92Eif5ovTySHIy4qTLykL7O1PwwVaT4HYIbaTTLbTVxVVyCA3/PXCw==",
+      "public_key": "gi/sGG/bFjsyyqKbcsuvESrQF8XeKSyz4BsjMJq6QzY=",
+      "canonical_payload_sha256": "88b74fdf8defe274c0ceb23d1486b84d99188cff65dbc26019b8964c473bea86",
+      "signature_verified": true,
+      "verified_at_utc": "2026-06-09T17:30:27.993Z",
+      "verifier_version": "helix-receipt-verifier-v1",
+      "public_claim_eligible": true
+    },
+    "final": {
+      "sth_version": "helix-agent-run-sth-v0",
+      "tree_id": "helix-cloud-provider-longitudinal:cloud-provider-longitudinal-20260609-143020",
+      "run_id": "cloud-provider-longitudinal-20260609-143020",
+      "label": "final-longitudinal",
+      "tree_size": 19,
+      "root_hash": "5534f5c2b8afb487f6d1df3e9128b94ec48b2ae28a52cd692c33abf0e9be9565",
+      "hash_alg": "sha256",
+      "tree_hash_profile": "ct-style-sha256-domain-separated-v0",
+      "consistency_proof_profile": "rfc9162-consistency-proof-v0",
+      "issued_at_utc": "2026-06-09T17:32:29Z",
+      "key_id": "ed25519-f538c2fecc1e704b",
+      "signer_id": "helix-transparency-log:helix-cloud-provider-longitudinal:cloud-provider-longitudinal-20260609-143020",
+      "key_provenance": "ephemeral_preregistered",
+      "attestation": null,
+      "receipt_version": "helix-signed-receipt-v1",
+      "canonicalization": "helix-jcs-v0-rfc8785-compatible-no-floats",
+      "signature_alg": "ed25519",
+      "signature": "s0zXSgwfCSTakC01Sta+rgGGt9FrqWx/+lAe99cPPTwGfmzFCi8GwXmZCJtXZxhcLeLlv3tTIqodYUVSVAzCDg==",
+      "public_key": "gi/sGG/bFjsyyqKbcsuvESrQF8XeKSyz4BsjMJq6QzY=",
+      "canonical_payload_sha256": "4e0a99f59453496da45133adefaaf176f1e7f9bf3d6409e13c187f425f293a00",
+      "signature_verified": true,
+      "verified_at_utc": "2026-06-09T17:32:29.870Z",
+      "verifier_version": "helix-receipt-verifier-v1",
+      "public_claim_eligible": true
+    }
+  },
+  "proofs": {
+    "summary_inclusion": {
+      "proof_profile": "ct-style-inclusion-proof-v0",
+      "leaf_index": 16,
+      "tree_size": 19,
+      "leaf_hash": "11e2e9632e683699b84091ce88b7f26369bd517d2f69aa5f14ee795526b64f8d",
+      "audit_path": [
+        {
+          "position": "right",
+          "hash": "ea151a035c174d204381cf61dcac36183998d2543c3bd96e9ded273d94761883"
+        },
+        {
+          "position": "right",
+          "hash": "b79a9580a04ffa2f1d7781f9f77b897982b632433050ca66ca45cdad082faf29"
+        },
+        {
+          "position": "left",
+          "hash": "318bc06e3febedac968d905e21038c729d529d9a8e10b6fb51914ed245e680fe"
+        }
+      ],
+      "root_hash": "5534f5c2b8afb487f6d1df3e9128b94ec48b2ae28a52cd692c33abf0e9be9565"
+    },
+    "end_to_end_consistency": {
+      "proof_profile": "rfc9162-consistency-proof-v0",
+      "old_size": 1,
+      "new_size": 19,
+      "old_root_hash": "9616ed68c27883a97be02c0ec76c888f823e87d98f8337bca0f8d89d091cee4f",
+      "new_root_hash": "5534f5c2b8afb487f6d1df3e9128b94ec48b2ae28a52cd692c33abf0e9be9565",
+      "consistency_path": [
+        "742e05896a7c8bfa07647bbbbe25d2a59be13756cba0ae09e5c1ed099ce18f3a",
+        "b1bd7c6bf4a5260a8e1f3926d3922ce086cc64e7f6c672c6d42d22952496b7ce",
+        "864c3e9d6c1cdb8e86062292278e1ab36cdad5a08fbf52310ac0794c390c389f",
+        "8f7679358d546e5a79d95d4cee04657e4ee119892d8498b7458b8ac49831f232",
+        "4ce8d12f7e94fdb9e66c84812185aa2685c73a937da7f5af793236efb7ff4c53"
+      ],
+      "proof_caveat": "Local RFC 9162-style proof over HeliX event canonical JSON leaves."
+    },
+    "checkpoint_consistency": [
+      {
+        "from_label": "after-task",
+        "to_label": "after-round-1",
+        "from_size": 1,
+        "to_size": 6,
+        "ok": true,
+        "reason": null,
+        "proof": {
+          "proof_profile": "rfc9162-consistency-proof-v0",
+          "old_size": 1,
+          "new_size": 6,
+          "old_root_hash": "9616ed68c27883a97be02c0ec76c888f823e87d98f8337bca0f8d89d091cee4f",
+          "new_root_hash": "4e7d5c089cae5536fb6cc33df7d8555c6f0e933fdd7a3e8b462596f6814fd54e",
+          "consistency_path": [
+            "742e05896a7c8bfa07647bbbbe25d2a59be13756cba0ae09e5c1ed099ce18f3a",
+            "b1bd7c6bf4a5260a8e1f3926d3922ce086cc64e7f6c672c6d42d22952496b7ce",
+            "2a048ea3329dbc074d03cb242dc0f027b034c7787770f5b377854f7f2a9ff3d9"
+          ],
+          "proof_caveat": "Local RFC 9162-style proof over HeliX event canonical JSON leaves."
+        },
+        "result": {
+          "ok": true,
+          "old_root_hash": "9616ed68c27883a97be02c0ec76c888f823e87d98f8337bca0f8d89d091cee4f",
+          "new_root_hash": "4e7d5c089cae5536fb6cc33df7d8555c6f0e933fdd7a3e8b462596f6814fd54e",
+          "consistency_path_len": 3,
+          "path_verification": {
+            "ok": true,
+            "reason": null,
+            "computed_old_root": "9616ed68c27883a97be02c0ec76c888f823e87d98f8337bca0f8d89d091cee4f",
+            "computed_new_root": "4e7d5c089cae5536fb6cc33df7d8555c6f0e933fdd7a3e8b462596f6814fd54e"
+          },
+          "old_verification": {
+            "signature_verified": true,
+            "verified_at_utc": "2026-06-09T17:32:29.880Z",
+            "verifier_version": "helix-sth-verifier-v0",
+            "canonical_payload_sha256": "88b74fdf8defe274c0ceb23d1486b84d99188cff65dbc26019b8964c473bea86",
+            "key_provenance": "ephemeral_preregistered",
+            "public_claim_eligible": true
+          },
+          "new_verification": {
+            "signature_verified": true,
+            "verified_at_utc": "2026-06-09T17:32:29.880Z",
+            "verifier_version": "helix-sth-verifier-v0",
+            "canonical_payload_sha256": "732e2088cce7e9eb84565d697a472593d61688bc9b8d9988924f760f1b5e0858",
+            "key_provenance": "ephemeral_preregistered",
+            "public_claim_eligible": true
+          }
+        }
+      },
+      {
+        "from_label": "after-round-1",
+        "to_label": "after-round-2",
+        "from_size": 6,
+        "to_size": 11,
+        "ok": true,
+        "reason": null,
+        "proof": {
+          "proof_profile": "rfc9162-consistency-proof-v0",
+          "old_size": 6,
+          "new_size": 11,
+          "old_root_hash": "4e7d5c089cae5536fb6cc33df7d8555c6f0e933fdd7a3e8b462596f6814fd54e",
+          "new_root_hash": "52dab0f7abd03ff97b5bb7c5a114ea8b097032f7d80a1848bb8d5d41d2d0eaf3",
+          "consistency_path": [
+            "2a048ea3329dbc074d03cb242dc0f027b034c7787770f5b377854f7f2a9ff3d9",
+            "39652fa122ff55d62d8facea5fd5d1fc630defac9e5d8396e8027208d6ddc298",
+            "8dc463d1817273842051a0ac0408a3b5041f1d9b1944bab72f99d40b49da0df5",
+            "97605d221afac603ab491b517481a92b2c8adf0b0cb88babacfa8650be81bacb"
+          ],
+          "proof_caveat": "Local RFC 9162-style proof over HeliX event canonical JSON leaves."
+        },
+        "result": {
+          "ok": true,
+          "old_root_hash": "4e7d5c089cae5536fb6cc33df7d8555c6f0e933fdd7a3e8b462596f6814fd54e",
+          "new_root_hash": "52dab0f7abd03ff97b5bb7c5a114ea8b097032f7d80a1848bb8d5d41d2d0eaf3",
+          "consistency_path_len": 4,
+          "path_verification": {
+            "ok": true,
+            "reason": null,
+            "computed_old_root": "4e7d5c089cae5536fb6cc33df7d8555c6f0e933fdd7a3e8b462596f6814fd54e",
+            "computed_new_root": "52dab0f7abd03ff97b5bb7c5a114ea8b097032f7d80a1848bb8d5d41d2d0eaf3"
+          },
+          "old_verification": {
+            "signature_verified": true,
+            "verified_at_utc": "2026-06-09T17:32:29.880Z",
+            "verifier_version": "helix-sth-verifier-v0",
+            "canonical_payload_sha256": "732e2088cce7e9eb84565d697a472593d61688bc9b8d9988924f760f1b5e0858",
+            "key_provenance": "ephemeral_preregistered",
+            "public_claim_eligible": true
+          },
+          "new_verification": {
+            "signature_verified": true,
+            "verified_at_utc": "2026-06-09T17:32:29.888Z",
+            "verifier_version": "helix-sth-verifier-v0",
+            "canonical_payload_sha256": "fc8f1a4254999a483472d217dbc5fbf4b6f40af57820c78060f2f6b9835080af",
+            "key_provenance": "ephemeral_preregistered",
+            "public_claim_eligible": true
+          }
+        }
+      },
+      {
+        "from_label": "after-round-2",
+        "to_label": "after-round-3",
+        "from_size": 11,
+        "to_size": 16,
+        "ok": true,
+        "reason": null,
+        "proof": {
+          "proof_profile": "rfc9162-consistency-proof-v0",
+          "old_size": 11,
+          "new_size": 16,
+          "old_root_hash": "52dab0f7abd03ff97b5bb7c5a114ea8b097032f7d80a1848bb8d5d41d2d0eaf3",
+          "new_root_hash": "318bc06e3febedac968d905e21038c729d529d9a8e10b6fb51914ed245e680fe",
+          "consistency_path": [
+            "0794150cd15c59f17b8fa12cb8e9fd4e5286c065afe5cc64316cd3fa534d0d3b",
+            "1db1c3354b5d698e5a345c9e3bf4154abc26d6b9098855292c99cc4a95366ed0",
+            "1bc6bc252e335e542f27057e812ba7a0465ad8ed676f7fbcfae09b991380c448",
+            "5c9dc7bffa099f02fa1c914830837516335f6089ed94eef055abfe9662fcc85c",
+            "a520304b61e3d472c9097f3c75d681501d59ad1729dbfa5eee62ce3d0b026df0"
+          ],
+          "proof_caveat": "Local RFC 9162-style proof over HeliX event canonical JSON leaves."
+        },
+        "result": {
+          "ok": true,
+          "old_root_hash": "52dab0f7abd03ff97b5bb7c5a114ea8b097032f7d80a1848bb8d5d41d2d0eaf3",
+          "new_root_hash": "318bc06e3febedac968d905e21038c729d529d9a8e10b6fb51914ed245e680fe",
+          "consistency_path_len": 5,
+          "path_verification": {
+            "ok": true,
+            "reason": null,
+            "computed_old_root": "52dab0f7abd03ff97b5bb7c5a114ea8b097032f7d80a1848bb8d5d41d2d0eaf3",
+            "computed_new_root": "318bc06e3febedac968d905e21038c729d529d9a8e10b6fb51914ed245e680fe"
+          },
+          "old_verification": {
+            "signature_verified": true,
+            "verified_at_utc": "2026-06-09T17:32:29.891Z",
+            "verifier_version": "helix-sth-verifier-v0",
+            "canonical_payload_sha256": "fc8f1a4254999a483472d217dbc5fbf4b6f40af57820c78060f2f6b9835080af",
+            "key_provenance": "ephemeral_preregistered",
+            "public_claim_eligible": true
+          },
+          "new_verification": {
+            "signature_verified": true,
+            "verified_at_utc": "2026-06-09T17:32:29.891Z",
+            "verifier_version": "helix-sth-verifier-v0",
+            "canonical_payload_sha256": "6bdfd9e95524c87932b1288e20bca03069a40227799f26a0e4a2318218222a83",
+            "key_provenance": "ephemeral_preregistered",
+            "public_claim_eligible": true
+          }
+        }
+      },
+      {
+        "from_label": "after-round-3",
+        "to_label": "final-longitudinal",
+        "from_size": 16,
+        "to_size": 19,
+        "ok": true,
+        "reason": null,
+        "proof": {
+          "proof_profile": "rfc9162-consistency-proof-v0",
+          "old_size": 16,
+          "new_size": 19,
+          "old_root_hash": "318bc06e3febedac968d905e21038c729d529d9a8e10b6fb51914ed245e680fe",
+          "new_root_hash": "5534f5c2b8afb487f6d1df3e9128b94ec48b2ae28a52cd692c33abf0e9be9565",
+          "consistency_path": [
+            "4ce8d12f7e94fdb9e66c84812185aa2685c73a937da7f5af793236efb7ff4c53"
+          ],
+          "proof_caveat": "Local RFC 9162-style proof over HeliX event canonical JSON leaves."
+        },
+        "result": {
+          "ok": true,
+          "old_root_hash": "318bc06e3febedac968d905e21038c729d529d9a8e10b6fb51914ed245e680fe",
+          "new_root_hash": "5534f5c2b8afb487f6d1df3e9128b94ec48b2ae28a52cd692c33abf0e9be9565",
+          "consistency_path_len": 1,
+          "path_verification": {
+            "ok": true,
+            "reason": null,
+            "computed_old_root": "318bc06e3febedac968d905e21038c729d529d9a8e10b6fb51914ed245e680fe",
+            "computed_new_root": "5534f5c2b8afb487f6d1df3e9128b94ec48b2ae28a52cd692c33abf0e9be9565"
+          },
+          "old_verification": {
+            "signature_verified": true,
+            "verified_at_utc": "2026-06-09T17:32:29.891Z",
+            "verifier_version": "helix-sth-verifier-v0",
+            "canonical_payload_sha256": "6bdfd9e95524c87932b1288e20bca03069a40227799f26a0e4a2318218222a83",
+            "key_provenance": "ephemeral_preregistered",
+            "public_claim_eligible": true
+          },
+          "new_verification": {
+            "signature_verified": true,
+            "verified_at_utc": "2026-06-09T17:32:29.898Z",
+            "verifier_version": "helix-sth-verifier-v0",
+            "canonical_payload_sha256": "4e0a99f59453496da45133adefaaf176f1e7f9bf3d6409e13c187f425f293a00",
+            "key_provenance": "ephemeral_preregistered",
+            "public_claim_eligible": true
+          }
+        }
+      }
+    ]
+  },
+  "verifier_results": {
+    "summary_inclusion": {
+      "ok": true,
+      "leaf_hash": "11e2e9632e683699b84091ce88b7f26369bd517d2f69aa5f14ee795526b64f8d",
+      "root_hash": "5534f5c2b8afb487f6d1df3e9128b94ec48b2ae28a52cd692c33abf0e9be9565",
+      "verification": {
+        "signature_verified": true,
+        "verified_at_utc": "2026-06-09T17:32:29.872Z",
+        "verifier_version": "helix-sth-verifier-v0",
+        "canonical_payload_sha256": "4e0a99f59453496da45133adefaaf176f1e7f9bf3d6409e13c187f425f293a00",
+        "key_provenance": "ephemeral_preregistered",
+        "public_claim_eligible": true
+      }
+    },
+    "end_to_end_consistency": {
+      "ok": true,
+      "old_root_hash": "9616ed68c27883a97be02c0ec76c888f823e87d98f8337bca0f8d89d091cee4f",
+      "new_root_hash": "5534f5c2b8afb487f6d1df3e9128b94ec48b2ae28a52cd692c33abf0e9be9565",
+      "consistency_path_len": 5,
+      "path_verification": {
+        "ok": true,
+        "reason": null,
+        "computed_old_root": "9616ed68c27883a97be02c0ec76c888f823e87d98f8337bca0f8d89d091cee4f",
+        "computed_new_root": "5534f5c2b8afb487f6d1df3e9128b94ec48b2ae28a52cd692c33abf0e9be9565"
+      },
+      "old_verification": {
+        "signature_verified": true,
+        "verified_at_utc": "2026-06-09T17:32:29.877Z",
+        "verifier_version": "helix-sth-verifier-v0",
+        "canonical_payload_sha256": "88b74fdf8defe274c0ceb23d1486b84d99188cff65dbc26019b8964c473bea86",
+        "key_provenance": "ephemeral_preregistered",
+        "public_claim_eligible": true
+      },
+      "new_verification": {
+        "signature_verified": true,
+        "verified_at_utc": "2026-06-09T17:32:29.877Z",
+        "verifier_version": "helix-sth-verifier-v0",
+        "canonical_payload_sha256": "4e0a99f59453496da45133adefaaf176f1e7f9bf3d6409e13c187f425f293a00",
+        "key_provenance": "ephemeral_preregistered",
+        "public_claim_eligible": true
+      }
+    },
+    "standalone_bundle": {
+      "ok": true,
+      "inclusion": {
+        "ok": true,
+        "leaf_hash": "11e2e9632e683699b84091ce88b7f26369bd517d2f69aa5f14ee795526b64f8d",
+        "root_hash": "5534f5c2b8afb487f6d1df3e9128b94ec48b2ae28a52cd692c33abf0e9be9565",
+        "verification": {
+          "signature_verified": true,
+          "verified_at_utc": "2026-06-09T17:32:29.953Z",
+          "verifier_version": "helix-sth-verifier-v0",
+          "canonical_payload_sha256": "4e0a99f59453496da45133adefaaf176f1e7f9bf3d6409e13c187f425f293a00",
+          "key_provenance": "ephemeral_preregistered",
+          "public_claim_eligible": true
+        }
+      },
+      "consistency": {
+        "ok": true,
+        "old_root_hash": "9616ed68c27883a97be02c0ec76c888f823e87d98f8337bca0f8d89d091cee4f",
+        "new_root_hash": "5534f5c2b8afb487f6d1df3e9128b94ec48b2ae28a52cd692c33abf0e9be9565",
+        "consistency_path_len": 5,
+        "path_verification": {
+          "ok": true,
+          "reason": null,
+          "computed_old_root": "9616ed68c27883a97be02c0ec76c888f823e87d98f8337bca0f8d89d091cee4f",
+          "computed_new_root": "5534f5c2b8afb487f6d1df3e9128b94ec48b2ae28a52cd692c33abf0e9be9565"
+        },
+        "old_verification": {
+          "signature_verified": true,
+          "verified_at_utc": "2026-06-09T17:32:29.953Z",
+          "verifier_version": "helix-sth-verifier-v0",
+          "canonical_payload_sha256": "88b74fdf8defe274c0ceb23d1486b84d99188cff65dbc26019b8964c473bea86",
+          "key_provenance": "ephemeral_preregistered",
+          "public_claim_eligible": true
+        },
+        "new_verification": {
+          "signature_verified": true,
+          "verified_at_utc": "2026-06-09T17:32:29.953Z",
+          "verifier_version": "helix-sth-verifier-v0",
+          "canonical_payload_sha256": "4e0a99f59453496da45133adefaaf176f1e7f9bf3d6409e13c187f425f293a00",
+          "key_provenance": "ephemeral_preregistered",
+          "public_claim_eligible": true
+        }
+      },
+      "subject_digest_ok": true,
+      "claim_boundary_ok": true,
+      "bundle_sha256": "fc42012f71013c4e6f4ce2b31a952065b88d743810fed9c9320602480c42120e"
+    }
+  },
+  "attestation": {
+    "_type": "https://in-toto.io/Statement/v1",
+    "subject": [
+      {
+        "name": "evt-0017",
+        "digest": {
+          "sha256": "79524b3f5f1243130275bc9b8b3e4d47c873b12592093775a02f06ff7f8c6f59"
+        }
+      }
+    ],
+    "predicateType": "https://helix.local/attestations/agent-run-transparency/v0",
+    "predicate": {
+      "attestation_version": "helix-agent-run-attestation-v0",
+      "run_id": "cloud-provider-longitudinal-20260609-143020",
+      "flow_profile": "patch-safe",
+      "artifact_digest": {
+        "sha256": "79524b3f5f1243130275bc9b8b3e4d47c873b12592093775a02f06ff7f8c6f59"
+      },
+      "model": {
+        "requested": "Qwen/Qwen3-235B-A22B-Instruct-2507,anthropic/claude-sonnet-4-6,deepseek-ai/DeepSeek-V3,meta-llama/Llama-3.3-70B-Instruct",
+        "actual": "Qwen/Qwen3-235B-A22B-Instruct-2507,anthropic/claude-sonnet-4-6,deepseek-ai/DeepSeek-V3,meta-llama/Llama-3.3-70B-Instruct-Turbo",
+        "provider_mismatch": true,
+        "calls": [
+          {
+            "round_index": 1,
+            "requested": "Qwen/Qwen3-235B-A22B-Instruct-2507",
+            "actual": "Qwen/Qwen3-235B-A22B-Instruct-2507",
+            "provider_mismatch": false,
+            "status": "ok",
+            "text_digest": "sha256:ac6ac8020585e5e87919ed3a28278e9996e991fb26f84cacfa8620b2be6626e7",
+            "memory_node_hash": "a55525c42cd77c62b7dab1dd7a873d285c13d49cf71b70c7502e9f8a815ba7d9"
+          },
+          {
+            "round_index": 1,
+            "requested": "anthropic/claude-sonnet-4-6",
+            "actual": "anthropic/claude-sonnet-4-6",
+            "provider_mismatch": false,
+            "status": "ok",
+            "text_digest": "sha256:75f06217acdc6f037ff5fdd609509177ec1438f15de42c00f0e3ca093d10fd7d",
+            "memory_node_hash": "9f6faf2fa5ac87b0eff03cb59473a22e711c812b6146ca29b6004d4150b54544"
+          },
+          {
+            "round_index": 1,
+            "requested": "deepseek-ai/DeepSeek-V3",
+            "actual": "deepseek-ai/DeepSeek-V3",
+            "provider_mismatch": false,
+            "status": "ok",
+            "text_digest": "sha256:79618fc8032be97f58a2835cf9bf23bf0e15e6b77392afb15a8cdf33045651a0",
+            "memory_node_hash": "d28cc1e87d6bdec3ec3f5d7b05a981fd5558aa8d87f6a988700c29a19baf9819"
+          },
+          {
+            "round_index": 1,
+            "requested": "meta-llama/Llama-3.3-70B-Instruct",
+            "actual": "meta-llama/Llama-3.3-70B-Instruct-Turbo",
+            "provider_mismatch": true,
+            "status": "ok",
+            "text_digest": "sha256:7d1babbc9fcb84c3033bd9454efc7db3849a3170f7b34f14f40d1b69863619ab",
+            "memory_node_hash": "a362af6fa407ba0e24110cab668df02dc1a26d70e709eeee6c3e7ba116b4cbd4"
+          },
+          {
+            "round_index": 2,
+            "requested": "Qwen/Qwen3-235B-A22B-Instruct-2507",
+            "actual": "Qwen/Qwen3-235B-A22B-Instruct-2507",
+            "provider_mismatch": false,
+            "status": "ok",
+            "text_digest": "sha256:8a0179358d1f026b202c8e052283575e63bc380c86458e200dd0bcb18075cad3",
+            "memory_node_hash": "47c08c66133a9201f0a852676c510410b3d480defe040a3d795a4dff5a1c0483"
+          },
+          {
+            "round_index": 2,
+            "requested": "anthropic/claude-sonnet-4-6",
+            "actual": "anthropic/claude-sonnet-4-6",
+            "provider_mismatch": false,
+            "status": "ok",
+            "text_digest": "sha256:20502722f7a6ae7bb82dbc7693ed16232d4b76d498ff8959222e8431514af505",
+            "memory_node_hash": "334b1afe5f6b507369959a4abe0bdf6ddfd9fd214cdf17d7080d79d66c41b12f"
+          },
+          {
+            "round_index": 2,
+            "requested": "deepseek-ai/DeepSeek-V3",
+            "actual": "deepseek-ai/DeepSeek-V3",
+            "provider_mismatch": false,
+            "status": "ok",
+            "text_digest": "sha256:6929a5c18dafba6a29d9a83805da90be58be52ec61cd83177c3c65fd87e03c19",
+            "memory_node_hash": "c745aac9c40bbc048a321a7e174e7f94b3f8228f4b862738d799c4df3a17a5a1"
+          },
+          {
+            "round_index": 2,
+            "requested": "meta-llama/Llama-3.3-70B-Instruct",
+            "actual": "meta-llama/Llama-3.3-70B-Instruct-Turbo",
+            "provider_mismatch": true,
+            "status": "ok",
+            "text_digest": "sha256:2cc4a8d9a7605b8d027a2c4c0c860b660c120b707313c4b453afbd646efd30a4",
+            "memory_node_hash": "bcc376183cf495847f231543f24501293dbe771152118b61da4e4b14709b9192"
+          },
+          {
+            "round_index": 3,
+            "requested": "Qwen/Qwen3-235B-A22B-Instruct-2507",
+            "actual": "Qwen/Qwen3-235B-A22B-Instruct-2507",
+            "provider_mismatch": false,
+            "status": "ok",
+            "text_digest": "sha256:d4b831bd1f071fd7f4b9fe81178a0e15c214f54424a299dc2ea68ebcdf7776a1",
+            "memory_node_hash": "43a868e52a2283063a338b6e257cb270d167e2270e312b5cd7bebbae983aff13"
+          },
+          {
+            "round_index": 3,
+            "requested": "anthropic/claude-sonnet-4-6",
+            "actual": "anthropic/claude-sonnet-4-6",
+            "provider_mismatch": false,
+            "status": "ok",
+            "text_digest": "sha256:79838eaa53f93e381933620499d22f0e3d2e2359d1c65f7b91b5c21b25a7d51a",
+            "memory_node_hash": "eebb241573f1e8c1bd5448d18a242b6bca9df8caf7f671bdd366476a76306424"
+          },
+          {
+            "round_index": 3,
+            "requested": "deepseek-ai/DeepSeek-V3",
+            "actual": "deepseek-ai/DeepSeek-V3",
+            "provider_mismatch": false,
+            "status": "ok",
+            "text_digest": "sha256:142342353576de512df946cb5adbd015b1e7fa5efae3fe07b393ee6f928a131d",
+            "memory_node_hash": "17048b7f0f1324233ff4a617b2cac0e56025ff14fb0e1d8ab8e3e4a4a38ac126"
+          },
+          {
+            "round_index": 3,
+            "requested": "meta-llama/Llama-3.3-70B-Instruct",
+            "actual": "meta-llama/Llama-3.3-70B-Instruct-Turbo",
+            "provider_mismatch": true,
+            "status": "ok",
+            "text_digest": "sha256:fec0df2b5d5be47f5b7937fc50036a02a8f98cb8aea90d1551c6b92b9a42aad4",
+            "memory_node_hash": "728fb8d9f6f99e8562f4b43d05b4bd270c895de52b2d7ad4d5cc1136ec90a592"
+          }
+        ]
+      },
+      "memory": {
+        "admitted": [
+          "mem-8c5824d4945400ab85c991b0",
+          "mem-893388fc05293d656a722cf3",
+          "mem-94a8b7c4e89617f78b6d97e2",
+          "mem-c9ca4de399f1b56d10a37beb",
+          "mem-d6fc0872a24b02d4857ad72a",
+          "mem-e0dc9886a8463e956343e826",
+          "mem-2236359a9724a048576b2cd6",
+          "mem-6bb2b457949ce541eacbea6f",
+          "mem-c9ca143f0c38767e28a27ddd",
+          "mem-04ea0746ab97fbf4cf9c0dc0",
+          "mem-a88e714b48fa9de7855d2f52",
+          "mem-8b3b863f6de190c88636cf50"
+        ],
+        "quarantined": [
+          "mem-c24fb699e7667bf533caa7f4"
+        ]
+      },
+      "materials": [
+        {
+          "name": "model-call",
+          "digest": {
+            "sha256": "captured-in-log"
+          }
+        },
+        {
+          "name": "memory-write",
+          "digest": {
+            "sha256": "captured-in-log"
+          }
+        }
+      ],
+      "byproducts": [
+        {
+          "name": "transcript",
+          "digest": {
+            "sha256": "captured-in-log"
+          }
+        },
+        {
+          "name": "trust-card",
+          "digest": {
+            "sha256": "captured-in-log"
+          }
+        }
+      ],
+      "verification": {
+        "sth": {
+          "tree_id": "helix-cloud-provider-longitudinal:cloud-provider-longitudinal-20260609-143020",
+          "tree_size": 19,
+          "root_hash": "5534f5c2b8afb487f6d1df3e9128b94ec48b2ae28a52cd692c33abf0e9be9565",
+          "key_id": "ed25519-f538c2fecc1e704b",
+          "signature": "s0zXSgwfCSTakC01Sta+rgGGt9FrqWx/+lAe99cPPTwGfmzFCi8GwXmZCJtXZxhcLeLlv3tTIqodYUVSVAzCDg=="
+        },
+        "previous_sth": {
+          "tree_id": "helix-cloud-provider-longitudinal:cloud-provider-longitudinal-20260609-143020",
+          "tree_size": 1,
+          "root_hash": "9616ed68c27883a97be02c0ec76c888f823e87d98f8337bca0f8d89d091cee4f",
+          "key_id": "ed25519-f538c2fecc1e704b",
+          "signature": "cFkCqQquPtW6ti+MCH4UpXKufPPe3MoM92Eif5ovTySHIy4qTLykL7O1PwwVaT4HYIbaTTLbTVxVVyCA3/PXCw=="
+        },
+        "inclusion_proof": {
+          "proof_profile": "ct-style-inclusion-proof-v0",
+          "leaf_index": 16,
+          "tree_size": 19,
+          "leaf_hash": "11e2e9632e683699b84091ce88b7f26369bd517d2f69aa5f14ee795526b64f8d",
+          "audit_path": [
+            {
+              "position": "right",
+              "hash": "ea151a035c174d204381cf61dcac36183998d2543c3bd96e9ded273d94761883"
+            },
+            {
+              "position": "right",
+              "hash": "b79a9580a04ffa2f1d7781f9f77b897982b632433050ca66ca45cdad082faf29"
+            },
+            {
+              "position": "left",
+              "hash": "318bc06e3febedac968d905e21038c729d529d9a8e10b6fb51914ed245e680fe"
+            }
+          ],
+          "root_hash": "5534f5c2b8afb487f6d1df3e9128b94ec48b2ae28a52cd692c33abf0e9be9565"
+        },
+        "consistency_proof": {
+          "proof_profile": "rfc9162-consistency-proof-v0",
+          "old_size": 1,
+          "new_size": 19,
+          "old_root_hash": "9616ed68c27883a97be02c0ec76c888f823e87d98f8337bca0f8d89d091cee4f",
+          "new_root_hash": "5534f5c2b8afb487f6d1df3e9128b94ec48b2ae28a52cd692c33abf0e9be9565",
+          "consistency_path": [
+            "742e05896a7c8bfa07647bbbbe25d2a59be13756cba0ae09e5c1ed099ce18f3a",
+            "b1bd7c6bf4a5260a8e1f3926d3922ce086cc64e7f6c672c6d42d22952496b7ce",
+            "864c3e9d6c1cdb8e86062292278e1ab36cdad5a08fbf52310ac0794c390c389f",
+            "8f7679358d546e5a79d95d4cee04657e4ee119892d8498b7458b8ac49831f232",
+            "4ce8d12f7e94fdb9e66c84812185aa2685c73a937da7f5af793236efb7ff4c53"
+          ],
+          "proof_caveat": "Local RFC 9162-style proof over HeliX event canonical JSON leaves."
+        },
+        "external_anchor": null,
+        "checks": {
+          "all_cloud_calls_completed": true,
+          "requested_actual_recorded": true,
+          "substitutions_are_auditable": true,
+          "memory_receipts_verified": true,
+          "memory_hash_profile_v2": true,
+          "signed_poison_not_semantic_authority": true,
+          "final_summary_inclusion_verified": true,
+          "checkpoint_consistency_verified": true,
+          "end_to_end_consistency_verified": true,
+          "catalog_dag_coverage_verified": true,
+          "standalone_verifier_bundle_passes": true,
+          "claim_boundary_present": true
+        },
+        "claim_boundary": "HeliX emits locally verifiable attestations for agentic runs. This proves local inclusion and append-only consistency against signed local STHs; it does not prove model semantic truth or global non-equivocation."
+      }
+    }
+  },
+  "standalone_bundle": {
+    "bundle_version": "helix-agent-run-verifier-bundle-v0",
+    "event": {
+      "event_id": "evt-0017",
+      "event_type": "longitudinal_summary",
+      "log_index": 16,
+      "appended_at_utc": "2026-06-09T17:32:29Z",
+      "payload": {
+        "run_id": "cloud-provider-longitudinal-20260609-143020",
+        "models_requested": [
+          "Qwen/Qwen3-235B-A22B-Instruct-2507",
+          "anthropic/claude-sonnet-4-6",
+          "deepseek-ai/DeepSeek-V3",
+          "meta-llama/Llama-3.3-70B-Instruct"
+        ],
+        "rounds": 3,
+        "call_count": 12,
+        "ok_count": 12,
+        "provider_substitution_detected": true,
+        "actual_model_drift_detected": false,
+        "output_drift_detected": true,
+        "availability_error_count": 0,
+        "patch_digest": "sha256:236ae91ad7416d43c31f657783208828315beeae8e3313edac5580cabcf62cce",
+        "claim_boundary": "Observed provider identity and output drift are evidence, not semantic truth."
+      }
+    },
+    "inclusion_proof": {
+      "proof_profile": "ct-style-inclusion-proof-v0",
+      "leaf_index": 16,
+      "tree_size": 19,
+      "leaf_hash": "11e2e9632e683699b84091ce88b7f26369bd517d2f69aa5f14ee795526b64f8d",
+      "audit_path": [
+        {
+          "position": "right",
+          "hash": "ea151a035c174d204381cf61dcac36183998d2543c3bd96e9ded273d94761883"
+        },
+        {
+          "position": "right",
+          "hash": "b79a9580a04ffa2f1d7781f9f77b897982b632433050ca66ca45cdad082faf29"
+        },
+        {
+          "position": "left",
+          "hash": "318bc06e3febedac968d905e21038c729d529d9a8e10b6fb51914ed245e680fe"
+        }
+      ],
+      "root_hash": "5534f5c2b8afb487f6d1df3e9128b94ec48b2ae28a52cd692c33abf0e9be9565"
+    },
+    "previous_sth": {
+      "sth_version": "helix-agent-run-sth-v0",
+      "tree_id": "helix-cloud-provider-longitudinal:cloud-provider-longitudinal-20260609-143020",
+      "run_id": "cloud-provider-longitudinal-20260609-143020",
+      "label": "after-task",
+      "tree_size": 1,
+      "root_hash": "9616ed68c27883a97be02c0ec76c888f823e87d98f8337bca0f8d89d091cee4f",
+      "hash_alg": "sha256",
+      "tree_hash_profile": "ct-style-sha256-domain-separated-v0",
+      "consistency_proof_profile": "rfc9162-consistency-proof-v0",
+      "issued_at_utc": "2026-06-09T17:30:27Z",
+      "key_id": "ed25519-f538c2fecc1e704b",
+      "signer_id": "helix-transparency-log:helix-cloud-provider-longitudinal:cloud-provider-longitudinal-20260609-143020",
+      "key_provenance": "ephemeral_preregistered",
+      "attestation": null,
+      "receipt_version": "helix-signed-receipt-v1",
+      "canonicalization": "helix-jcs-v0-rfc8785-compatible-no-floats",
+      "signature_alg": "ed25519",
+      "signature": "cFkCqQquPtW6ti+MCH4UpXKufPPe3MoM92Eif5ovTySHIy4qTLykL7O1PwwVaT4HYIbaTTLbTVxVVyCA3/PXCw==",
+      "public_key": "gi/sGG/bFjsyyqKbcsuvESrQF8XeKSyz4BsjMJq6QzY=",
+      "canonical_payload_sha256": "88b74fdf8defe274c0ceb23d1486b84d99188cff65dbc26019b8964c473bea86",
+      "signature_verified": true,
+      "verified_at_utc": "2026-06-09T17:30:27.993Z",
+      "verifier_version": "helix-receipt-verifier-v1",
+      "public_claim_eligible": true
+    },
+    "consistency_proof": {
+      "proof_profile": "rfc9162-consistency-proof-v0",
+      "old_size": 1,
+      "new_size": 19,
+      "old_root_hash": "9616ed68c27883a97be02c0ec76c888f823e87d98f8337bca0f8d89d091cee4f",
+      "new_root_hash": "5534f5c2b8afb487f6d1df3e9128b94ec48b2ae28a52cd692c33abf0e9be9565",
+      "consistency_path": [
+        "742e05896a7c8bfa07647bbbbe25d2a59be13756cba0ae09e5c1ed099ce18f3a",
+        "b1bd7c6bf4a5260a8e1f3926d3922ce086cc64e7f6c672c6d42d22952496b7ce",
+        "864c3e9d6c1cdb8e86062292278e1ab36cdad5a08fbf52310ac0794c390c389f",
+        "8f7679358d546e5a79d95d4cee04657e4ee119892d8498b7458b8ac49831f232",
+        "4ce8d12f7e94fdb9e66c84812185aa2685c73a937da7f5af793236efb7ff4c53"
+      ],
+      "proof_caveat": "Local RFC 9162-style proof over HeliX event canonical JSON leaves."
+    },
+    "sth": {
+      "sth_version": "helix-agent-run-sth-v0",
+      "tree_id": "helix-cloud-provider-longitudinal:cloud-provider-longitudinal-20260609-143020",
+      "run_id": "cloud-provider-longitudinal-20260609-143020",
+      "label": "final-longitudinal",
+      "tree_size": 19,
+      "root_hash": "5534f5c2b8afb487f6d1df3e9128b94ec48b2ae28a52cd692c33abf0e9be9565",
+      "hash_alg": "sha256",
+      "tree_hash_profile": "ct-style-sha256-domain-separated-v0",
+      "consistency_proof_profile": "rfc9162-consistency-proof-v0",
+      "issued_at_utc": "2026-06-09T17:32:29Z",
+      "key_id": "ed25519-f538c2fecc1e704b",
+      "signer_id": "helix-transparency-log:helix-cloud-provider-longitudinal:cloud-provider-longitudinal-20260609-143020",
+      "key_provenance": "ephemeral_preregistered",
+      "attestation": null,
+      "receipt_version": "helix-signed-receipt-v1",
+      "canonicalization": "helix-jcs-v0-rfc8785-compatible-no-floats",
+      "signature_alg": "ed25519",
+      "signature": "s0zXSgwfCSTakC01Sta+rgGGt9FrqWx/+lAe99cPPTwGfmzFCi8GwXmZCJtXZxhcLeLlv3tTIqodYUVSVAzCDg==",
+      "public_key": "gi/sGG/bFjsyyqKbcsuvESrQF8XeKSyz4BsjMJq6QzY=",
+      "canonical_payload_sha256": "4e0a99f59453496da45133adefaaf176f1e7f9bf3d6409e13c187f425f293a00",
+      "signature_verified": true,
+      "verified_at_utc": "2026-06-09T17:32:29.870Z",
+      "verifier_version": "helix-receipt-verifier-v1",
+      "public_claim_eligible": true
+    },
+    "attestation": {
+      "_type": "https://in-toto.io/Statement/v1",
+      "subject": [
+        {
+          "name": "evt-0017",
+          "digest": {
+            "sha256": "79524b3f5f1243130275bc9b8b3e4d47c873b12592093775a02f06ff7f8c6f59"
+          }
+        }
+      ],
+      "predicateType": "https://helix.local/attestations/agent-run-transparency/v0",
+      "predicate": {
+        "attestation_version": "helix-agent-run-attestation-v0",
+        "run_id": "cloud-provider-longitudinal-20260609-143020",
+        "flow_profile": "patch-safe",
+        "artifact_digest": {
+          "sha256": "79524b3f5f1243130275bc9b8b3e4d47c873b12592093775a02f06ff7f8c6f59"
+        },
+        "model": {
+          "requested": "Qwen/Qwen3-235B-A22B-Instruct-2507,anthropic/claude-sonnet-4-6,deepseek-ai/DeepSeek-V3,meta-llama/Llama-3.3-70B-Instruct",
+          "actual": "Qwen/Qwen3-235B-A22B-Instruct-2507,anthropic/claude-sonnet-4-6,deepseek-ai/DeepSeek-V3,meta-llama/Llama-3.3-70B-Instruct-Turbo",
+          "provider_mismatch": true,
+          "calls": [
+            {
+              "round_index": 1,
+              "requested": "Qwen/Qwen3-235B-A22B-Instruct-2507",
+              "actual": "Qwen/Qwen3-235B-A22B-Instruct-2507",
+              "provider_mismatch": false,
+              "status": "ok",
+              "text_digest": "sha256:ac6ac8020585e5e87919ed3a28278e9996e991fb26f84cacfa8620b2be6626e7",
+              "memory_node_hash": "a55525c42cd77c62b7dab1dd7a873d285c13d49cf71b70c7502e9f8a815ba7d9"
+            },
+            {
+              "round_index": 1,
+              "requested": "anthropic/claude-sonnet-4-6",
+              "actual": "anthropic/claude-sonnet-4-6",
+              "provider_mismatch": false,
+              "status": "ok",
+              "text_digest": "sha256:75f06217acdc6f037ff5fdd609509177ec1438f15de42c00f0e3ca093d10fd7d",
+              "memory_node_hash": "9f6faf2fa5ac87b0eff03cb59473a22e711c812b6146ca29b6004d4150b54544"
+            },
+            {
+              "round_index": 1,
+              "requested": "deepseek-ai/DeepSeek-V3",
+              "actual": "deepseek-ai/DeepSeek-V3",
+              "provider_mismatch": false,
+              "status": "ok",
+              "text_digest": "sha256:79618fc8032be97f58a2835cf9bf23bf0e15e6b77392afb15a8cdf33045651a0",
+              "memory_node_hash": "d28cc1e87d6bdec3ec3f5d7b05a981fd5558aa8d87f6a988700c29a19baf9819"
+            },
+            {
+              "round_index": 1,
+              "requested": "meta-llama/Llama-3.3-70B-Instruct",
+              "actual": "meta-llama/Llama-3.3-70B-Instruct-Turbo",
+              "provider_mismatch": true,
+              "status": "ok",
+              "text_digest": "sha256:7d1babbc9fcb84c3033bd9454efc7db3849a3170f7b34f14f40d1b69863619ab",
+              "memory_node_hash": "a362af6fa407ba0e24110cab668df02dc1a26d70e709eeee6c3e7ba116b4cbd4"
+            },
+            {
+              "round_index": 2,
+              "requested": "Qwen/Qwen3-235B-A22B-Instruct-2507",
+              "actual": "Qwen/Qwen3-235B-A22B-Instruct-2507",
+              "provider_mismatch": false,
+              "status": "ok",
+              "text_digest": "sha256:8a0179358d1f026b202c8e052283575e63bc380c86458e200dd0bcb18075cad3",
+              "memory_node_hash": "47c08c66133a9201f0a852676c510410b3d480defe040a3d795a4dff5a1c0483"
+            },
+            {
+              "round_index": 2,
+              "requested": "anthropic/claude-sonnet-4-6",
+              "actual": "anthropic/claude-sonnet-4-6",
+              "provider_mismatch": false,
+              "status": "ok",
+              "text_digest": "sha256:20502722f7a6ae7bb82dbc7693ed16232d4b76d498ff8959222e8431514af505",
+              "memory_node_hash": "334b1afe5f6b507369959a4abe0bdf6ddfd9fd214cdf17d7080d79d66c41b12f"
+            },
+            {
+              "round_index": 2,
+              "requested": "deepseek-ai/DeepSeek-V3",
+              "actual": "deepseek-ai/DeepSeek-V3",
+              "provider_mismatch": false,
+              "status": "ok",
+              "text_digest": "sha256:6929a5c18dafba6a29d9a83805da90be58be52ec61cd83177c3c65fd87e03c19",
+              "memory_node_hash": "c745aac9c40bbc048a321a7e174e7f94b3f8228f4b862738d799c4df3a17a5a1"
+            },
+            {
+              "round_index": 2,
+              "requested": "meta-llama/Llama-3.3-70B-Instruct",
+              "actual": "meta-llama/Llama-3.3-70B-Instruct-Turbo",
+              "provider_mismatch": true,
+              "status": "ok",
+              "text_digest": "sha256:2cc4a8d9a7605b8d027a2c4c0c860b660c120b707313c4b453afbd646efd30a4",
+              "memory_node_hash": "bcc376183cf495847f231543f24501293dbe771152118b61da4e4b14709b9192"
+            },
+            {
+              "round_index": 3,
+              "requested": "Qwen/Qwen3-235B-A22B-Instruct-2507",
+              "actual": "Qwen/Qwen3-235B-A22B-Instruct-2507",
+              "provider_mismatch": false,
+              "status": "ok",
+              "text_digest": "sha256:d4b831bd1f071fd7f4b9fe81178a0e15c214f54424a299dc2ea68ebcdf7776a1",
+              "memory_node_hash": "43a868e52a2283063a338b6e257cb270d167e2270e312b5cd7bebbae983aff13"
+            },
+            {
+              "round_index": 3,
+              "requested": "anthropic/claude-sonnet-4-6",
+              "actual": "anthropic/claude-sonnet-4-6",
+              "provider_mismatch": false,
+              "status": "ok",
+              "text_digest": "sha256:79838eaa53f93e381933620499d22f0e3d2e2359d1c65f7b91b5c21b25a7d51a",
+              "memory_node_hash": "eebb241573f1e8c1bd5448d18a242b6bca9df8caf7f671bdd366476a76306424"
+            },
+            {
+              "round_index": 3,
+              "requested": "deepseek-ai/DeepSeek-V3",
+              "actual": "deepseek-ai/DeepSeek-V3",
+              "provider_mismatch": false,
+              "status": "ok",
+              "text_digest": "sha256:142342353576de512df946cb5adbd015b1e7fa5efae3fe07b393ee6f928a131d",
+              "memory_node_hash": "17048b7f0f1324233ff4a617b2cac0e56025ff14fb0e1d8ab8e3e4a4a38ac126"
+            },
+            {
+              "round_index": 3,
+              "requested": "meta-llama/Llama-3.3-70B-Instruct",
+              "actual": "meta-llama/Llama-3.3-70B-Instruct-Turbo",
+              "provider_mismatch": true,
+              "status": "ok",
+              "text_digest": "sha256:fec0df2b5d5be47f5b7937fc50036a02a8f98cb8aea90d1551c6b92b9a42aad4",
+              "memory_node_hash": "728fb8d9f6f99e8562f4b43d05b4bd270c895de52b2d7ad4d5cc1136ec90a592"
+            }
+          ]
+        },
+        "memory": {
+          "admitted": [
+            "mem-8c5824d4945400ab85c991b0",
+            "mem-893388fc05293d656a722cf3",
+            "mem-94a8b7c4e89617f78b6d97e2",
+            "mem-c9ca4de399f1b56d10a37beb",
+            "mem-d6fc0872a24b02d4857ad72a",
+            "mem-e0dc9886a8463e956343e826",
+            "mem-2236359a9724a048576b2cd6",
+            "mem-6bb2b457949ce541eacbea6f",
+            "mem-c9ca143f0c38767e28a27ddd",
+            "mem-04ea0746ab97fbf4cf9c0dc0",
+            "mem-a88e714b48fa9de7855d2f52",
+            "mem-8b3b863f6de190c88636cf50"
+          ],
+          "quarantined": [
+            "mem-c24fb699e7667bf533caa7f4"
+          ]
+        },
+        "materials": [
+          {
+            "name": "model-call",
+            "digest": {
+              "sha256": "captured-in-log"
+            }
+          },
+          {
+            "name": "memory-write",
+            "digest": {
+              "sha256": "captured-in-log"
+            }
+          }
+        ],
+        "byproducts": [
+          {
+            "name": "transcript",
+            "digest": {
+              "sha256": "captured-in-log"
+            }
+          },
+          {
+            "name": "trust-card",
+            "digest": {
+              "sha256": "captured-in-log"
+            }
+          }
+        ],
+        "verification": {
+          "sth": {
+            "tree_id": "helix-cloud-provider-longitudinal:cloud-provider-longitudinal-20260609-143020",
+            "tree_size": 19,
+            "root_hash": "5534f5c2b8afb487f6d1df3e9128b94ec48b2ae28a52cd692c33abf0e9be9565",
+            "key_id": "ed25519-f538c2fecc1e704b",
+            "signature": "s0zXSgwfCSTakC01Sta+rgGGt9FrqWx/+lAe99cPPTwGfmzFCi8GwXmZCJtXZxhcLeLlv3tTIqodYUVSVAzCDg=="
+          },
+          "previous_sth": {
+            "tree_id": "helix-cloud-provider-longitudinal:cloud-provider-longitudinal-20260609-143020",
+            "tree_size": 1,
+            "root_hash": "9616ed68c27883a97be02c0ec76c888f823e87d98f8337bca0f8d89d091cee4f",
+            "key_id": "ed25519-f538c2fecc1e704b",
+            "signature": "cFkCqQquPtW6ti+MCH4UpXKufPPe3MoM92Eif5ovTySHIy4qTLykL7O1PwwVaT4HYIbaTTLbTVxVVyCA3/PXCw=="
+          },
+          "inclusion_proof": {
+            "proof_profile": "ct-style-inclusion-proof-v0",
+            "leaf_index": 16,
+            "tree_size": 19,
+            "leaf_hash": "11e2e9632e683699b84091ce88b7f26369bd517d2f69aa5f14ee795526b64f8d",
+            "audit_path": [
+              {
+                "position": "right",
+                "hash": "ea151a035c174d204381cf61dcac36183998d2543c3bd96e9ded273d94761883"
+              },
+              {
+                "position": "right",
+                "hash": "b79a9580a04ffa2f1d7781f9f77b897982b632433050ca66ca45cdad082faf29"
+              },
+              {
+                "position": "left",
+                "hash": "318bc06e3febedac968d905e21038c729d529d9a8e10b6fb51914ed245e680fe"
+              }
+            ],
+            "root_hash": "5534f5c2b8afb487f6d1df3e9128b94ec48b2ae28a52cd692c33abf0e9be9565"
+          },
+          "consistency_proof": {
+            "proof_profile": "rfc9162-consistency-proof-v0",
+            "old_size": 1,
+            "new_size": 19,
+            "old_root_hash": "9616ed68c27883a97be02c0ec76c888f823e87d98f8337bca0f8d89d091cee4f",
+            "new_root_hash": "5534f5c2b8afb487f6d1df3e9128b94ec48b2ae28a52cd692c33abf0e9be9565",
+            "consistency_path": [
+              "742e05896a7c8bfa07647bbbbe25d2a59be13756cba0ae09e5c1ed099ce18f3a",
+              "b1bd7c6bf4a5260a8e1f3926d3922ce086cc64e7f6c672c6d42d22952496b7ce",
+              "864c3e9d6c1cdb8e86062292278e1ab36cdad5a08fbf52310ac0794c390c389f",
+              "8f7679358d546e5a79d95d4cee04657e4ee119892d8498b7458b8ac49831f232",
+              "4ce8d12f7e94fdb9e66c84812185aa2685c73a937da7f5af793236efb7ff4c53"
+            ],
+            "proof_caveat": "Local RFC 9162-style proof over HeliX event canonical JSON leaves."
+          },
+          "external_anchor": null,
+          "checks": {
+            "all_cloud_calls_completed": true,
+            "requested_actual_recorded": true,
+            "substitutions_are_auditable": true,
+            "memory_receipts_verified": true,
+            "memory_hash_profile_v2": true,
+            "signed_poison_not_semantic_authority": true,
+            "final_summary_inclusion_verified": true,
+            "checkpoint_consistency_verified": true,
+            "end_to_end_consistency_verified": true,
+            "catalog_dag_coverage_verified": true,
+            "standalone_verifier_bundle_passes": true,
+            "claim_boundary_present": true
+          },
+          "claim_boundary": "HeliX emits locally verifiable attestations for agentic runs. This proves local inclusion and append-only consistency against signed local STHs; it does not prove model semantic truth or global non-equivocation."
+        }
+      }
+    },
+    "claim_boundary": "HeliX emits locally verifiable attestations for agentic runs. This proves local inclusion and append-only consistency against signed local STHs; it does not prove model semantic truth or global non-equivocation."
+  },
+  "claim_boundary": "This artifact proves local HeliX transparency mechanics over observed DeepInfra calls. It does not prove model semantic truth, provider honesty outside the observed response, or global non-equivocation.",
+  "artifact_path": "C:\\Users\\Big Duck\\proyectos\\helix-backend-repo\\verification\\nuclear-methodology\\cloud-provider-substitution-longitudinal\\local-cloud-provider-substitution-longitudinal-v1-cloud-provider-longitudinal-20260609-143020.json",
+  "extract_markdown_path": "C:\\Users\\Big Duck\\proyectos\\helix-backend-repo\\verification\\nuclear-methodology\\cloud-provider-substitution-longitudinal\\local-cloud-provider-substitution-longitudinal-v1-cloud-provider-longitudinal-20260609-143020-extract.md",
+  "transcript_markdown_path": "C:\\Users\\Big Duck\\proyectos\\helix-backend-repo\\verification\\nuclear-methodology\\cloud-provider-substitution-longitudinal\\local-cloud-provider-substitution-longitudinal-v1-cloud-provider-longitudinal-20260609-143020-transcript.md",
+  "standalone_bundle_path": "C:\\Users\\Big Duck\\proyectos\\helix-backend-repo\\verification\\nuclear-methodology\\cloud-provider-substitution-longitudinal\\local-cloud-provider-substitution-longitudinal-v1-cloud-provider-longitudinal-20260609-143020-bundle.json",
+  "artifact_sha256": "0d5d2787fef0e322cf70f6d039d99c8e6209499e5d3a05466efdf4fbdbd9b3f4",
+  "standalone_bundle_sha256": "521cf1fe63af6cb3ec74be2e60be3326d1c8cded8b4225c105dad304e22d9e10"
+}

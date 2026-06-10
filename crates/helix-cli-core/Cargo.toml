@@ -1,0 +1,11 @@
+[package]
+name = "helix-cli-core"
+version = "0.1.0"
+edition = "2021"
+description = "Fast local routing and indexed evidence catalog for HeliX CLI"
+
+[[bin]]
+name = "helix-cli-core"
+path = "src/main.rs"
+
+[dependencies]

@@ -1,0 +1,274 @@
+{
+  "bundle_version": "helix-agent-run-verifier-bundle-v0",
+  "event": {
+    "event_id": "evt-0008",
+    "event_type": "cloud_panel_attestation",
+    "log_index": 7,
+    "appended_at_utc": "2026-06-09T17:13:44Z",
+    "payload": {
+      "run_id": "cloud-deepinfra-20260609-141316",
+      "models_requested": [
+        "Qwen/Qwen3.6-35B-A3B",
+        "deepseek-ai/DeepSeek-V3",
+        "meta-llama/Llama-3.3-70B-Instruct"
+      ],
+      "call_count": 3,
+      "ok_count": 3,
+      "provider_mismatch_count": 1,
+      "output_digests": [
+        "sha256:0bd6085bbc54a4ec42c20256420df0b8c252ec47094553c29463c6df78c68d5f",
+        "sha256:fffb4037a04a6560638f65021719f85fad3d8c8686ea0a0e0cd19ced3896d668",
+        "sha256:3221ea2a27580f128f86592aaa71eebb06f297c207dc929e1b6a2ab7a02fc066"
+      ],
+      "memory_event_id": "evt-0005",
+      "patch_digest": "sha256:236ae91ad7416d43c31f657783208828315beeae8e3313edac5580cabcf62cce",
+      "claim_boundary": "Cloud provider output is recorded as evidence, not semantic authority."
+    }
+  },
+  "inclusion_proof": {
+    "proof_profile": "ct-style-inclusion-proof-v0",
+    "leaf_index": 7,
+    "tree_size": 9,
+    "leaf_hash": "623150e912900cda2bead85788e16302ac070ef2c27d60ea98bd1077b98957a1",
+    "audit_path": [
+      {
+        "position": "left",
+        "hash": "353ad4bc092bbb0ed7764ea759fd56df47fe24b4a4c421a9ca4ee23692fcaf66"
+      },
+      {
+        "position": "left",
+        "hash": "e04067b7ae436fafa8d1be379e52b025eb659131c4b37bcba6c399062fb54f7d"
+      },
+      {
+        "position": "left",
+        "hash": "878273313cdf2a9df664b8e2cee11aacb2666edca6e6cb83ee5de9cd306c3322"
+      },
+      {
+        "position": "right",
+        "hash": "c9e7c9e2c21fd679ddae37df03bed7e6777505e0467a84555df4ba595c2b137f"
+      }
+    ],
+    "root_hash": "499f58b832ef8d082c4acaf12fafde5134e215793612de3c990f8705809df67a"
+  },
+  "previous_sth": {
+    "sth_version": "helix-agent-run-sth-v0",
+    "tree_id": "helix-agent-run-cloud-deepinfra:cloud-deepinfra-20260609-141316",
+    "run_id": "cloud-deepinfra-20260609-141316",
+    "label": "checkpoint-after-cloud-model-calls",
+    "tree_size": 4,
+    "root_hash": "878273313cdf2a9df664b8e2cee11aacb2666edca6e6cb83ee5de9cd306c3322",
+    "hash_alg": "sha256",
+    "tree_hash_profile": "ct-style-sha256-domain-separated-v0",
+    "consistency_proof_profile": "rfc9162-consistency-proof-v0",
+    "issued_at_utc": "2026-06-09T17:13:44Z",
+    "key_id": "ed25519-30ea9a5a6a26c05b",
+    "signer_id": "helix-transparency-log:helix-agent-run-cloud-deepinfra:cloud-deepinfra-20260609-141316",
+    "key_provenance": "ephemeral_preregistered",
+    "attestation": null,
+    "receipt_version": "helix-signed-receipt-v1",
+    "canonicalization": "helix-jcs-v0-rfc8785-compatible-no-floats",
+    "signature_alg": "ed25519",
+    "signature": "ge1emzmINd+5mea1ed8jXyYwqtsPrFYid440qM0+FMUns4KodAuC9YBJGIyWjvLwY/Ly4pSuinAjafpmU8Q1Ag==",
+    "public_key": "kAN/WglKwyGyjmJnhPGBeHZshXCvdfqmre1gjsY9NtA=",
+    "canonical_payload_sha256": "82922c0f45e5d7d1eb572ffb727496fdf6c97d1aad22d38b32863003d1df59c6",
+    "signature_verified": true,
+    "verified_at_utc": "2026-06-09T17:13:44.997Z",
+    "verifier_version": "helix-receipt-verifier-v1",
+    "public_claim_eligible": true
+  },
+  "consistency_proof": {
+    "proof_profile": "rfc9162-consistency-proof-v0",
+    "old_size": 4,
+    "new_size": 9,
+    "old_root_hash": "878273313cdf2a9df664b8e2cee11aacb2666edca6e6cb83ee5de9cd306c3322",
+    "new_root_hash": "499f58b832ef8d082c4acaf12fafde5134e215793612de3c990f8705809df67a",
+    "consistency_path": [
+      "a00c901a5947a291f241abbd60856386bc70ac67a74e4d1a078f1f55b4ba6ef2",
+      "c9e7c9e2c21fd679ddae37df03bed7e6777505e0467a84555df4ba595c2b137f"
+    ],
+    "proof_caveat": "Local RFC 9162-style proof over HeliX event canonical JSON leaves."
+  },
+  "sth": {
+    "sth_version": "helix-agent-run-sth-v0",
+    "tree_id": "helix-agent-run-cloud-deepinfra:cloud-deepinfra-20260609-141316",
+    "run_id": "cloud-deepinfra-20260609-141316",
+    "label": "final-cloud-deepinfra",
+    "tree_size": 9,
+    "root_hash": "499f58b832ef8d082c4acaf12fafde5134e215793612de3c990f8705809df67a",
+    "hash_alg": "sha256",
+    "tree_hash_profile": "ct-style-sha256-domain-separated-v0",
+    "consistency_proof_profile": "rfc9162-consistency-proof-v0",
+    "issued_at_utc": "2026-06-09T17:13:44Z",
+    "key_id": "ed25519-30ea9a5a6a26c05b",
+    "signer_id": "helix-transparency-log:helix-agent-run-cloud-deepinfra:cloud-deepinfra-20260609-141316",
+    "key_provenance": "ephemeral_preregistered",
+    "attestation": null,
+    "receipt_version": "helix-signed-receipt-v1",
+    "canonicalization": "helix-jcs-v0-rfc8785-compatible-no-floats",
+    "signature_alg": "ed25519",
+    "signature": "z7QX+OZ+1CzjpetUdCJiHTcpkP2EAZs5tTsw0AM/6ZOqxVYQTxFEW0Bnmy3nPLmciYTjeOO6MHVzy4nTOf1iBQ==",
+    "public_key": "kAN/WglKwyGyjmJnhPGBeHZshXCvdfqmre1gjsY9NtA=",
+    "canonical_payload_sha256": "fbc3fefc6d8783a7995dc82d7330796f2656a02312af7ec59d6fcf5de026f234",
+    "signature_verified": true,
+    "verified_at_utc": "2026-06-09T17:13:44.999Z",
+    "verifier_version": "helix-receipt-verifier-v1",
+    "public_claim_eligible": true
+  },
+  "attestation": {
+    "_type": "https://in-toto.io/Statement/v1",
+    "subject": [
+      {
+        "name": "evt-0008",
+        "digest": {
+          "sha256": "a7a6d1f3cfa49af7d49f636a80feb41aeb9ac65a6f72c2bab9164f6011ffc6a7"
+        }
+      }
+    ],
+    "predicateType": "https://helix.local/attestations/agent-run-transparency/v0",
+    "predicate": {
+      "attestation_version": "helix-agent-run-attestation-v0",
+      "run_id": "cloud-deepinfra-20260609-141316",
+      "flow_profile": "patch-safe",
+      "artifact_digest": {
+        "sha256": "a7a6d1f3cfa49af7d49f636a80feb41aeb9ac65a6f72c2bab9164f6011ffc6a7"
+      },
+      "model": {
+        "requested": "Qwen/Qwen3.6-35B-A3B,deepseek-ai/DeepSeek-V3,meta-llama/Llama-3.3-70B-Instruct",
+        "actual": "Qwen/Qwen3.6-35B-A3B,deepseek-ai/DeepSeek-V3,meta-llama/Llama-3.3-70B-Instruct-Turbo",
+        "provider_mismatch": true,
+        "calls": [
+          {
+            "requested": "Qwen/Qwen3.6-35B-A3B",
+            "actual": "Qwen/Qwen3.6-35B-A3B",
+            "provider_mismatch": false,
+            "status": "ok",
+            "text_digest": "sha256:0bd6085bbc54a4ec42c20256420df0b8c252ec47094553c29463c6df78c68d5f",
+            "memory_node_hash": "75e885246537d71e9cdb2525cdd8ca2e78b243e41133c611e425245ae5a45a5f"
+          },
+          {
+            "requested": "deepseek-ai/DeepSeek-V3",
+            "actual": "deepseek-ai/DeepSeek-V3",
+            "provider_mismatch": false,
+            "status": "ok",
+            "text_digest": "sha256:fffb4037a04a6560638f65021719f85fad3d8c8686ea0a0e0cd19ced3896d668",
+            "memory_node_hash": "08dee27b62af4dccae4b28903c04fe308c239ebad90abb4c416b65c98efedef0"
+          },
+          {
+            "requested": "meta-llama/Llama-3.3-70B-Instruct",
+            "actual": "meta-llama/Llama-3.3-70B-Instruct-Turbo",
+            "provider_mismatch": true,
+            "status": "ok",
+            "text_digest": "sha256:3221ea2a27580f128f86592aaa71eebb06f297c207dc929e1b6a2ab7a02fc066",
+            "memory_node_hash": "077d8785b90b244b19c90659cc8203150cf85ededd2df35cd16e0ba5279356cf"
+          }
+        ]
+      },
+      "memory": {
+        "admitted": [
+          "mem-01be7ee96db7392c7ee41ac4",
+          "mem-0e337011831d60a0121899ca",
+          "mem-997d09053c0b1fbfdff30c36"
+        ],
+        "quarantined": [
+          "mem-91bdf549b6ee946c3e6e7a05"
+        ]
+      },
+      "materials": [
+        {
+          "name": "model-call",
+          "digest": {
+            "sha256": "captured-in-log"
+          }
+        },
+        {
+          "name": "memory-write",
+          "digest": {
+            "sha256": "captured-in-log"
+          }
+        }
+      ],
+      "byproducts": [
+        {
+          "name": "transcript",
+          "digest": {
+            "sha256": "captured-in-log"
+          }
+        },
+        {
+          "name": "trust-card",
+          "digest": {
+            "sha256": "captured-in-log"
+          }
+        }
+      ],
+      "verification": {
+        "sth": {
+          "tree_id": "helix-agent-run-cloud-deepinfra:cloud-deepinfra-20260609-141316",
+          "tree_size": 9,
+          "root_hash": "499f58b832ef8d082c4acaf12fafde5134e215793612de3c990f8705809df67a",
+          "key_id": "ed25519-30ea9a5a6a26c05b",
+          "signature": "z7QX+OZ+1CzjpetUdCJiHTcpkP2EAZs5tTsw0AM/6ZOqxVYQTxFEW0Bnmy3nPLmciYTjeOO6MHVzy4nTOf1iBQ=="
+        },
+        "previous_sth": {
+          "tree_id": "helix-agent-run-cloud-deepinfra:cloud-deepinfra-20260609-141316",
+          "tree_size": 4,
+          "root_hash": "878273313cdf2a9df664b8e2cee11aacb2666edca6e6cb83ee5de9cd306c3322",
+          "key_id": "ed25519-30ea9a5a6a26c05b",
+          "signature": "ge1emzmINd+5mea1ed8jXyYwqtsPrFYid440qM0+FMUns4KodAuC9YBJGIyWjvLwY/Ly4pSuinAjafpmU8Q1Ag=="
+        },
+        "inclusion_proof": {
+          "proof_profile": "ct-style-inclusion-proof-v0",
+          "leaf_index": 7,
+          "tree_size": 9,
+          "leaf_hash": "623150e912900cda2bead85788e16302ac070ef2c27d60ea98bd1077b98957a1",
+          "audit_path": [
+            {
+              "position": "left",
+              "hash": "353ad4bc092bbb0ed7764ea759fd56df47fe24b4a4c421a9ca4ee23692fcaf66"
+            },
+            {
+              "position": "left",
+              "hash": "e04067b7ae436fafa8d1be379e52b025eb659131c4b37bcba6c399062fb54f7d"
+            },
+            {
+              "position": "left",
+              "hash": "878273313cdf2a9df664b8e2cee11aacb2666edca6e6cb83ee5de9cd306c3322"
+            },
+            {
+              "position": "right",
+              "hash": "c9e7c9e2c21fd679ddae37df03bed7e6777505e0467a84555df4ba595c2b137f"
+            }
+          ],
+          "root_hash": "499f58b832ef8d082c4acaf12fafde5134e215793612de3c990f8705809df67a"
+        },
+        "consistency_proof": {
+          "proof_profile": "rfc9162-consistency-proof-v0",
+          "old_size": 4,
+          "new_size": 9,
+          "old_root_hash": "878273313cdf2a9df664b8e2cee11aacb2666edca6e6cb83ee5de9cd306c3322",
+          "new_root_hash": "499f58b832ef8d082c4acaf12fafde5134e215793612de3c990f8705809df67a",
+          "consistency_path": [
+            "a00c901a5947a291f241abbd60856386bc70ac67a74e4d1a078f1f55b4ba6ef2",
+            "c9e7c9e2c21fd679ddae37df03bed7e6777505e0467a84555df4ba595c2b137f"
+          ],
+          "proof_caveat": "Local RFC 9162-style proof over HeliX event canonical JSON leaves."
+        },
+        "external_anchor": null,
+        "checks": {
+          "cloud_calls_completed": true,
+          "cloud_model_metadata_captured": true,
+          "provider_mismatch_auditable": true,
+          "cloud_outputs_signed_into_memory": true,
+          "cloud_memory_hash_profile_v2": true,
+          "signed_poison_not_semantic_authority": true,
+          "cloud_panel_inclusion_verified": true,
+          "append_only_consistency_verified": true,
+          "standalone_verifier_bundle_passes": true,
+          "catalog_dag_coverage_verified": true
+        },
+        "claim_boundary": "HeliX emits locally verifiable attestations for agentic runs. This proves local inclusion and append-only consistency against signed local STHs; it does not prove model semantic truth or global non-equivocation."
+      }
+    }
+  },
+  "claim_boundary": "HeliX emits locally verifiable attestations for agentic runs. This proves local inclusion and append-only consistency against signed local STHs; it does not prove model semantic truth or global non-equivocation."
+}

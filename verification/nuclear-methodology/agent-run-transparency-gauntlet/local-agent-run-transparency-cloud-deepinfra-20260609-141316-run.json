@@ -1,0 +1,32 @@
+﻿{
+    "artifact":  "local-agent-run-transparency-cloud-deepinfra-run",
+    "generated_by":  "tools/run_agent_run_transparency_cloud_deepinfra_secure.ps1",
+    "started_at":  "2026-06-09T14:13:16.8289108-03:00",
+    "ended_at":  "2026-06-09T14:13:45.1874758-03:00",
+    "duration_s":  28.359,
+    "exit_code":  0,
+    "passed":  true,
+    "run_id":  "cloud-deepinfra-20260609-141316",
+    "models":  [
+                   "Qwen/Qwen3.6-35B-A3B",
+                   "deepseek-ai/DeepSeek-V3",
+                   "meta-llama/Llama-3.3-70B-Instruct"
+               ],
+    "tokens_per_model":  450,
+    "temperature_milli":  200,
+    "timeout_s":  240,
+    "log_path":  "C:\\Users\\Big Duck\\proyectos\\helix-backend-repo\\verification\\nuclear-methodology\\agent-run-transparency-gauntlet\\local-agent-run-transparency-cloud-deepinfra-20260609-141316.log",
+    "log_sha256":  "3f39577043bcff3a85855262d678d8007f36654c4b69699b5315475d9fb24b78",
+    "log_bytes":  1612,
+    "artifact_path":  "C:\\Users\\Big Duck\\proyectos\\helix-backend-repo\\verification\\nuclear-methodology\\agent-run-transparency-gauntlet\\local-agent-run-transparency-cloud-deepinfra-v1-cloud-deepinfra-20260609-141316.json",
+    "artifact_sha256":  "901a7563dce768ecc8935fd1811189a7d4ee55d3053a9d430e93dd145a0fd867",
+    "extract_markdown_path":  "C:\\Users\\Big Duck\\proyectos\\helix-backend-repo\\verification\\nuclear-methodology\\agent-run-transparency-gauntlet\\local-agent-run-transparency-cloud-deepinfra-v1-cloud-deepinfra-20260609-141316-extract.md",
+    "standalone_bundle_path":  "C:\\Users\\Big Duck\\proyectos\\helix-backend-repo\\verification\\nuclear-methodology\\agent-run-transparency-gauntlet\\local-agent-run-transparency-cloud-deepinfra-v1-cloud-deepinfra-20260609-141316-bundle.json",
+    "standalone_bundle_sha256":  "22144902828eb78054d03f2a13c42d769f76991908ce7c7d181934e8a88cb186",
+    "token_handling":  {
+                           "token_prompt_hidden":  true,
+                           "token_written_to_disk":  false,
+                           "api_key_persisted":  false
+                       },
+    "claim_boundary":  "Cloud DeepInfra evidence proves local attestability of observed calls, not model semantic truth or global non-equivocation."
+}

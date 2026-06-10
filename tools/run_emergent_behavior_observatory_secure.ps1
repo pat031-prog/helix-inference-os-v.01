@@ -1,10 +1,11 @@
 param(
-    [string]$Models = "anthropic/claude-4-sonnet,Qwen/Qwen3.6-35B-A3B,stepfun-ai/Step-3.5-Flash,google/gemma-4-31B-it",
+    [string]$Models = "anthropic/claude-4-sonnet,Qwen/Qwen3.6-35B-A3B,google/gemma-4-31B-it,deepseek-ai/DeepSeek-V3,meta-llama/Llama-3.3-70B-Instruct,mistralai/Mixtral-8x7B-Instruct-v0.1",
     [string]$AnalystModel = "Qwen/Qwen3.6-35B-A3B",
-    [string]$AuditorModel = "zai-org/GLM-5.1",
+    [string]$AuditorModel = "anthropic/claude-4-sonnet",
     [int]$Rounds = 12,
-    [int]$TokensPerTurn = 700,
-    [int]$AnalysisTokens = 2200,
+    [int]$TokensPerTurn = 900,
+    [int]$AnalysisTokens = 3200,
+    [int]$ContextLimit = 6,
     [string]$OutputDir = "verification/nuclear-methodology/emergent-behavior-observatory",
     [string]$RunId = ""
 )
@@ -53,6 +54,9 @@ foreach ($model in $Models.Split(",")) {
 }
 Assert-DeepInfraModelRef -Name "AnalystModel" -Value $AnalystModel
 Assert-DeepInfraModelRef -Name "AuditorModel" -Value $AuditorModel
+if ($ContextLimit -lt 3) {
+    throw "ContextLimit must be at least 3."
+}
 
 $previous = @{
     DEEPINFRA_API_TOKEN = $env:DEEPINFRA_API_TOKEN
@@ -94,6 +98,7 @@ try {
     Write-Host "[helix] Rounds: $Rounds"
     Write-Host "[helix] Tokens per turn: $TokensPerTurn"
     Write-Host "[helix] Analysis tokens: $AnalysisTokens"
+    Write-Host "[helix] Context limit: $ContextLimit"
     Write-Host "[helix] Output dir: $verificationDir"
 
     $pyArgs = @(
@@ -105,6 +110,7 @@ try {
         "--rounds", [string]$Rounds,
         "--tokens-per-turn", [string]$TokensPerTurn,
         "--analysis-tokens", [string]$AnalysisTokens,
+        "--context-limit", [string]$ContextLimit,
         "--run-id", $RunId
     )
 
@@ -147,6 +153,7 @@ try {
         rounds = $Rounds
         tokens_per_turn = $TokensPerTurn
         analysis_tokens = $AnalysisTokens
+        context_limit = $ContextLimit
         exit_code = $exitCode
         passed = ($exitCode -eq 0)
         log_path = $logPath
